@@ -1,0 +1,28 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?  // Nullable if using only social login, but usually needed
+  firstName String?
+  lastName  String?
+  roles     String[] @default(["FREELANCER"]) // FREELANCER, CLIENT, ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Profile fields can be in a separate table or here. Let's keep it simple for now.
+  headline  String?
+  bio       String?
+  hourlyRate Decimal?
+  
+  // Relations will be added later (Jobs, Proposals, etc.)
+}

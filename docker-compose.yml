@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Core Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: freelance_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: freelance_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - freelance_network
+
+  # Keycloak - IAM
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: freelance_keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Redis - Cache
+  redis:
+    image: redis:7-alpine
+    container_name: freelance_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - freelance_network
+
+  # MongoDB - Chat & Notifications
+  mongo:
+    image: mongo:7
+    container_name: freelance_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - freelance_network
+
+  # Kong - API Gateway (DB-less mode for simplicity initially, or with DB)
+  # Using DB-less for quick start, or we can use Postgres. Let's use DB-less for now or standard.
+  # For a robust setup, let's use Kong with Postgres (sharing the same instance or a new DB).
+  # To keep it simple for MVP startup, let's use Kong in dbless mode or just standard with a prepared DB.
+  # Actually, for startup speed, let's use Kong with a declarative config if possible, or just standard.
+  # Let's stick to a simple setup: Kong needs a DB migration.
+  # For now, I will comment out Kong to avoid complex migration scripts in the first step.
+  # We can add Kong later when we have services to route to.
+  
+  # kong:
+  #   image: kong:3.6
+  #   container_name: freelance_kong
+  #   environment:
+  #     KONG_DATABASE: postgres
+  #     KONG_PG_HOST: postgres
+  #     KONG_PG_USER: admin
+  #     KONG_PG_PASSWORD: password
+  #     KONG_PROXY_ACCESS_LOG: /dev/stdout
+  #     KONG_ADMIN_ACCESS_LOG: /dev/stdout
+  #     KONG_PROXY_ERROR_LOG: /dev/stderr
+  #     KONG_ADMIN_ERROR_LOG: /dev/stderr
+  #     KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+  #   ports:
+  #     - "8000:8000"
+  #     - "8443:8443"
+  #     - "127.0.0.1:8001:8001"
+  #     - "127.0.0.1:8444:8444"
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - freelance_network
+
+networks:
+  freelance_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
