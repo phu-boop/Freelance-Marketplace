@@ -1,0 +1,22 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["proposals"]
+}
+
+model Proposal {
+  id          String   @id @default(uuid())
+  job_id      String   // Job ID from Job Service
+  freelancer_id String // User ID from User Service
+  coverLetter String
+  bidAmount   Decimal
+  status      String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, WITHDRAWN
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@schema("proposals")
+}

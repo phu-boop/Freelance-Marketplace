@@ -1,0 +1,174 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: user-service
+    url: http://user-service:3000
+    routes:
+      - name: user-routes
+        paths:
+          - /users
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: job-service
+    url: http://job-service:3002
+    routes:
+      - name: job-routes
+        paths:
+          - /jobs
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: proposal-service
+    url: http://proposal-service:3003
+    routes:
+      - name: proposal-routes
+        paths:
+          - /proposals
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: contract-service
+    url: http://contract-service:3004
+    routes:
+      - name: contract-routes
+        paths:
+          - /contracts
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: payment-service
+    url: http://payment-service:3005
+    routes:
+      - name: payment-routes
+        paths:
+          - /payments
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: chat-service
+    url: http://chat-service:3006
+    routes:
+      - name: chat-routes
+        paths:
+          - /chats
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: notification-service
+    url: http://notification-service:3007
+    routes:
+      - name: notification-routes
+        paths:
+          - /notifications
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: review-service
+    url: http://review-service:3008
+    routes:
+      - name: review-routes
+        paths:
+          - /reviews
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: admin-service
+    url: http://admin-service:3009
+    routes:
+      - name: admin-routes
+        paths:
+          - /admins
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: search-service
+    url: http://search-service:3010
+    routes:
+      - name: search-routes
+        paths:
+          - /search
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: analytics-service
+    url: http://analytics-service:3011
+    routes:
+      - name: analytics-routes
+        paths:
+          - /analytics
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+
+consumers:
+  - username: keycloak-user
+    jwt_secrets:
+      - key: "http://keycloak:8080/realms/freelance-marketplace"
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyjLQxxPmDkuU/I5CySrogRuST6SeVJMc530Pabjv6EPEUx4z+SUfHGaVQCxYYWGQ2e/LyCg1CIv7/JGtn/iCsdAH4iXoAJDgOWZEi/nUX4k9/U8xtTXrIz+KqCYRzYr1U5Us1er+NyCSLVTyYQQHa1rotQIbJ9gGFIRrN9wMMljsoyWRNuqPrmBvWcc/Cc5Xf1PGeIpp/X6Izi1FnYzJTsbAgdUFzA8rmEJtQwW2hYbVWfRe3IsrYy944l2vVYoFDeimuD7mrslr5LEauocWoIRvlKBxSWgbfdWTH1qsLQxy5YCXdRJWhbLHOJk6rpjXjb5S5UFWoCblV0pShM13+wIDAQAB
+          -----END PUBLIC KEY-----
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PATCH
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - Authorization
+      exposed_headers:
+        - X-Auth-Token
+      credentials: true
+      max_age: 3600
+  - name: rate-limiting
+    config:
+      minute: 100
+      policy: local

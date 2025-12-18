@@ -1,0 +1,25 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["contracts"]
+}
+
+model Contract {
+  id            String   @id @default(uuid())
+  job_id        String   // Job ID from Job Service
+  freelancer_id String   // User ID from User Service
+  client_id     String   // User ID from User Service
+  proposal_id   String   // Proposal ID from Proposal Service
+  totalAmount   Decimal
+  status        String   @default("ACTIVE") // ACTIVE, COMPLETED, TERMINATED, DISPUTED
+  startDate     DateTime @default(now())
+  endDate       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("contracts")
+}

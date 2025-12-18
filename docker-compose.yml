@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL - Core Database
   postgres:
@@ -40,7 +38,7 @@ services:
     image: redis:7-alpine
     container_name: freelance_redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - freelance_network
 
@@ -66,29 +64,269 @@ services:
   # Let's stick to a simple setup: Kong needs a DB migration.
   # For now, I will comment out Kong to avoid complex migration scripts in the first step.
   # We can add Kong later when we have services to route to.
-  
-  # kong:
-  #   image: kong:3.6
-  #   container_name: freelance_kong
-  #   environment:
-  #     KONG_DATABASE: postgres
-  #     KONG_PG_HOST: postgres
-  #     KONG_PG_USER: admin
-  #     KONG_PG_PASSWORD: password
-  #     KONG_PROXY_ACCESS_LOG: /dev/stdout
-  #     KONG_ADMIN_ACCESS_LOG: /dev/stdout
-  #     KONG_PROXY_ERROR_LOG: /dev/stderr
-  #     KONG_ADMIN_ERROR_LOG: /dev/stderr
-  #     KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
-  #   ports:
-  #     - "8000:8000"
-  #     - "8443:8443"
-  #     - "127.0.0.1:8001:8001"
-  #     - "127.0.0.1:8444:8444"
-  #   depends_on:
-  #     - postgres
-  #   networks:
-  #     - freelance_network
+
+  # Kong - API Gateway (DB-less mode)
+  kong:
+    image: kong:3.6
+    container_name: freelance_kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+    volumes:
+      - ./kong.yml:/usr/local/kong/declarative/kong.yml
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:8444:8444"
+    networks:
+      - freelance_network
+
+  # User Service
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: freelance_user_service
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=public
+      - PORT=3000
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Job Service
+  job-service:
+    build:
+      context: ./services/job-service
+      dockerfile: Dockerfile
+    container_name: freelance_job_service
+    ports:
+      - "3002:3002"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
+      - PORT=3002
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Proposal Service
+  proposal-service:
+    build:
+      context: ./services/proposal-service
+      dockerfile: Dockerfile
+    container_name: freelance_proposal_service
+    ports:
+      - "3003:3003"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=proposals&options=-c%20search_path%3Dproposals
+      - PORT=3003
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Contract Service
+  contract-service:
+    build:
+      context: ./services/contract-service
+      dockerfile: Dockerfile
+    container_name: freelance_contract_service
+    ports:
+      - "3004:3004"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=contracts&options=-c%20search_path%3Dcontracts
+      - PORT=3004
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Chat Service
+  chat-service:
+    build:
+      context: ./services/chat-service
+      dockerfile: Dockerfile
+    container_name: freelance_chat_service
+    ports:
+      - "3006:3006"
+    environment:
+      - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_chat?authSource=admin
+      - PORT=3006
+    depends_on:
+      - mongo
+    networks:
+      - freelance_network
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: freelance_notification_service
+    ports:
+      - "3007:3007"
+    environment:
+      - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_notifications?authSource=admin
+      - PORT=3007
+    depends_on:
+      - mongo
+    networks:
+      - freelance_network
+
+  # Review Service
+  review-service:
+    build:
+      context: ./services/review-service
+      dockerfile: Dockerfile
+    container_name: freelance_review_service
+    ports:
+      - "3008:3008"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=reviews&options=-c%20search_path%3Dreviews
+      - PORT=3008
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Admin Service
+  admin-service:
+    build:
+      context: ./services/admin-service
+      dockerfile: Dockerfile
+    container_name: freelance_admin_service
+    ports:
+      - "3009:3009"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=admin&options=-c%20search_path%3Dadmin
+      - PORT=3009
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Search Service
+  search-service:
+    build:
+      context: ./services/search-service
+      dockerfile: Dockerfile
+    container_name: freelance_search_service
+    ports:
+      - "3010:3010"
+    environment:
+      - ELASTICSEARCH_NODE=http://elasticsearch:9200
+      - PORT=3010
+    depends_on:
+      - elasticsearch
+    networks:
+      - freelance_network
+
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: freelance_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    networks:
+      - freelance_network
+
+  # Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: freelance_kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - freelance_network
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+      dockerfile: Dockerfile
+    container_name: freelance_analytics_service
+    ports:
+      - "3011:3011"
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_USER=admin
+      - CLICKHOUSE_PASSWORD=password
+      - CLICKHOUSE_DB=freelance_analytics
+      - PORT=3011
+    depends_on:
+      - clickhouse
+    networks:
+      - freelance_network
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: freelance_clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - CLICKHOUSE_DB=freelance_analytics
+      - CLICKHOUSE_USER=admin
+      - CLICKHOUSE_PASSWORD=password
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - freelance_network
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: freelance_payment_service
+    ports:
+      - "3005:3005"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/freelance_db?currentSchema=payments
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=password
+    depends_on:
+      - postgres
+    networks:
+      - freelance_network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: freelance_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+      - NEXT_PUBLIC_KEYCLOAK_REALM=freelance-marketplace
+      - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=freelance-client
+    depends_on:
+      - keycloak
+      - kong
+    networks:
+      - freelance_network
 
 networks:
   freelance_network:
@@ -97,3 +335,4 @@ networks:
 volumes:
   postgres_data:
   mongo_data:
+  elasticsearch_data:

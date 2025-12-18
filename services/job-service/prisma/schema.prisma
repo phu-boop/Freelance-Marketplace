@@ -1,0 +1,26 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["jobs"]
+}
+
+model Job {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  budget      Decimal?
+  client_id   String   // User ID from User Service
+  status      String   @default("OPEN") // OPEN, IN_PROGRESS, COMPLETED, CLOSED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Metadata for search
+  skills      String[]
+  category    String?
+
+  @@schema("jobs")
+}
