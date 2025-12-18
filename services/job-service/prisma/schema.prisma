@@ -14,13 +14,44 @@ model Job {
   description String
   budget      Decimal?
   client_id   String   // User ID from User Service
-  status      String   @default("OPEN") // OPEN, IN_PROGRESS, COMPLETED, CLOSED
+  status      String   @default("PENDING_APPROVAL") // PENDING_APPROVAL, OPEN, IN_PROGRESS, COMPLETED, CLOSED, REJECTED
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Metadata for search
-  skills      String[]
-  category    String?
+  // Relations
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  skills      JobSkill[]
+  
+  // Advanced fields
+  type        String   @default("FIXED_PRICE") // FIXED_PRICE, HOURLY
+  attachments String[] // URLs to files
 
+  @@schema("jobs")
+}
+
+model Category {
+  id    String @id @default(uuid())
+  name  String @unique
+  jobs  Job[]
+
+  @@schema("jobs")
+}
+
+model Skill {
+  id    String @id @default(uuid())
+  name  String @unique
+  jobs  JobSkill[]
+
+  @@schema("jobs")
+}
+
+model JobSkill {
+  jobId   String
+  skillId String
+  job     Job   @relation(fields: [jobId], references: [id])
+  skill   Skill @relation(fields: [skillId], references: [id])
+
+  @@id([jobId, skillId])
   @@schema("jobs")
 }

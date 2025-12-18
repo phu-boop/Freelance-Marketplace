@@ -1,0 +1,110 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: freelance-ingress
+  namespace: freelance-marketplace
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: freelance.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+      - path: /api/users
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 3001
+      - path: /api/jobs
+        pathType: Prefix
+        backend:
+          service:
+            name: job-service
+            port:
+              number: 3002
+      - path: /api/proposals
+        pathType: Prefix
+        backend:
+          service:
+            name: proposal-service
+            port:
+              number: 3003
+      - path: /api/contracts
+        pathType: Prefix
+        backend:
+          service:
+            name: contract-service
+            port:
+              number: 3004
+      - path: /api/payments
+        pathType: Prefix
+        backend:
+          service:
+            name: payment-service
+            port:
+              number: 3005
+      - path: /api/reviews
+        pathType: Prefix
+        backend:
+          service:
+            name: review-service
+            port:
+              number: 3008
+      - path: /api/notifications
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 3007
+      - path: /api/chats
+        pathType: Prefix
+        backend:
+          service:
+            name: chat-service
+            port:
+              number: 3006
+      - path: /api/email
+        pathType: Prefix
+        backend:
+          service:
+            name: email-service
+            port:
+              number: 3012
+      - path: /api/storage
+        pathType: Prefix
+        backend:
+          service:
+            name: storage-service
+            port:
+              number: 3011
+      - path: /api/search
+        pathType: Prefix
+        backend:
+          service:
+            name: search-service
+            port:
+              number: 3010
+      - path: /api/admin
+        pathType: Prefix
+        backend:
+          service:
+            name: admin-service
+            port:
+              number: 3009
+      - path: /api/analytics
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-service
+            port:
+              number: 8000

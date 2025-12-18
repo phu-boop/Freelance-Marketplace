@@ -16,13 +16,63 @@ model User {
   firstName String?
   lastName  String?
   roles     String[] @default(["FREELANCER"]) // FREELANCER, CLIENT, ADMIN
+  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, BANNED
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Profile fields can be in a separate table or here. Let's keep it simple for now.
-  headline  String?
-  bio       String?
-  hourlyRate Decimal?
+  // Profile fields
+  title       String?  // Professional Title
+  overview    String?  // Detailed Bio
+  hourlyRate  Decimal?
+  skills      String[]
   
-  // Relations will be added later (Jobs, Proposals, etc.)
+  // KYC
+  kycStatus   String   @default("PENDING") // PENDING, VERIFIED, REJECTED
+  idDocument  String?  // URL to ID document
+
+  // Reputation
+  rating          Decimal  @default(0.0)
+  reviewCount     Int      @default(0)
+  jobSuccessScore Int      @default(100)
+
+  // Relations
+  education   Education[]
+  experience  Experience[]
+  portfolio   PortfolioItem[]
+}
+
+model Education {
+  id           String   @id @default(uuid())
+  institution  String
+  degree       String
+  fieldOfStudy String
+  startDate    DateTime
+  endDate      DateTime?
+  description  String?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model Experience {
+  id           String   @id @default(uuid())
+  company      String
+  title        String
+  location     String?
+  startDate    DateTime
+  endDate      DateTime?
+  current      Boolean  @default(false)
+  description  String?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model PortfolioItem {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  imageUrl     String
+  projectUrl   String?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
 }

@@ -1,0 +1,37 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["payments"]
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  balance   Decimal  @default(0.00)
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+
+  @@schema("payments")
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  walletId    String
+  amount      Decimal
+  type        String   // DEPOSIT, WITHDRAWAL, PAYMENT, FEE
+  status      String   // PENDING, COMPLETED, FAILED
+  referenceId String?  // e.g., Stripe Payment ID
+  description String?
+  createdAt   DateTime @default(now())
+  
+  wallet      Wallet   @relation(fields: [walletId], references: [id])
+
+  @@schema("payments")
+}

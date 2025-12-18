@@ -21,5 +21,24 @@ model Contract {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Dispute
+  disputeStatus String?  // OPEN, RESOLVED
+  disputeReason String?
+
+  // Relations
+  milestones    Milestone[]
+
+  @@schema("contracts")
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  description String
+  amount      Decimal
+  status      String   @default("PENDING") // PENDING, ACTIVE, COMPLETED
+  dueDate     DateTime?
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id])
+  
   @@schema("contracts")
 }

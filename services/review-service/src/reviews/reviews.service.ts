@@ -1,16 +1,35 @@
 import { Injectable } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 
 @Injectable()
 export class ReviewsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private httpService: HttpService
+    ) { }
 
-    create(createReviewDto: CreateReviewDto) {
-        return this.prisma.review.create({
+    async create(createReviewDto: CreateReviewDto) {
+        const review = await this.prisma.review.create({
             data: createReviewDto,
         });
+
+        // Trigger user stats update
+        try {
+            await firstValueFrom(
+                this.httpService.post(`http://localhost:3001/users/${createReviewDto.reviewee_id}/stats`, {
+                    rating: createReviewDto.rating
+                })
+            );
+        } catch (error) {
+            console.error('Failed to update user stats:', error.message);
+            // We don't want to fail the review creation if stats update fails
+        }
+
+        return review;
     }
 
     findAll() {

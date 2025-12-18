@@ -310,6 +310,32 @@ services:
     networks:
       - freelance_network
 
+  # MinIO - Object Storage (S3 Compatible)
+  minio:
+    image: minio/minio
+    container_name: freelance_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - freelance_network
+
+  # Mailhog - Email Testing
+  mailhog:
+    image: mailhog/mailhog
+    container_name: freelance_mailhog
+    ports:
+      - "1025:1025" # SMTP port
+      - "8025:8025" # Web UI
+    networks:
+      - freelance_network
+
   # Frontend
   frontend:
     build:
@@ -336,3 +362,4 @@ volumes:
   postgres_data:
   mongo_data:
   elasticsearch_data:
+  minio_data:

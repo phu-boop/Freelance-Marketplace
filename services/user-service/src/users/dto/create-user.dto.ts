@@ -23,13 +23,17 @@ export class CreateUserDto {
 
     @IsString()
     @IsOptional()
-    headline?: string;
+    title?: string;
 
     @IsString()
     @IsOptional()
-    bio?: string;
+    overview?: string;
 
     @IsNumber()
     @IsOptional()
     hourlyRate?: number;
+
+    @IsArray()
+    @IsOptional()
+    skills?: string[];
 }

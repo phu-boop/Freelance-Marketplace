@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, IsUUID } from 'class-validator';
 
 export class CreateJobDto {
     @IsString()
@@ -18,11 +18,20 @@ export class CreateJobDto {
     client_id: string;
 
     @IsArray()
-    @IsString({ each: true })
+    @IsUUID('4', { each: true })
     @IsOptional()
-    skills?: string[];
+    skillIds?: string[];
+
+    @IsUUID()
+    @IsOptional()
+    categoryId?: string;
 
     @IsString()
     @IsOptional()
-    category?: string;
+    type?: string;
+
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    attachments?: string[];
 }

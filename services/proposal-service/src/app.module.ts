@@ -1,12 +1,23 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { TerminusModule } from '@nestjs/terminus';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ProposalsModule } from './proposals/proposals.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
-  imports: [ProposalsModule, PrismaModule],
-  controllers: [AppController],
+  imports: [
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 10,
+    }]),
+    TerminusModule,
+    ProposalsModule,
+    PrismaModule
+  ],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

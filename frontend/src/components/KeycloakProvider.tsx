@@ -7,6 +7,7 @@ interface KeycloakContextType {
     authenticated: boolean;
     token: string | null;
     username: string | null;
+    userId: string | null;
     login: () => void;
     logout: () => void;
 }
@@ -17,6 +18,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     const [authenticated, setAuthenticated] = useState(false);
     const [token, setToken] = useState<string | null>(null);
     const [username, setUsername] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
 
     useEffect(() => {
         if (keycloak) {
@@ -31,6 +33,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                     if (auth && keycloak) {
                         setToken(keycloak.token || null);
                         setUsername(keycloak.tokenParsed?.preferred_username || null);
+                        setUserId(keycloak.subject || null);
                     }
                 })
                 .catch((err) => {
@@ -43,7 +46,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     const logout = () => keycloak?.logout();
 
     return (
-        <KeycloakContext.Provider value={{ authenticated, token, username, login, logout }}>
+        <KeycloakContext.Provider value={{ authenticated, token, username, userId, login, logout }}>
             {children}
         </KeycloakContext.Provider>
     );

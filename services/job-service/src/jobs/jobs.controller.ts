@@ -31,4 +31,36 @@ export class JobsController {
   remove(@Param('id') id: string) {
     return this.jobsService.remove(id);
   }
+
+  @Post(':id/approve')
+  approveJob(@Param('id') id: string) {
+    return this.jobsService.approveJob(id);
+  }
+
+  @Post(':id/reject')
+  rejectJob(@Param('id') id: string) {
+    return this.jobsService.rejectJob(id);
+  }
+
+  // Categories
+  @Post('categories')
+  createCategory(@Body('name') name: string) {
+    return this.jobsService.createCategory(name);
+  }
+
+  @Get('categories')
+  findAllCategories() {
+    return this.jobsService.findAllCategories();
+  }
+
+  // Skills
+  @Post('skills')
+  createSkill(@Body('name') name: string) {
+    return this.jobsService.createSkill(name);
+  }
+
+  @Get('skills')
+  findAllSkills() {
+    return this.jobsService.findAllSkills();
+  }
 }

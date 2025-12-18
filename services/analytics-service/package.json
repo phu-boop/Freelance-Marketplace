@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@nestjs/terminus": "^11.0.0",
+    "@nestjs/throttler": "^6.5.0",
+    "helmet": "^8.1.0"
+  }
+}

@@ -39,4 +39,29 @@ export class AdminsController {
     remove(@Param('id') id: string) {
         return this.adminsService.remove(id);
     }
+
+    @Get('metrics')
+    getSystemMetrics() {
+        return this.adminsService.getSystemMetrics();
+    }
+
+    @Post('jobs/:id/approve')
+    approveJob(@Param('id') id: string) {
+        return this.adminsService.approveJob(id);
+    }
+
+    @Post('jobs/:id/reject')
+    rejectJob(@Param('id') id: string) {
+        return this.adminsService.rejectJob(id);
+    }
+
+    @Post('users/:id/suspend')
+    suspendUser(@Param('id') id: string) {
+        return this.adminsService.suspendUser(id);
+    }
+
+    @Post('users/:id/ban')
+    banUser(@Param('id') id: string) {
+        return this.adminsService.banUser(id);
+    }
 }

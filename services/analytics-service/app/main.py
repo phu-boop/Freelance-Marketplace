@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import clickhouse_connect
@@ -8,6 +9,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI(title="Analytics Service")
+
+# Security
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+async def health_check():
+    try:
+        client.command("SELECT 1")
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 # ClickHouse Client
 client = clickhouse_connect.get_client(

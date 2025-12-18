@@ -31,4 +31,24 @@ export class ContractsController {
   remove(@Param('id') id: string) {
     return this.contractsService.remove(id);
   }
+
+  @Post(':id/milestones')
+  addMilestone(@Param('id') id: string, @Body() milestoneData: any) {
+    return this.contractsService.addMilestone(id, milestoneData);
+  }
+
+  @Post(':id/submit')
+  submitWork(@Param('id') id: string, @Body() submissionData: { milestoneId: string; attachments: string[] }) {
+    return this.contractsService.submitWork(id, submissionData);
+  }
+
+  @Post(':id/approve')
+  approveWork(@Param('id') id: string, @Body() approvalData: { milestoneId: string }) {
+    return this.contractsService.approveWork(id, approvalData);
+  }
+
+  @Post(':id/dispute')
+  disputeContract(@Param('id') id: string, @Body() disputeData: { reason: string }) {
+    return this.contractsService.disputeContract(id, disputeData.reason);
+  }
 }

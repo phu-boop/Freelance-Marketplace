@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freelance-config
+  namespace: freelance-marketplace
+data:
+  ALLOWED_ORIGINS: "*"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  ELASTICSEARCH_NODE: "http://elasticsearch:9200"
+  MONGODB_URI: "mongodb://mongodb:27017/freelance"
+  CLICKHOUSE_HOST: "clickhouse"
+  CLICKHOUSE_PORT: "8123"
+  MINIO_ENDPOINT: "minio"
+  MINIO_PORT: "9000"
