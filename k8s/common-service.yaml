@@ -1,36 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: analytics-service
+  name: common-service
   namespace: freelance-marketplace
   labels:
-    app: analytics-service
+    app: common-service
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: analytics-service
+      app: common-service
   template:
     metadata:
       labels:
-        app: analytics-service
+        app: common-service
     spec:
       containers:
-      - name: analytics-service
-        image: user/freelance-analytics-service:latest
+      - name: common-service
+        image: user/freelance-common-service:latest
         ports:
-        - containerPort: 3014
+        - containerPort: 3013
         env:
-        - name: CLICKHOUSE_HOST
+        - name: PORT
+          value: "3013"
+        - name: DATABASE_URL
           valueFrom:
-            configMapKeyRef:
-              name: freelance-config
-              key: CLICKHOUSE_HOST
-        - name: CLICKHOUSE_PORT
-          valueFrom:
-            configMapKeyRef:
-              name: freelance-config
-              key: CLICKHOUSE_PORT
+            secretKeyRef:
+              name: db-secrets
+              key: common-db-url
         - name: ALLOWED_ORIGINS
           valueFrom:
             configMapKeyRef:
@@ -39,13 +36,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 3014
+            port: 3013
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 3014
+            port: 3013
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
@@ -59,12 +56,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: analytics-service
+  name: common-service
   namespace: freelance-marketplace
 spec:
   selector:
-    app: analytics-service
+    app: common-service
   ports:
-  - port: 3014
-    targetPort: 3014
+  - port: 3013
+    targetPort: 3013
   type: ClusterIP

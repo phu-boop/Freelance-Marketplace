@@ -4,7 +4,6 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN npx prisma generate
 
 # Build stage
 FROM base AS build
@@ -16,7 +15,6 @@ WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package*.json ./
-COPY --from=build /app/prisma ./prisma
 
-EXPOSE 3003
+EXPOSE 3000
 CMD ["node", "dist/src/main.js"]

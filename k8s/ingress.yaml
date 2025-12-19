@@ -107,4 +107,11 @@ spec:
           service:
             name: analytics-service
             port:
-              number: 8000
+              number: 3014
+      - path: /api/common
+        pathType: Prefix
+        backend:
+          service:
+            name: common-service
+            port:
+              number: 3013
