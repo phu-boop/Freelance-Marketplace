@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { UpdateProposalDto } from './dto/update-proposal.dto';
@@ -13,7 +13,12 @@ export class ProposalsController {
   }
 
   @Get()
-  findAll() {
+  findAll(
+    @Query('freelancerId') freelancerId?: string,
+    @Query('jobId') jobId?: string,
+  ) {
+    if (freelancerId) return this.proposalsService.findByFreelancer(freelancerId);
+    if (jobId) return this.proposalsService.findByJob(jobId);
     return this.proposalsService.findAll();
   }
 

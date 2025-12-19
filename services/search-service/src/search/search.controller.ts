@@ -16,8 +16,13 @@ export class SearchController {
     }
 
     @Get('jobs')
-    async searchJobs(@Query('q') query: string) {
-        return this.searchService.searchJobs(query);
+    async searchJobs(
+        @Query('q') query: string,
+        @Query('types') types?: string,
+        @Query('levels') levels?: string,
+        @Query('minSalary') minSalary?: string,
+    ) {
+        return this.searchService.searchJobs(query, { types, levels, minSalary });
     }
 
     @Get('users')

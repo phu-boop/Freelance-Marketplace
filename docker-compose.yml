@@ -281,7 +281,7 @@ services:
     container_name: freelance_clickhouse
     ports:
       - "8123:8123"
-      - "9000:9000"
+      - "9002:9000"
     environment:
       - CLICKHOUSE_DB=freelance_analytics
       - CLICKHOUSE_USER=admin

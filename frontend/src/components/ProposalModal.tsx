@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Loader2, CheckCircle2 } from 'lucide-react';
 import api from '@/lib/api';
+import { useKeycloak } from '@/components/KeycloakProvider';
 
 interface ProposalModalProps {
     isOpen: boolean;
@@ -13,6 +14,7 @@ interface ProposalModalProps {
 }
 
 export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModalProps) {
+    const { userId } = useKeycloak();
     const [coverLetter, setCoverLetter] = useState('');
     const [bidAmount, setBidAmount] = useState('');
     const [loading, setLoading] = useState(false);
@@ -27,8 +29,9 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModa
         try {
             await api.post('/proposals', {
                 job_id: jobId,
-                cover_letter: coverLetter,
-                bid_amount: parseFloat(bidAmount),
+                freelancer_id: userId,
+                coverLetter: coverLetter,
+                bidAmount: parseFloat(bidAmount),
             });
             setSuccess(true);
             setTimeout(() => {

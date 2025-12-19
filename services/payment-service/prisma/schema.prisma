@@ -16,6 +16,11 @@ model Wallet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Auto-withdrawal
+  autoWithdrawalEnabled   Boolean @default(false)
+  autoWithdrawalThreshold Decimal?
+  autoWithdrawalSchedule  String? // DAILY, WEEKLY, MONTHLY
+
   transactions Transaction[]
 
   @@schema("payments")
@@ -25,13 +30,74 @@ model Transaction {
   id          String   @id @default(uuid())
   walletId    String
   amount      Decimal
-  type        String   // DEPOSIT, WITHDRAWAL, PAYMENT, FEE
+  feeAmount   Decimal  @default(0.0)
+  taxAmount   Decimal  @default(0.0)
+  type        String   // DEPOSIT, WITHDRAWAL, PAYMENT, FEE, CONNECTS_PURCHASE
   status      String   // PENDING, COMPLETED, FAILED
   referenceId String?  // e.g., Stripe Payment ID
   description String?
   createdAt   DateTime @default(now())
   
   wallet      Wallet   @relation(fields: [walletId], references: [id])
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+  invoiceId   String?
+
+  @@schema("payments")
+}
+
+model Invoice {
+  id            String   @id @default(uuid())
+  invoiceNumber String   @unique
+  senderId      String   // User ID (Freelancer or Platform)
+  receiverId    String   // User ID (Client)
+  amount        Decimal
+  taxAmount     Decimal  @default(0.0)
+  currency      String   @default("USD")
+  status        String   @default("UNPAID") // UNPAID, PAID, VOID, OVERDUE
+  dueDate       DateTime?
+  paidAt        DateTime?
+  items         Json     // Array of { description, quantity, unitPrice, total }
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  transactions  Transaction[]
+
+  @@schema("payments")
+}
+
+model ConnectsHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  amount    Int      // Positive for purchase/refund, negative for usage
+  type      String   // PURCHASE, USAGE, REFUND, BONUS
+  reason    String?  // e.g., "Applied to Job ID: 123"
+  createdAt DateTime @default(now())
+
+  @@schema("payments")
+}
+
+model TaxSetting {
+  id          String   @id @default(uuid())
+  countryCode String   @unique // e.g., "VN", "US"
+  taxRate     Decimal  // e.g., 0.10 for 10%
+  name        String   // e.g., "VAT", "GST"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@schema("payments")
+}
+
+model WithdrawalMethod {
+  id            String   @id @default(uuid())
+  userId        String
+  type          String   // BANK_ACCOUNT, PAYPAL
+  provider      String?  // e.g., "Vietcombank"
+  accountNumber String
+  accountName   String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@schema("payments")
 }

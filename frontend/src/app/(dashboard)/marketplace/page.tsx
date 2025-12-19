@@ -35,16 +35,29 @@ export default function JobsPage() {
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchJobs = async (query = '') => {
+    // Filter states
+    const [filters, setFilters] = useState({
+        types: [] as string[],
+        levels: [] as string[],
+        minSalary: 0
+    });
+
+    const fetchJobs = async () => {
         setLoading(true);
         try {
-            const response = await api.get(`/search/jobs?q=${query}`);
+            const params = new URLSearchParams();
+            if (searchQuery) params.append('q', searchQuery);
+            if (filters.types.length > 0) params.append('types', filters.types.join(','));
+            if (filters.levels.length > 0) params.append('levels', filters.levels.join(','));
+            if (filters.minSalary > 0) params.append('minSalary', filters.minSalary.toString());
+
+            const response = await api.get(`/search/jobs?${params.toString()}`);
             setJobs(response.data);
             setError(null);
         } catch (err) {
             console.error('Failed to fetch jobs', err);
             setError('Failed to load jobs. Please try again later.');
-            // Fallback to mock data for demonstration if API fails
+            // Fallback to mock data
             setJobs([
                 {
                     id: '1',
@@ -65,11 +78,11 @@ export default function JobsPage() {
 
     useEffect(() => {
         fetchJobs();
-    }, []);
+    }, [filters]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchJobs(searchQuery);
+        fetchJobs();
     };
 
     return (
@@ -106,7 +119,17 @@ export default function JobsPage() {
                         <div className="space-y-2">
                             {['Full-time', 'Contract', 'Part-time', 'Freelance'].map((type) => (
                                 <label key={type} className="flex items-center gap-3 cursor-pointer group">
-                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20" />
+                                    <input
+                                        type="checkbox"
+                                        checked={filters.types.includes(type)}
+                                        onChange={(e) => {
+                                            const newTypes = e.target.checked
+                                                ? [...filters.types, type]
+                                                : filters.types.filter(t => t !== type);
+                                            setFilters({ ...filters, types: newTypes });
+                                        }}
+                                        className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
+                                    />
                                     <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{type}</span>
                                 </label>
                             ))}
@@ -118,7 +141,17 @@ export default function JobsPage() {
                         <div className="space-y-2">
                             {['Entry Level', 'Intermediate', 'Senior', 'Expert'].map((level) => (
                                 <label key={level} className="flex items-center gap-3 cursor-pointer group">
-                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20" />
+                                    <input
+                                        type="checkbox"
+                                        checked={filters.levels.includes(level)}
+                                        onChange={(e) => {
+                                            const newLevels = e.target.checked
+                                                ? [...filters.levels, level]
+                                                : filters.levels.filter(l => l !== level);
+                                            setFilters({ ...filters, levels: newLevels });
+                                        }}
+                                        className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500/20"
+                                    />
                                     <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{level}</span>
                                 </label>
                             ))}
@@ -126,10 +159,18 @@ export default function JobsPage() {
                     </div>
 
                     <div className="space-y-4 pt-6 border-t border-slate-800">
-                        <h3 className="font-semibold text-white">Salary Range</h3>
-                        <input type="range" className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                        <h3 className="font-semibold text-white">Min Salary ($)</h3>
+                        <input
+                            type="range"
+                            min="0"
+                            max="200000"
+                            step="5000"
+                            value={filters.minSalary}
+                            onChange={(e) => setFilters({ ...filters, minSalary: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
                         <div className="flex justify-between text-xs text-slate-500">
-                            <span>$0</span>
+                            <span>${filters.minSalary.toLocaleString()}</span>
                             <span>$200k+</span>
                         </div>
                     </div>

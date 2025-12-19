@@ -15,8 +15,10 @@ import {
     Upload
 } from 'lucide-react';
 import api from '@/lib/api';
+import { useKeycloak } from '@/components/KeycloakProvider';
 
 export default function PostJobPage() {
+    const { userId } = useKeycloak();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -85,6 +87,7 @@ export default function PostJobPage() {
                 title: formData.title,
                 description: formData.description,
                 budget: parseFloat(formData.budget),
+                client_id: userId,
                 location: formData.location,
                 type: formData.type,
                 skills: formData.skills,

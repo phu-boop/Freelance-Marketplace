@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
@@ -15,6 +15,33 @@ export class JobsController {
   @Get()
   findAll() {
     return this.jobsService.findAll();
+  }
+
+  @Get('my-jobs')
+  findByClient(@Query('clientId') clientId: string) {
+    return this.jobsService.findByClient(clientId);
+  }
+
+  // Categories
+  @Post('categories')
+  createCategory(@Body('name') name: string) {
+    return this.jobsService.createCategory(name);
+  }
+
+  @Get('categories')
+  findAllCategories() {
+    return this.jobsService.findAllCategories();
+  }
+
+  // Skills
+  @Post('skills')
+  createSkill(@Body('name') name: string) {
+    return this.jobsService.createSkill(name);
+  }
+
+  @Get('skills')
+  findAllSkills() {
+    return this.jobsService.findAllSkills();
   }
 
   @Get(':id')
@@ -42,25 +69,23 @@ export class JobsController {
     return this.jobsService.rejectJob(id);
   }
 
-  // Categories
-  @Post('categories')
-  createCategory(@Body('name') name: string) {
-    return this.jobsService.createCategory(name);
+  @Post(':id/close')
+  closeJob(@Param('id') id: string) {
+    return this.jobsService.closeJob(id);
   }
 
-  @Get('categories')
-  findAllCategories() {
-    return this.jobsService.findAllCategories();
+  @Post(':id/lock')
+  lockJob(@Param('id') id: string) {
+    return this.jobsService.lockJob(id);
   }
 
-  // Skills
-  @Post('skills')
-  createSkill(@Body('name') name: string) {
-    return this.jobsService.createSkill(name);
+  @Post(':id/unlock')
+  unlockJob(@Param('id') id: string) {
+    return this.jobsService.unlockJob(id);
   }
 
-  @Get('skills')
-  findAllSkills() {
-    return this.jobsService.findAllSkills();
+  @Post(':id/duplicate')
+  duplicateJob(@Param('id') id: string) {
+    return this.jobsService.duplicateJob(id);
   }
 }

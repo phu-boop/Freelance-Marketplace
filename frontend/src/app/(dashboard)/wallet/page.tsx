@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Wallet, ArrowUpRight, ArrowDownLeft, History, Loader2, Plus } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, History, Loader2, Plus, FileText } from 'lucide-react';
+import Link from 'next/link';
 import DepositModal from '@/components/DepositModal';
+import WithdrawalModal from '@/components/WithdrawalModal';
 
 interface Transaction {
     id: string;
@@ -27,6 +29,7 @@ export default function WalletPage() {
     const [wallet, setWallet] = useState<WalletData | null>(null);
     const [loading, setLoading] = useState(true);
     const [isDepositOpen, setIsDepositOpen] = useState(false);
+    const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
 
     const fetchWallet = async () => {
         if (!userId) return;
@@ -82,7 +85,10 @@ export default function WalletPage() {
                                 <Plus className="w-5 h-5" />
                                 Deposit
                             </button>
-                            <button className="px-6 py-3 bg-blue-700/50 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors border border-blue-400/30">
+                            <button
+                                onClick={() => setIsWithdrawOpen(true)}
+                                className="px-6 py-3 bg-blue-700/50 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors border border-blue-400/30"
+                            >
                                 Withdraw
                             </button>
                         </div>
@@ -129,10 +135,19 @@ export default function WalletPage() {
                                             <p className="text-sm text-slate-500">{new Date(tx.createdAt).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                    <div className={`text-lg font-bold ${tx.type === 'DEPOSIT' ? 'text-green-500' :
-                                        tx.type === 'WITHDRAWAL' ? 'text-white' : 'text-white'
-                                        }`}>
-                                        {tx.type === 'DEPOSIT' ? '+' : '-'}${Number(tx.amount).toFixed(2)}
+                                    <div className="flex items-center gap-4">
+                                        <div className={`text-lg font-bold ${tx.type === 'DEPOSIT' ? 'text-green-500' :
+                                            tx.type === 'WITHDRAWAL' ? 'text-white' : 'text-white'
+                                            }`}>
+                                            {tx.type === 'DEPOSIT' ? '+' : '-'}${Number(tx.amount).toFixed(2)}
+                                        </div>
+                                        <Link
+                                            href={`/wallet/invoices/${tx.id}`}
+                                            className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-all"
+                                            title="View Invoice"
+                                        >
+                                            <FileText className="w-4 h-4" />
+                                        </Link>
                                     </div>
                                 </div>
                             ))}
@@ -149,6 +164,13 @@ export default function WalletPage() {
                 isOpen={isDepositOpen}
                 onClose={() => setIsDepositOpen(false)}
                 onSuccess={fetchWallet}
+            />
+
+            <WithdrawalModal
+                isOpen={isWithdrawOpen}
+                onClose={() => setIsWithdrawOpen(false)}
+                onSuccess={fetchWallet}
+                balance={Number(wallet?.balance || 0)}
             />
         </div>
     );

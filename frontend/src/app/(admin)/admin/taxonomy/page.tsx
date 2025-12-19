@@ -74,6 +74,26 @@ export default function AdminTaxonomyPage() {
         }
     };
 
+    const handleDeleteCategory = async (id: string) => {
+        if (!confirm('Delete this category?')) return;
+        try {
+            await api.delete(`/jobs/categories/${id}`);
+            fetchData();
+        } catch (error) {
+            console.error('Failed to delete category', error);
+        }
+    };
+
+    const handleDeleteSkill = async (id: string) => {
+        if (!confirm('Delete this skill?')) return;
+        try {
+            await api.delete(`/jobs/skills/${id}`);
+            fetchData();
+        } catch (error) {
+            console.error('Failed to delete skill', error);
+        }
+    };
+
     return (
         <div className="space-y-8">
             <div className="space-y-1">
@@ -114,7 +134,10 @@ export default function AdminTaxonomyPage() {
                             {categories.map((cat) => (
                                 <div key={cat.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800/50 group hover:border-blue-500/30 transition-all">
                                     <span className="text-slate-300">{cat.name}</span>
-                                    <button className="p-2 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                                    <button
+                                        onClick={() => handleDeleteCategory(cat.id)}
+                                        className="p-2 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
                                         <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -155,7 +178,10 @@ export default function AdminTaxonomyPage() {
                             {skills.map((skill) => (
                                 <div key={skill.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950 border border-slate-800 group hover:border-purple-500/30 transition-all">
                                     <span className="text-sm text-slate-300">{skill.name}</span>
-                                    <button className="text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                                    <button
+                                        onClick={() => handleDeleteSkill(skill.id)}
+                                        className="text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
                                         <Trash2 className="w-3 h-3" />
                                     </button>
                                 </div>

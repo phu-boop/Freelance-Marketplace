@@ -3,23 +3,33 @@
 import React from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { useKeycloak } from '@/components/KeycloakProvider';
-import { redirect } from 'next/navigation';
 import { NotificationBell } from '@/components/NotificationBell';
+import { OnboardingModal } from '@/components/OnboardingModal';
+import api from '@/lib/api';
 
 export default function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const { authenticated } = useKeycloak();
+    const { authenticated, userId } = useKeycloak();
+    const [showOnboarding, setShowOnboarding] = React.useState(false);
 
-    // Simple client-side protection
-    // In a real app, you'd handle this with middleware or a more robust solution
     React.useEffect(() => {
-        if (!authenticated) {
-            // redirect('/'); // Commented out for now to allow development without constant login
-        }
-    }, [authenticated]);
+        const checkOnboarding = async () => {
+            if (authenticated && userId) {
+                try {
+                    const response = await api.get(`/users/${userId}`);
+                    if (!response.data.firstName) {
+                        setShowOnboarding(true);
+                    }
+                } catch (error) {
+                    console.error('Failed to check onboarding status', error);
+                }
+            }
+        };
+        checkOnboarding();
+    }, [authenticated, userId]);
 
     return (
         <div className="flex min-h-screen bg-slate-950">
@@ -36,6 +46,13 @@ export default function DashboardLayout({
                     {children}
                 </div>
             </main>
+            {userId && (
+                <OnboardingModal
+                    isOpen={showOnboarding}
+                    userId={userId}
+                    onComplete={() => setShowOnboarding(false)}
+                />
+            )}
         </div>
     );
 }

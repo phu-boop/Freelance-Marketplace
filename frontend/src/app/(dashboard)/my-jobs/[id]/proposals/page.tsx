@@ -34,7 +34,7 @@ export default function JobProposalsPage() {
     useEffect(() => {
         const fetchProposals = async () => {
             try {
-                const response = await api.get(`/jobs/${params.id}/proposals`);
+                const response = await api.get(`/proposals?jobId=${params.id}`);
                 setProposals(response.data);
             } catch (err) {
                 console.error('Failed to fetch proposals', err);

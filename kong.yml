@@ -123,11 +123,47 @@ services:
           claims_to_verify:
             - exp
   - name: analytics-service
-    url: http://analytics-service:3011
+    url: http://analytics-service:3014
     routes:
       - name: analytics-routes
         paths:
           - /analytics
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: storage-service
+    url: http://storage-service:3011
+    routes:
+      - name: storage-routes
+        paths:
+          - /storage
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: common-service
+    url: http://common-service:3013
+    routes:
+      - name: common-routes
+        paths:
+          - /common
+        strip_path: false
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+  - name: email-service
+    url: http://email-service:3012
+    routes:
+      - name: email-routes
+        paths:
+          - /email
         strip_path: false
     plugins:
       - name: jwt

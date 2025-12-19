@@ -21,6 +21,9 @@ async function bootstrap() {
     transform: true,
   }));
 
-  await app.listen(process.env.PORT ?? 3013);
+  const { AllExceptionsFilter } = require('./filters/all-exceptions.filter');
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

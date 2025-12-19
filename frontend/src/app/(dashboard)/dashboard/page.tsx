@@ -9,8 +9,12 @@ import {
     Star,
     ArrowUpRight,
     TrendingUp,
-    User
+    User,
+    FileText
 } from 'lucide-react';
+import { useKeycloak } from '@/components/KeycloakProvider';
+import api from '@/lib/api';
+import Link from 'next/link';
 
 const stats = [
     { label: 'Active Contracts', value: '12', icon: Briefcase, color: 'text-blue-500', bg: 'bg-blue-500/10' },
@@ -26,13 +30,34 @@ const recentActivity = [
 ];
 
 export default function DashboardPage() {
+    const { userId } = useKeycloak();
+    const [user, setUser] = React.useState<any>(null);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        const fetchUser = async () => {
+            if (!userId) return;
+            try {
+                const res = await api.get(`/users/${userId}`);
+                setUser(res.data);
+            } catch (err) {
+                console.error('Failed to fetch user', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchUser();
+    }, [userId]);
+
     return (
         <div className="space-y-8">
             {/* Welcome Section */}
             <div className="flex justify-between items-end">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-                    <p className="text-slate-400 mt-1">Here's what's happening with your projects today.</p>
+                    <p className="text-slate-400 mt-1">
+                        {loading ? 'Loading...' : `Welcome back, ${user?.firstName || 'User'}! Here's what's happening today.`}
+                    </p>
                 </div>
                 <button className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2">
                     Browse Jobs <ArrowUpRight className="w-4 h-4" />
@@ -104,28 +129,38 @@ export default function DashboardPage() {
                             <div className="relative">
                                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 p-1">
                                     <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center overflow-hidden">
-                                        <User className="w-8 h-8 text-slate-400" />
+                                        {user?.avatarUrl ? (
+                                            <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-8 h-8 text-slate-400" />
+                                        )}
                                     </div>
                                 </div>
                                 <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-4 border-slate-900 rounded-full" />
                             </div>
                             <div>
-                                <div className="font-bold text-white">John Doe</div>
-                                <div className="text-sm text-slate-400">Full Stack Developer</div>
+                                <div className="font-bold text-white">{user?.firstName} {user?.lastName}</div>
+                                <div className="text-sm text-slate-400">{user?.title || 'User'}</div>
                             </div>
                         </div>
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-400">Completeness</span>
-                                <span className="text-blue-400 font-medium">85%</span>
+                                <span className="text-blue-400 font-medium">{user?.completionPercentage || 0}%</span>
                             </div>
                             <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-600 w-[85%]" />
+                                <div
+                                    className="h-full bg-blue-600 transition-all duration-500"
+                                    style={{ width: `${user?.completionPercentage || 0}%` }}
+                                />
                             </div>
                         </div>
-                        <button className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-all">
-                            Edit Profile
-                        </button>
+                        <Link
+                            href="/profile"
+                            className="block w-full py-2 bg-slate-800 hover:bg-slate-700 text-white text-center rounded-lg text-sm font-medium transition-all"
+                        >
+                            View Profile
+                        </Link>
                     </div>
                 </div>
             </div>
@@ -133,5 +168,3 @@ export default function DashboardPage() {
     );
 }
 
-// Helper icons (re-importing for clarity in the file)
-import { FileText } from 'lucide-react';

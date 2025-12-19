@@ -21,14 +21,34 @@ export class SearchService {
         });
     }
 
-    async searchJobs(query: string) {
-        const result = await this.elasticsearchService.search({
-            index: 'jobs',
-            query: {
+    async searchJobs(query: string, filters?: { types?: string, levels?: string, minSalary?: string }) {
+        const must: any[] = [];
+        if (query) {
+            must.push({
                 multi_match: {
                     query,
                     fields: ['title', 'description', 'skills'],
                 },
+            });
+        } else {
+            must.push({ match_all: {} });
+        }
+
+        const filter: any[] = [];
+        if (filters?.types) {
+            filter.push({ terms: { type: filters.types.split(',') } });
+        }
+        if (filters?.levels) {
+            filter.push({ terms: { experienceLevel: filters.levels.split(',') } });
+        }
+        if (filters?.minSalary) {
+            filter.push({ range: { salaryMin: { gte: parseInt(filters.minSalary) } } });
+        }
+
+        const result = await this.elasticsearchService.search({
+            index: 'jobs',
+            query: {
+                bool: { must, filter },
             },
         });
         return result.hits.hits.map((hit) => hit._source);

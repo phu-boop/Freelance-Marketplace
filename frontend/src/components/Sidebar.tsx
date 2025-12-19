@@ -20,9 +20,9 @@ import { cn } from '@/lib/utils';
 
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-    { icon: Search, label: 'Find Jobs', href: '/jobs' },
+    { icon: Search, label: 'Find Jobs', href: '/marketplace' },
     { icon: Briefcase, label: 'My Jobs', href: '/my-jobs' },
-    { icon: PlusCircle, label: 'Post a Job', href: '/jobs/create' },
+    { icon: PlusCircle, label: 'Post a Job', href: '/marketplace/create' },
     { icon: FileText, label: 'My Proposals', href: '/proposals' },
     { icon: Briefcase, label: 'My Contracts', href: '/contracts' },
     { icon: MessageSquare, label: 'Messages', href: '/messages' },

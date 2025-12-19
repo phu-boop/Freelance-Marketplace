@@ -35,26 +35,27 @@ export class ChatGateway
         console.log(`Client disconnected: ${client.id}`);
     }
 
+    @SubscribeMessage('joinRoom')
+    handleJoinRoom(
+        @MessageBody() data: { senderId: string; receiverId: string },
+        @ConnectedSocket() client: Socket,
+    ) {
+        const room = [data.senderId, data.receiverId].sort().join('_');
+        client.join(room);
+        console.log(`Client ${client.id} joined room ${room}`);
+    }
+
     @SubscribeMessage('sendMessage')
     async handleMessage(
         @MessageBody() data: { senderId: string; receiverId: string; content: string; contractId?: string },
         @ConnectedSocket() client: Socket,
     ) {
         const message = await this.chatsService.create(data);
+        const room = [data.senderId, data.receiverId].sort().join('_');
 
-        // Emit to the specific receiver if they are online (simple implementation)
-        // In a real app, you'd map userId to socketId
-        this.server.emit('newMessage', message);
+        // Emit to the specific room
+        this.server.to(room).emit('newMessage', message);
 
         return message;
-    }
-
-    @SubscribeMessage('joinRoom')
-    handleJoinRoom(
-        @MessageBody() data: { userId: string },
-        @ConnectedSocket() client: Socket,
-    ) {
-        client.join(data.userId);
-        console.log(`User ${data.userId} joined room`);
     }
 }

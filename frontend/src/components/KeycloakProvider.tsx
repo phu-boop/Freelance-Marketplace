@@ -8,6 +8,7 @@ interface KeycloakContextType {
     token: string | null;
     username: string | null;
     userId: string | null;
+    roles: string[];
     login: () => void;
     logout: () => void;
 }
@@ -19,6 +20,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     const [token, setToken] = useState<string | null>(null);
     const [username, setUsername] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
+    const [roles, setRoles] = useState<string[]>([]);
 
     useEffect(() => {
         if (keycloak) {
@@ -34,6 +36,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                         setToken(keycloak.token || null);
                         setUsername(keycloak.tokenParsed?.preferred_username || null);
                         setUserId(keycloak.subject || null);
+                        setRoles(keycloak.realmAccess?.roles || []);
                     }
                 })
                 .catch((err) => {
@@ -46,7 +49,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     const logout = () => keycloak?.logout();
 
     return (
-        <KeycloakContext.Provider value={{ authenticated, token, username, userId, login, logout }}>
+        <KeycloakContext.Provider value={{ authenticated, token, username, userId, roles, login, logout }}>
             {children}
         </KeycloakContext.Provider>
     );

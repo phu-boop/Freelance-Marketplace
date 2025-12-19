@@ -20,3 +20,68 @@ model Admin {
   @@map("admins")
   @@schema("admin")
 }
+
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_configs")
+  @@schema("admin")
+}
+
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g., "WELCOME_EMAIL", "JOB_APPROVED"
+  subject   String
+  body      String   // HTML content with placeholders
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("email_templates")
+  @@schema("admin")
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String   // INFO, WARN, ERROR
+  service   String
+  message   String
+  metadata  Json?
+  timestamp DateTime @default(now())
+
+  @@map("system_logs")
+  @@schema("admin")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  adminId     String
+  action      String   // e.g., "SUSPEND_USER", "APPROVE_JOB"
+  entityType  String   // e.g., "USER", "JOB", "CONTRACT"
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+  @@schema("admin")
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  reporterId  String
+  targetId    String   // ID of the user or job being reported
+  type        String   // USER, JOB
+  reason      String
+  status      String   @default("OPEN") // OPEN, RESOLVED, DISMISSED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("reports")
+  @@schema("admin")
+}

@@ -17,6 +17,46 @@ export class CreateUserDto {
     @IsOptional()
     lastName?: string;
 
+    @IsString()
+    @IsOptional()
+    avatarUrl?: string;
+
+    @IsString()
+    @IsOptional()
+    phone?: string;
+
+    @IsString()
+    @IsOptional()
+    address?: string;
+
+    @IsString()
+    @IsOptional()
+    country?: string;
+
+    @IsString()
+    @IsOptional()
+    timezone?: string;
+
+    @IsString()
+    @IsOptional()
+    language?: string;
+
+    @IsString()
+    @IsOptional()
+    companyName?: string;
+
+    @IsString()
+    @IsOptional()
+    companySize?: string;
+
+    @IsString()
+    @IsOptional()
+    industry?: string;
+
+    @IsString()
+    @IsOptional()
+    website?: string;
+
     @IsArray()
     @IsOptional()
     roles?: string[];

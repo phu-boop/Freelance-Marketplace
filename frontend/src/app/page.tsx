@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   Rocket,
@@ -55,9 +55,10 @@ export default function LandingPage() {
               </span>
             </div>
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
-              <a href="#" className="hover:text-white transition-colors">Find Work</a>
-              <a href="#" className="hover:text-white transition-colors">Hire Talent</a>
-              <a href="#" className="hover:text-white transition-colors">Enterprise</a>
+              <Link href="/jobs" className="hover:text-white transition-colors">Find Work</Link>
+              <Link href="/jobs" className="hover:text-white transition-colors">Hire Talent</Link>
+              <Link href="/categories" className="hover:text-white transition-colors">Categories</Link>
+              <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
             </div>
             <div className="flex items-center gap-4">
               {authenticated ? (
@@ -108,9 +109,9 @@ export default function LandingPage() {
               <button className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full font-semibold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20">
                 Get Started <ArrowRight className="w-5 h-5" />
               </button>
-              <button className="w-full sm:w-auto px-8 py-4 bg-slate-800 hover:bg-slate-700 rounded-full font-semibold transition-all">
+              <Link href="/pricing" className="w-full sm:w-auto px-8 py-4 bg-slate-800 hover:bg-slate-700 rounded-full font-semibold transition-all text-center">
                 Learn More
-              </button>
+              </Link>
             </div>
           </motion.div>
 
@@ -192,9 +193,10 @@ export default function LandingPage() {
             <span className="font-bold">FreelanceHub</span>
           </div>
           <div className="flex gap-8 text-sm text-slate-500">
-            <a href="#" className="hover:text-white">Privacy</a>
-            <a href="#" className="hover:text-white">Terms</a>
-            <a href="#" className="hover:text-white">Contact</a>
+            <Link href="/categories" className="hover:text-white">Categories</Link>
+            <Link href="/pricing" className="hover:text-white">Pricing</Link>
+            <Link href="/rules" className="hover:text-white">Rules & Regulations</Link>
+            <a href="mailto:support@freelancehub.com" className="hover:text-white">Contact</a>
           </div>
           <div className="text-sm text-slate-500">
             © 2025 FreelanceHub. All rights reserved.

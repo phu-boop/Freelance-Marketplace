@@ -6,9 +6,11 @@ import { AppService } from './app.service';
 import { ProposalsModule } from './proposals/proposals.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './health/health.controller';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{
       ttl: 60000,
       limit: 10,
