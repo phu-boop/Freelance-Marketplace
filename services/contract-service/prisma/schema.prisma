@@ -32,6 +32,8 @@ model Contract {
   milestones    Milestone[]
   timeLogs      TimeLog[]
   disputes      Dispute[]
+  disputeStatus String?
+  disputeReason String?
 
   @@schema("contracts")
 }

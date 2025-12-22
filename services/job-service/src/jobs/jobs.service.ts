@@ -193,7 +193,8 @@ export class JobsService {
 
   // Taxonomy - Categories
   createCategory(name: string) {
-    return this.prisma.category.create({ data: { name } });
+    const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+    return this.prisma.category.create({ data: { name, slug } });
   }
 
   findAllCategories() {

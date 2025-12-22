@@ -11,6 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: always
     networks:
       - freelance_network
 
@@ -30,6 +31,7 @@ services:
       - "8080:8080"
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -39,6 +41,7 @@ services:
     container_name: freelance_redis
     ports:
       - "6380:6379"
+    restart: always
     networks:
       - freelance_network
 
@@ -53,6 +56,7 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    restart: always
     networks:
       - freelance_network
 
@@ -84,6 +88,7 @@ services:
       - "8443:8443"
       - "127.0.0.1:8001:8001"
       - "127.0.0.1:8444:8444"
+    restart: always
     networks:
       - freelance_network
 
@@ -100,6 +105,7 @@ services:
       - PORT=3000
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -116,6 +122,7 @@ services:
       - PORT=3002
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -132,6 +139,7 @@ services:
       - PORT=3003
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -148,6 +156,7 @@ services:
       - PORT=3004
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -164,6 +173,7 @@ services:
       - PORT=3006
     depends_on:
       - mongo
+    restart: always
     networks:
       - freelance_network
 
@@ -180,6 +190,7 @@ services:
       - PORT=3007
     depends_on:
       - mongo
+    restart: always
     networks:
       - freelance_network
 
@@ -196,6 +207,7 @@ services:
       - PORT=3008
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -212,6 +224,7 @@ services:
       - PORT=3009
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -228,6 +241,7 @@ services:
       - PORT=3010
     depends_on:
       - elasticsearch
+    restart: always
     networks:
       - freelance_network
 
@@ -241,6 +255,7 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
+    restart: always
     networks:
       - freelance_network
 
@@ -254,6 +269,7 @@ services:
       - "5601:5601"
     depends_on:
       - elasticsearch
+    restart: always
     networks:
       - freelance_network
 
@@ -274,6 +290,7 @@ services:
       - PORT=3014
     depends_on:
       - clickhouse
+    restart: always
     networks:
       - freelance_network
   clickhouse:
@@ -290,6 +307,7 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    restart: always
     networks:
       - freelance_network
 
@@ -306,6 +324,7 @@ services:
       - PORT=3005
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -322,6 +341,7 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    restart: always
     networks:
       - freelance_network
 
@@ -332,6 +352,7 @@ services:
     ports:
       - "1025:1025" # SMTP port
       - "8025:8025" # Web UI
+    restart: always
     networks:
       - freelance_network
 
@@ -347,6 +368,7 @@ services:
       - PORT=3012
       - EMAIL_USER=user@example.com
       - EMAIL_PASS=password
+    restart: always
     networks:
       - freelance_network
 
@@ -366,6 +388,7 @@ services:
       - MINIO_SECRET_KEY=password
     depends_on:
       - minio
+    restart: always
     networks:
       - freelance_network
 
@@ -382,6 +405,7 @@ services:
       - PORT=3013
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -402,6 +426,7 @@ services:
       - kong
       - user-service
       - job-service
+    restart: always
     networks:
       - freelance_network
 
