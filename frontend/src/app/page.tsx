@@ -15,7 +15,7 @@ import {
 import { useKeycloak } from '@/components/KeycloakProvider';
 
 export default function LandingPage() {
-  const { authenticated, username, login, logout } = useKeycloak();
+  const { authenticated, username, login, logout, register } = useKeycloak();
 
   const features = [
     {
@@ -72,12 +72,20 @@ export default function LandingPage() {
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={login}
-                  className="px-6 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 rounded-full transition-all shadow-lg shadow-blue-600/20"
-                >
-                  Sign In
-                </button>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={login}
+                    className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                  >
+                    Sign In
+                  </button>
+                  <Link
+                    href="/register"
+                    className="px-6 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 rounded-full transition-all shadow-lg shadow-blue-600/20"
+                  >
+                    Register
+                  </Link>
+                </div>
               )}
             </div>
           </div>
@@ -106,9 +114,21 @@ export default function LandingPage() {
               we help you build your dream team and scale your business.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <button className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full font-semibold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20">
-                Get Started <ArrowRight className="w-5 h-5" />
-              </button>
+              {authenticated ? (
+                <Link
+                  href="/jobs"
+                  className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full font-semibold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20"
+                >
+                  Dashboard <ArrowRight className="w-5 h-5" />
+                </Link>
+              ) : (
+                <Link
+                  href="/register"
+                  className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full font-semibold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20"
+                >
+                  Get Started <ArrowRight className="w-5 h-5" />
+                </Link>
+              )}
               <Link href="/pricing" className="w-full sm:w-auto px-8 py-4 bg-slate-800 hover:bg-slate-700 rounded-full font-semibold transition-all text-center">
                 Learn More
               </Link>
@@ -173,9 +193,21 @@ export default function LandingPage() {
             <p className="text-blue-100 mb-10 max-w-xl mx-auto">
               Join thousands of freelancers and clients who are already building the future of work on our platform.
             </p>
-            <button className="px-10 py-4 bg-white text-blue-600 rounded-full font-bold hover:bg-blue-50 transition-all shadow-xl">
-              Create Free Account
-            </button>
+            {authenticated ? (
+              <Link
+                href="/jobs"
+                className="px-10 py-4 bg-white text-blue-600 rounded-full font-bold hover:bg-blue-50 transition-all shadow-xl inline-block"
+              >
+                Explore Marketplace
+              </Link>
+            ) : (
+              <Link
+                href="/register"
+                className="px-10 py-4 bg-white text-blue-600 rounded-full font-bold hover:bg-blue-50 transition-all shadow-xl inline-block"
+              >
+                Create Free Account
+              </Link>
+            )}
           </div>
           {/* Decorative elements */}
           <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />

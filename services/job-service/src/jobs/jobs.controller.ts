@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { CreateCategoryDto } from '../categories/create-category.dto';
 
 @Controller('jobs')
 export class JobsController {
@@ -13,8 +14,11 @@ export class JobsController {
   }
 
   @Get()
-  findAll() {
-    return this.jobsService.findAll();
+  findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.jobsService.findAll(Number(page), Number(limit));
   }
 
   @Get('my-jobs')
@@ -24,8 +28,8 @@ export class JobsController {
 
   // Categories
   @Post('categories')
-  createCategory(@Body('name') name: string) {
-    return this.jobsService.createCategory(name);
+  createCategory(@Body() createCategoryDto: CreateCategoryDto) {
+    return this.jobsService.createCategory(createCategoryDto);
   }
 
   @Get('categories')

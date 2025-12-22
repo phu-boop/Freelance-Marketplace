@@ -9,8 +9,9 @@ interface KeycloakContextType {
     username: string | null;
     userId: string | null;
     roles: string[];
-    login: () => void;
+    login: (options?: any) => void;
     logout: () => void;
+    register: (options?: any) => void;
 }
 
 const KeycloakContext = createContext<KeycloakContextType | null>(null);
@@ -46,11 +47,12 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
         }
     }, []);
 
-    const login = () => keycloak?.login();
+    const login = (options?: any) => keycloak?.login(options);
     const logout = () => keycloak?.logout();
+    const register = (options?: any) => keycloak?.register(options);
 
     return (
-        <KeycloakContext.Provider value={{ authenticated, token, username, userId, roles, login, logout }}>
+        <KeycloakContext.Provider value={{ authenticated, token, username, userId, roles, login, logout, register }}>
             {children}
         </KeycloakContext.Provider>
     );

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { CreateCategoryDto } from '../categories/create-category.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -46,17 +47,33 @@ export class JobsService {
     });
   }
 
-  findAll() {
-    return this.prisma.job.findMany({
-      include: {
-        category: true,
-        skills: {
-          include: {
-            skill: true
+  async findAll(page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit;
+    const [total, results] = await Promise.all([
+      this.prisma.job.count(),
+      this.prisma.job.findMany({
+        skip,
+        take: limit,
+        include: {
+          category: true,
+          skills: {
+            include: {
+              skill: true
+            }
           }
+        },
+        orderBy: {
+          createdAt: 'desc'
         }
-      }
-    });
+      })
+    ]);
+
+    return {
+      total,
+      page,
+      limit,
+      results
+    };
   }
 
   findByClient(clientId: string) {
@@ -192,13 +209,24 @@ export class JobsService {
   }
 
   // Taxonomy - Categories
-  createCategory(name: string) {
+  createCategory(createCategoryDto: CreateCategoryDto) {
+    const { name, parentId } = createCategoryDto;
     const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
-    return this.prisma.category.create({ data: { name, slug } });
+    return this.prisma.category.create({
+      data: {
+        name,
+        slug,
+        parentId: parentId || null
+      }
+    });
   }
 
   findAllCategories() {
-    return this.prisma.category.findMany();
+    return this.prisma.category.findMany({
+      include: {
+        children: true
+      }
+    });
   }
 
   // Taxonomy - Skills

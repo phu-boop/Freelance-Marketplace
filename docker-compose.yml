@@ -29,6 +29,8 @@ services:
     command: start-dev
     ports:
       - "8080:8080"
+    volumes:
+      - ./keycloak/themes:/opt/keycloak/themes
     depends_on:
       - postgres
     restart: always
@@ -103,6 +105,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=public
       - PORT=3000
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_ADMIN_USER=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
     depends_on:
       - postgres
     restart: always

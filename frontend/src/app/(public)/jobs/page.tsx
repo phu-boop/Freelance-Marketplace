@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
     Search,
@@ -11,7 +12,8 @@ import {
     Briefcase,
     ChevronRight,
     Loader2,
-    ArrowLeft
+    ArrowLeft,
+    ChevronLeft
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -39,50 +41,79 @@ export default function PublicJobsPage() {
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchJobs = async (query = '') => {
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [itemsPerPage] = useState(10);
+
+    // Filter states
+    const [filters, setFilters] = useState({
+        location: '',
+        minSalary: '',
+        maxSalary: '',
+        types: [] as string[],
+        levels: [] as string[]
+    });
+
+    const fetchJobs = async (query = searchQuery, page = currentPage, currentFilters = filters) => {
         setLoading(true);
         try {
-            const response = await api.get(`/search/jobs?q=${query}`);
-            setJobs(response.data);
+            let url = `/search/jobs?q=${query}&page=${page}&limit=${itemsPerPage}`;
+            if (currentFilters.location) url += `&location=${encodeURIComponent(currentFilters.location)}`;
+            if (currentFilters.minSalary) url += `&minSalary=${currentFilters.minSalary}`;
+            if (currentFilters.maxSalary) url += `&maxSalary=${currentFilters.maxSalary}`;
+            if (currentFilters.types.length) url += `&types=${currentFilters.types.join(',')}`;
+            if (currentFilters.levels.length) url += `&levels=${currentFilters.levels.join(',')}`;
+
+            const response = await api.get(url);
+            // Check if response has pagination wrapper
+            if (response.data.results) {
+                setJobs(response.data.results);
+                setTotalItems(response.data.total);
+            } else {
+                setJobs(response.data || []);
+                setTotalItems(response.data?.length || 0);
+            }
             setError(null);
         } catch (err) {
             console.error('Failed to fetch jobs', err);
             setError('Failed to load jobs. Please try again later.');
-            // Fallback to mock data
-            setJobs([
-                {
-                    id: '1',
-                    title: 'Senior React Developer',
-                    company: 'TechFlow Inc.',
-                    location: 'Remote',
-                    salary: '$80 - $120 / hr',
-                    type: 'Full-time',
-                    posted: '2 hours ago',
-                    description: 'We are looking for an experienced React developer to lead our frontend team in building a next-generation SaaS platform.',
-                    skills: ['React', 'TypeScript', 'Next.js', 'Tailwind CSS']
-                }
-            ]);
+            setJobs([]);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchJobs();
-    }, []);
+        fetchJobs(searchQuery, currentPage, filters);
+    }, [currentPage]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchJobs(searchQuery);
+        setCurrentPage(1);
+        fetchJobs(searchQuery, 1, filters);
     };
 
+    const handleFilterChange = (key: keyof typeof filters, value: any) => {
+        const newFilters = { ...filters, [key]: value };
+        setFilters(newFilters);
+        setCurrentPage(1);
+        fetchJobs(searchQuery, 1, newFilters);
+    };
+
+    const toggleFilter = (key: 'types' | 'levels', value: string) => {
+        const current = filters[key];
+        const newValues = current.includes(value)
+            ? current.filter(t => t !== value)
+            : [...current, value];
+        handleFilterChange(key, newValues);
+    };
+
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    const router = useRouter();
     const handleJobClick = (job: Job) => {
-        if (!authenticated) {
-            login();
-            return;
-        }
-        setSelectedJob(job);
-        setIsModalOpen(true);
+        router.push(`/jobs/${job.id}`);
     };
 
     return (
@@ -140,7 +171,12 @@ export default function PublicJobsPage() {
                                 <div className="space-y-2">
                                     {['Full-time', 'Contract', 'Part-time', 'Freelance'].map((type) => (
                                         <label key={type} className="flex items-center gap-3 cursor-pointer group">
-                                            <input type="checkbox" className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-blue-600 focus:ring-blue-500/20" />
+                                            <input
+                                                type="checkbox"
+                                                checked={filters.types.includes(type)}
+                                                onChange={() => toggleFilter('types', type)}
+                                                className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-blue-600 focus:ring-blue-500/20"
+                                            />
                                             <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{type}</span>
                                         </label>
                                     ))}
@@ -152,12 +188,74 @@ export default function PublicJobsPage() {
                                 <div className="space-y-2">
                                     {['Entry Level', 'Intermediate', 'Senior', 'Expert'].map((level) => (
                                         <label key={level} className="flex items-center gap-3 cursor-pointer group">
-                                            <input type="checkbox" className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-blue-600 focus:ring-blue-500/20" />
+                                            <input
+                                                type="checkbox"
+                                                checked={filters.levels.includes(level)}
+                                                onChange={() => toggleFilter('levels', level)}
+                                                className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-blue-600 focus:ring-blue-500/20"
+                                            />
                                             <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{level}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
+
+                            <div className="space-y-4 pt-6 border-t border-slate-800">
+                                <h3 className="font-semibold text-white">Location</h3>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                    <input
+                                        type="text"
+                                        placeholder="Remote, USA..."
+                                        value={filters.location}
+                                        onChange={(e) => handleFilterChange('location', e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 pt-6 border-t border-slate-800">
+                                <h3 className="font-semibold text-white">Budget Range</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <label className="text-xs text-slate-500">Min ($)</label>
+                                        <input
+                                            type="number"
+                                            placeholder="0"
+                                            value={filters.minSalary}
+                                            onChange={(e) => handleFilterChange('minSalary', e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs text-slate-500">Max ($)</label>
+                                        <input
+                                            type="number"
+                                            placeholder="Any"
+                                            value={filters.maxSalary}
+                                            onChange={(e) => handleFilterChange('maxSalary', e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    const reset = {
+                                        location: '',
+                                        minSalary: '',
+                                        maxSalary: '',
+                                        types: [],
+                                        levels: []
+                                    };
+                                    setFilters(reset);
+                                    fetchJobs(searchQuery, 1, reset);
+                                }}
+                                className="w-full py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                            >
+                                Clear all filters
+                            </button>
                         </div>
                     </div>
 
@@ -177,60 +275,98 @@ export default function PublicJobsPage() {
                                 No jobs found matching your criteria.
                             </div>
                         ) : (
-                            jobs.map((job, idx) => (
-                                <motion.div
-                                    key={job.id}
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: idx * 0.1 }}
-                                    className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/30 transition-all group cursor-pointer"
-                                    onClick={() => handleJobClick(job)}
-                                >
-                                    <div className="flex flex-col md:flex-row justify-between gap-4">
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
-                                                    <Briefcase className="w-6 h-6 text-blue-400" />
+                            <>
+                                {jobs.map((job, idx) => (
+                                    <motion.div
+                                        key={job.id}
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: idx * 0.1 }}
+                                        className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/30 transition-all group cursor-pointer"
+                                        onClick={() => handleJobClick(job)}
+                                    >
+                                        <div className="flex flex-col md:flex-row justify-between gap-4">
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
+                                                        <Briefcase className="w-6 h-6 text-blue-400" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
+                                                        <p className="text-sm text-slate-400">{job.company}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
-                                                    <p className="text-sm text-slate-400">{job.company}</p>
+                                                <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <MapPin className="w-4 h-4" />
+                                                        {job.location || 'Remote'}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <DollarSign className="w-4 h-4" />
+                                                        {job.salary || 'Competitive'}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Clock className="w-4 h-4" />
+                                                        {job.posted || 'Recent'}
+                                                    </div>
+                                                </div>
+                                                <p className="text-sm text-slate-400 line-clamp-2">{job.description}</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {job.skills?.map((skill) => (
+                                                        <span key={skill} className="px-3 py-1 rounded-full bg-slate-800 text-xs text-slate-300 border border-slate-700">
+                                                            {skill}
+                                                        </span>
+                                                    ))}
                                                 </div>
                                             </div>
-                                            <div className="flex flex-wrap gap-4 text-sm text-slate-500">
-                                                <div className="flex items-center gap-1.5">
-                                                    <MapPin className="w-4 h-4" />
-                                                    {job.location}
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <DollarSign className="w-4 h-4" />
-                                                    {job.salary}
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <Clock className="w-4 h-4" />
-                                                    {job.posted}
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-slate-400 line-clamp-2">{job.description}</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {job.skills?.map((skill) => (
-                                                    <span key={skill} className="px-3 py-1 rounded-full bg-slate-800 text-xs text-slate-300 border border-slate-700">
-                                                        {skill}
-                                                    </span>
-                                                ))}
+                                            <div className="flex md:flex-col justify-between items-end gap-4">
+                                                <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
+                                                    {job.type}
+                                                </span>
+                                                <button className="px-4 py-2 rounded-xl bg-blue-600/10 text-blue-400 text-sm font-bold hover:bg-blue-600 hover:text-white transition-all">
+                                                    {authenticated ? 'Apply Now' : 'Sign in to Apply'}
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex md:flex-col justify-between items-end gap-4">
-                                            <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
-                                                {job.type}
-                                            </span>
-                                            <button className="px-4 py-2 rounded-xl bg-blue-600/10 text-blue-400 text-sm font-bold hover:bg-blue-600 hover:text-white transition-all">
-                                                {authenticated ? 'Apply Now' : 'Sign in to Apply'}
-                                            </button>
+                                    </motion.div>
+                                ))}
+
+                                {/* Pagination Controls */}
+                                {totalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-4 pt-8">
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={currentPage === 1}
+                                            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            <ChevronLeft className="w-5 h-5" />
+                                        </button>
+
+                                        <div className="flex items-center gap-2">
+                                            {[...Array(totalPages)].map((_, i) => (
+                                                <button
+                                                    key={i + 1}
+                                                    onClick={() => setCurrentPage(i + 1)}
+                                                    className={`w-10 h-10 rounded-xl font-medium transition-all ${currentPage === i + 1
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30'
+                                                        }`}
+                                                >
+                                                    {i + 1}
+                                                </button>
+                                            ))}
                                         </div>
+
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            <ChevronRight className="w-5 h-5" />
+                                        </button>
                                     </div>
-                                </motion.div>
-                            ))
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

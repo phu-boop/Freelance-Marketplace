@@ -86,10 +86,20 @@ export default function LoginPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <Button variant="outline" className="w-full" leftIcon={<Chrome className="w-4 h-4" />}>
+                        <Button
+                            variant="outline"
+                            className="w-full border-slate-800 hover:bg-slate-800"
+                            onClick={() => login({ idpHint: 'google' })}
+                            leftIcon={<Chrome className="w-4 h-4 text-red-500" />}
+                        >
                             Google
                         </Button>
-                        <Button variant="outline" className="w-full" leftIcon={<Github className="w-4 h-4" />}>
+                        <Button
+                            variant="outline"
+                            className="w-full border-slate-800 hover:bg-slate-800"
+                            onClick={() => login({ idpHint: 'github' })}
+                            leftIcon={<Github className="w-4 h-4 text-white" />}
+                        >
                             Github
                         </Button>
                     </div>

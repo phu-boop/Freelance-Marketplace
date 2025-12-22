@@ -15,6 +15,8 @@ import api from '@/lib/api';
 interface Item {
     id: string;
     name: string;
+    parentId?: string | null;
+    children?: Item[];
 }
 
 export default function AdminTaxonomyPage() {
@@ -22,6 +24,7 @@ export default function AdminTaxonomyPage() {
     const [skills, setSkills] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
     const [newCategory, setNewCategory] = useState('');
+    const [parentCategoryId, setParentCategoryId] = useState<string>('');
     const [newSkill, setNewSkill] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -49,8 +52,12 @@ export default function AdminTaxonomyPage() {
         if (!newCategory.trim()) return;
         setActionLoading('category');
         try {
-            await api.post('/jobs/categories', { name: newCategory });
+            await api.post('/jobs/categories', {
+                name: newCategory,
+                parentId: parentCategoryId || null
+            });
             setNewCategory('');
+            setParentCategoryId('');
             await fetchData();
         } catch (error) {
             console.error('Failed to add category', error);
@@ -94,6 +101,32 @@ export default function AdminTaxonomyPage() {
         }
     };
 
+    // Helper to render hierarchical categories
+    const renderCategories = (parentId: string | null = null, level = 0) => {
+        return categories
+            .filter(cat => cat.parentId === parentId)
+            .map(cat => (
+                <React.Fragment key={cat.id}>
+                    <div
+                        className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800/50 group hover:border-blue-500/30 transition-all"
+                        style={{ marginLeft: `${level * 24}px` }}
+                    >
+                        <div className="flex items-center gap-2">
+                            {level > 0 && <span className="text-slate-600">└─</span>}
+                            <span className="text-slate-300">{cat.name}</span>
+                        </div>
+                        <button
+                            onClick={() => handleDeleteCategory(cat.id)}
+                            className="p-2 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                    {renderCategories(cat.id, level + 1)}
+                </React.Fragment>
+            ));
+    };
+
     return (
         <div className="space-y-8">
             <div className="space-y-1">
@@ -112,36 +145,47 @@ export default function AdminTaxonomyPage() {
                             <h3 className="text-xl font-bold text-white">Job Categories</h3>
                         </div>
 
-                        <form onSubmit={handleAddCategory} className="flex gap-2">
-                            <input
-                                type="text"
-                                value={newCategory}
-                                onChange={(e) => setNewCategory(e.target.value)}
-                                placeholder="New category name..."
-                                className="flex-1 px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
-                            />
-                            <button
-                                type="submit"
-                                disabled={actionLoading === 'category' || !newCategory.trim()}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white rounded-xl font-bold flex items-center gap-2 transition-all"
+                        <form onSubmit={handleAddCategory} className="space-y-3">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={newCategory}
+                                    onChange={(e) => setNewCategory(e.target.value)}
+                                    placeholder="New category name..."
+                                    className="flex-1 px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={actionLoading === 'category' || !newCategory.trim()}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white rounded-xl font-bold flex items-center gap-2 transition-all min-w-[100px] justify-center"
+                                >
+                                    {actionLoading === 'category' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                    Add
+                                </button>
+                            </div>
+
+                            <select
+                                value={parentCategoryId}
+                                onChange={(e) => setParentCategoryId(e.target.value)}
+                                className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-400 focus:outline-none focus:border-blue-500/50 transition-all text-sm"
                             >
-                                {actionLoading === 'category' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                Add
-                            </button>
+                                <option value="">No Parent (Top Level)</option>
+                                {categories
+                                    .filter(c => !c.parentId) // Only top-level as parents for simplicity, or allow any? 
+                                    // For now allow any but avoid deep recursion in UI simple select
+                                    .map(cat => (
+                                        <option key={cat.id} value={cat.id}>Parent: {cat.name}</option>
+                                    ))
+                                }
+                            </select>
                         </form>
 
-                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                            {categories.map((cat) => (
-                                <div key={cat.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800/50 group hover:border-blue-500/30 transition-all">
-                                    <span className="text-slate-300">{cat.name}</span>
-                                    <button
-                                        onClick={() => handleDeleteCategory(cat.id)}
-                                        className="p-2 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
+                        <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                            {categories.length === 0 ? (
+                                <p className="text-center py-8 text-slate-500">No categories found.</p>
+                            ) : (
+                                renderCategories()
+                            )}
                         </div>
                     </div>
                 </div>

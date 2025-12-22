@@ -12,9 +12,18 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  @Post('register')
+  register(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.register(createUserDto);
+  }
+
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('role') role?: string,
+  ) {
+    return this.usersService.findAll(page, limit, role);
   }
 
   @Get(':id')

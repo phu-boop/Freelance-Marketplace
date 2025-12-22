@@ -10,6 +10,7 @@ import {
     Clock,
     Plus,
     X,
+    Tags,
     Loader2,
     CheckCircle2,
     Upload
@@ -23,11 +24,12 @@ export default function PostJobPage() {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
+    const [categories, setCategories] = useState<any[]>([]);
     const [formData, setFormData] = useState({
         title: '',
         description: '',
         budget: '',
+        categoryId: '',
         location: 'Remote',
         type: 'FIXED_PRICE',
         skills: [] as string[],
@@ -36,6 +38,10 @@ export default function PostJobPage() {
     });
 
     const [uploading, setUploading] = useState(false);
+
+    React.useEffect(() => {
+        api.get('/jobs/categories').then(res => setCategories(res.data)).catch(console.error);
+    }, []);
 
     const handleAddSkill = () => {
         if (formData.currentSkill && !formData.skills.includes(formData.currentSkill)) {
@@ -88,6 +94,7 @@ export default function PostJobPage() {
                 description: formData.description,
                 budget: parseFloat(formData.budget),
                 client_id: userId,
+                categoryId: formData.categoryId || null,
                 location: formData.location,
                 type: formData.type,
                 skills: formData.skills,
@@ -103,6 +110,18 @@ export default function PostJobPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Helper to render hierarchical options
+    const renderCategoryOptions = (parentId: string | null = null, level = 0): React.ReactNode[] => {
+        return categories
+            .filter(cat => cat.parentId === parentId)
+            .flatMap(cat => [
+                <option key={cat.id} value={cat.id}>
+                    {'\u00A0'.repeat(level * 4)}{level > 0 ? '└ ' : ''}{cat.name}
+                </option>,
+                ...renderCategoryOptions(cat.id, level + 1)
+            ]);
     };
 
     if (success) {
@@ -130,18 +149,36 @@ export default function PostJobPage() {
 
             <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-300">Job Title</label>
-                        <div className="relative">
-                            <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                            <input
-                                type="text"
-                                required
-                                placeholder="e.g. Senior React Developer"
-                                value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
-                            />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-300">Job Title</label>
+                            <div className="relative">
+                                <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Senior React Developer"
+                                    value={formData.title}
+                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-300">Category</label>
+                            <div className="relative">
+                                <Tags className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                                <select
+                                    required
+                                    value={formData.categoryId}
+                                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                                >
+                                    <option value="">Select a category</option>
+                                    {renderCategoryOptions()}
+                                </select>
+                            </div>
                         </div>
                     </div>
 

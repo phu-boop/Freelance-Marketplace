@@ -21,7 +21,19 @@ export class SearchService {
         });
     }
 
-    async searchJobs(query: string, filters?: { types?: string, levels?: string, minSalary?: string }) {
+    async searchJobs(query: string, filters?: {
+        types?: string,
+        levels?: string,
+        minSalary?: string,
+        maxSalary?: string,
+        location?: string,
+        page?: number,
+        limit?: number
+    }) {
+        const page = filters?.page || 1;
+        const limit = filters?.limit || 10;
+        const from = (page - 1) * limit;
+
         const must: any[] = [];
         if (query) {
             must.push({
@@ -41,29 +53,80 @@ export class SearchService {
         if (filters?.levels) {
             filter.push({ terms: { experienceLevel: filters.levels.split(',') } });
         }
-        if (filters?.minSalary) {
-            filter.push({ range: { salaryMin: { gte: parseInt(filters.minSalary) } } });
+
+        if (filters?.minSalary || filters?.maxSalary) {
+            const range: any = {};
+            if (filters.minSalary) range.gte = parseInt(filters.minSalary);
+            if (filters.maxSalary) range.lte = parseInt(filters.maxSalary);
+            filter.push({ range: { budget: range } });
+        }
+
+        if (filters?.location) {
+            must.push({
+                match: {
+                    location: {
+                        query: filters.location,
+                        fuzziness: 'AUTO'
+                    }
+                }
+            });
         }
 
         const result = await this.elasticsearchService.search({
             index: 'jobs',
+            from,
+            size: limit,
             query: {
                 bool: { must, filter },
             },
         });
-        return result.hits.hits.map((hit) => hit._source);
+
+        const total = typeof result.hits.total === 'number'
+            ? result.hits.total
+            : (result.hits.total as any).value;
+
+        return {
+            total,
+            page,
+            limit,
+            results: result.hits.hits.map((hit) => hit._source),
+        };
     }
 
-    async searchUsers(query: string) {
-        const result = await this.elasticsearchService.search({
-            index: 'users',
-            query: {
+    async searchUsers(query: string, page: number = 1, limit: number = 10) {
+        const from = (page - 1) * limit;
+
+        const must: any[] = [];
+        if (query) {
+            must.push({
                 multi_match: {
                     query,
-                    fields: ['name', 'bio', 'skills'],
+                    fields: ['firstName', 'lastName', 'title', 'overview', 'skills'],
+                    fuzziness: 'AUTO'
                 },
+            });
+        } else {
+            must.push({ match_all: {} });
+        }
+
+        const result = await this.elasticsearchService.search({
+            index: 'users',
+            from,
+            size: limit,
+            query: {
+                bool: { must },
             },
         });
-        return result.hits.hits.map((hit) => hit._source);
+
+        const total = typeof result.hits.total === 'number'
+            ? result.hits.total
+            : (result.hits.total as any).value;
+
+        return {
+            total,
+            page,
+            limit,
+            results: result.hits.hits.map((hit) => hit._source),
+        };
     }
 }

@@ -3,10 +3,35 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { KeycloakService } from '../keycloak/keycloak.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private keycloakService: KeycloakService
+  ) { }
+
+  async register(createUserDto: CreateUserDto) {
+    // 1. Create user in Keycloak
+    const keycloakId = await this.keycloakService.createUser({
+      email: createUserDto.email,
+      password: createUserDto.password,
+      firstName: createUserDto.firstName,
+      lastName: createUserDto.lastName,
+      role: createUserDto.roles?.[0] || 'FREELANCER'
+    });
+
+    // 2. Create profile in our database
+    const { password, ...userData } = createUserDto;
+    return this.prisma.user.create({
+      data: {
+        ...userData,
+        id: keycloakId, // Use Keycloak UUID as our DB primary key
+        status: 'ACTIVE'
+      },
+    });
+  }
 
   create(createUserDto: CreateUserDto) {
     return this.prisma.user.create({
@@ -14,8 +39,31 @@ export class UsersService {
     });
   }
 
-  findAll() {
-    return this.prisma.user.findMany();
+  async findAll(page: number = 1, limit: number = 10, role?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (role) {
+      where.roles = { has: role };
+    }
+
+    const [total, results] = await Promise.all([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          rating: 'desc',
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      page,
+      limit,
+      results,
+    };
   }
 
   async findOne(id: string) {

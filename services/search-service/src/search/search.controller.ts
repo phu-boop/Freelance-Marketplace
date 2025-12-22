@@ -21,12 +21,28 @@ export class SearchController {
         @Query('types') types?: string,
         @Query('levels') levels?: string,
         @Query('minSalary') minSalary?: string,
+        @Query('maxSalary') maxSalary?: string,
+        @Query('location') location?: string,
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10,
     ) {
-        return this.searchService.searchJobs(query, { types, levels, minSalary });
+        return this.searchService.searchJobs(query, {
+            types,
+            levels,
+            minSalary,
+            maxSalary,
+            location,
+            page,
+            limit
+        });
     }
 
     @Get('users')
-    async searchUsers(@Query('q') query: string) {
-        return this.searchService.searchUsers(query);
+    async searchUsers(
+        @Query('q') query: string,
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10,
+    ) {
+        return this.searchService.searchUsers(query, page, limit);
     }
 }
