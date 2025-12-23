@@ -103,7 +103,7 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=public
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=users
       - PORT=3000
       - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
@@ -427,6 +427,7 @@ services:
       - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
       - NEXT_PUBLIC_KEYCLOAK_REALM=freelance-marketplace
       - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=freelance-client
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
     depends_on:
       - keycloak
       - kong

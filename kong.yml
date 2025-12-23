@@ -5,152 +5,270 @@ services:
   - name: user-service
     url: http://user-service:3000
     routes:
-      - name: user-routes
+
+      # =====================
+      # Public Auth Routes (KHÔNG JWT)
+      # /api/users/register -> /register
+      # =====================
+      - name: user-auth
+        paths:
+          - /api/users/register
+          - /api/users/login
+          - /api/users/login/2fa
+          - /api/users/forgot-password
+        strip_path: true
+        regex_priority: 100
+
+      # =====================
+      # Public Read Routes (GET)
+      # /api/users -> /
+      # =====================
+      - name: user-read
         paths:
           - /api/users
+        methods:
+          - GET
+        strip_path: true
+        regex_priority: 10
+
+      # =====================
+      # Protected Write Routes (JWT)
+      # =====================
+      - name: user-write
+        paths:
+          - /api/users
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
+        regex_priority: 0
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
+
   - name: job-service
     url: http://job-service:3002
     routes:
-      - name: job-routes
+      - name: job-read
         paths:
           - /api/jobs
+        methods:
+          - GET
+        strip_path: true
+      - name: job-write
+        paths:
+          - /api/jobs
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: proposal-service
     url: http://proposal-service:3003
     routes:
       - name: proposal-routes
         paths:
           - /api/proposals
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: contract-service
     url: http://contract-service:3004
     routes:
       - name: contract-routes
         paths:
           - /api/contracts
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: payment-service
     url: http://payment-service:3005
     routes:
       - name: payment-routes
         paths:
           - /api/payments
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: chat-service
     url: http://chat-service:3006
     routes:
       - name: chat-routes
         paths:
           - /api/chat
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: notification-service
     url: http://notification-service:3007
     routes:
       - name: notification-routes
         paths:
           - /api/notifications
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: review-service
     url: http://review-service:3008
     routes:
-      - name: review-routes
+      - name: review-read
         paths:
           - /api/reviews
+        methods:
+          - GET
+        strip_path: true
+      - name: review-write
+        paths:
+          - /api/reviews
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: admin-service
     url: http://admin-service:3009
     routes:
       - name: admin-routes
         paths:
           - /api/admin
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: search-service
     url: http://search-service:3010
     routes:
-      - name: search-routes
+      - name: search-read
         paths:
           - /api/search
+        methods:
+          - GET
+        strip_path: true
+      - name: search-write
+        paths:
+          - /api/search
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: analytics-service
     url: http://analytics-service:3014
     routes:
       - name: analytics-routes
         paths:
           - /api/analytics
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: storage-service
     url: http://storage-service:3011
     routes:
-      - name: storage-routes
+      - name: storage-read
         paths:
           - /api/storage
+        methods:
+          - GET
+        strip_path: true
+      - name: storage-write
+        paths:
+          - /api/storage
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: common-service
     url: http://common-service:3013
     routes:
-      - name: common-routes
+      - name: common-read
         paths:
           - /api/common
+        methods:
+          - GET
+        strip_path: true
+      - name: common-write
+        paths:
+          - /api/common
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
         plugins:
           - name: jwt
             config:
               claims_to_verify:
                 - exp
+
   - name: email-service
     url: http://email-service:3012
     routes:
       - name: email-routes
         paths:
           - /api/email
+        strip_path: true
         plugins:
           - name: jwt
             config:
