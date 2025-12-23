@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsArray, IsNumber } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsArray, IsNumber, IsBoolean } from 'class-validator';
 
 export class CreateUserDto {
     @IsEmail()
@@ -76,4 +76,16 @@ export class CreateUserDto {
     @IsArray()
     @IsOptional()
     skills?: string[];
+
+    @IsBoolean()
+    @IsOptional()
+    emailNotifications?: boolean;
+
+    @IsBoolean()
+    @IsOptional()
+    pushNotifications?: boolean;
+
+    @IsBoolean()
+    @IsOptional()
+    inAppNotifications?: boolean;
 }

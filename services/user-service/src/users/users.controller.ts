@@ -47,6 +47,11 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @Get(':id/export')
+  exportData(@Param('id') id: string) {
+    return this.usersService.exportData(id);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);

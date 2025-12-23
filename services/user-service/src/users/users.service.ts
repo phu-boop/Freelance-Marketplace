@@ -471,4 +471,23 @@ export class UsersService {
 
     return Math.round((filled / fields.length) * 100);
   }
+
+  async exportData(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        education: true,
+        experience: true,
+        portfolio: true,
+        teams: { include: { team: true } },
+        ownedTeams: true,
+      }
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    // Remove sensitive data before export
+    const { password, twoFactorSecret, ...safeData } = user;
+    return safeData;
+  }
 }
