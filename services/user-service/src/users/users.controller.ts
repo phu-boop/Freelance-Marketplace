@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('users')
 export class UsersController {
@@ -15,6 +16,21 @@ export class UsersController {
   @Post('register')
   register(@Body() createUserDto: CreateUserDto) {
     return this.usersService.register(createUserDto);
+  }
+
+  @Post('login')
+  login(@Body() credentials: { email: string; password: string }) {
+    return this.usersService.login(credentials);
+  }
+
+  @Post('login/2fa')
+  verifyLoginTwoFactor(@Body() body: { tempToken: string; code: string }) {
+    return this.usersService.verifyLoginTwoFactor(body.tempToken, body.code);
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() data: { email: string }) {
+    return this.usersService.forgotPassword(data.email);
   }
 
   @Get()
@@ -34,6 +50,11 @@ export class UsersController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
+  }
+
+  @Post(':id/change-password')
+  changePassword(@Param('id') id: string, @Body() changePasswordDto: ChangePasswordDto) {
+    return this.usersService.changePassword(id, changePasswordDto);
   }
 
   @Delete(':id')
@@ -104,6 +125,16 @@ export class UsersController {
   @Post(':id/toggle-2fa')
   toggleTwoFactor(@Param('id') id: string) {
     return this.usersService.toggleTwoFactor(id);
+  }
+
+  @Post(':id/2fa/setup')
+  setupTwoFactor(@Param('id') id: string) {
+    return this.usersService.setupTwoFactor(id);
+  }
+
+  @Post(':id/2fa/verify')
+  verifyTwoFactor(@Param('id') id: string, @Body() body: { token: string }) {
+    return this.usersService.verifyTwoFactor(id, body.token);
   }
 
   @Post(':id/verify-payment')

@@ -1,15 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { KeycloakService } from '../keycloak/keycloak.service';
+
+import * as qrcode from 'qrcode';
+import { authenticator } from 'otplib';
+import { JwtService } from '@nestjs/jwt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
-    private keycloakService: KeycloakService
+    private keycloakService: KeycloakService,
+    private jwtService: JwtService
   ) { }
 
   async register(createUserDto: CreateUserDto) {
@@ -31,6 +38,92 @@ export class UsersService {
         status: 'ACTIVE'
       },
     });
+  }
+
+  // Encryption helpers
+  private encrypt(text: string): string {
+    const iv = crypto.randomBytes(16);
+    const key = crypto.scryptSync(process.env.JWT_SECRET || 'secret', 'salt', 32);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return iv.toString('hex') + ':' + encrypted.toString('hex');
+  }
+
+  private decrypt(text: string): string {
+    const textParts = text.split(':');
+    const ivHex = textParts.shift();
+    if (!ivHex) throw new Error('Invalid encrypted text');
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    const key = crypto.scryptSync(process.env.JWT_SECRET || 'secret', 'salt', 32);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  }
+
+  async login(credentials: { email: string; password: string }) {
+    const tokens = await this.keycloakService.login(credentials);
+
+    // Check local user for 2FA
+    const user = await this.prisma.user.findUnique({ where: { email: credentials.email } });
+
+    if (user && user.twoFactorEnabled) {
+      const payload = JSON.stringify(tokens);
+      const encryptedTokens = this.encrypt(payload);
+
+      const tempToken = this.jwtService.sign({
+        sub: user.id,
+        temp_tokens: encryptedTokens,
+        is_2fa_temp: true
+      }, { expiresIn: '5m' });
+
+      return {
+        required2FA: true,
+        tempToken,
+        message: 'Two-factor authentication required'
+      };
+    }
+
+    return tokens;
+  }
+
+  async verifyLoginTwoFactor(tempToken: string, code: string) {
+    let payload;
+    try {
+      payload = this.jwtService.verify(tempToken);
+    } catch (e) {
+      throw new UnauthorizedException('Invalid or expired session');
+    }
+
+    if (!payload.is_2fa_temp) {
+      throw new UnauthorizedException('Invalid token type');
+    }
+
+    const userId = payload.sub;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user || !user.twoFactorSecret) {
+      throw new UnauthorizedException('Invalid 2FA state');
+    }
+
+    const isValid = authenticator.verify({
+      token: code,
+      secret: user.twoFactorSecret
+    });
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid authentication code');
+    }
+
+    const tokensFn = this.decrypt(payload.temp_tokens);
+    return JSON.parse(tokensFn);
+  }
+
+  async forgotPassword(email: string) {
+    return this.keycloakService.sendPasswordResetEmail(email);
   }
 
   create(createUserDto: CreateUserDto) {
@@ -64,6 +157,70 @@ export class UsersService {
       limit,
       results,
     };
+  }
+
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+    // 1. Get user to find email
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // 2. Verify current password
+    try {
+      await this.keycloakService.login({
+        email: user.email,
+        password: changePasswordDto.currentPassword
+      });
+    } catch (error) {
+      throw new UnauthorizedException('Invalid current password');
+    }
+
+    // 3. Update to new password
+    await this.keycloakService.updatePassword(userId, changePasswordDto.newPassword);
+
+    return { message: 'Password updated successfully' };
+  }
+
+  async setupTwoFactor(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const secret = authenticator.generateSecret();
+    const otpauthUrl = authenticator.keyuri(user.email, 'FreelanceHub', secret);
+    const qrCodeUrl = await qrcode.toDataURL(otpauthUrl);
+
+    // Ideally, save the secret temporarily or in a pending state until verified.
+    // For simplicity, we might save it directly but mark 2FA as disabled.
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorSecret: secret }
+    });
+
+    return { secret, qrCodeUrl };
+  }
+
+  async verifyTwoFactor(userId: string, token: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.twoFactorSecret) {
+      throw new BadRequestException('2FA initialization not found');
+    }
+
+    const isValid = authenticator.verify({
+      token,
+      secret: user.twoFactorSecret
+    });
+
+    if (!isValid) {
+      throw new BadRequestException('Invalid authentication code');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: true }
+    });
+
+    return { message: '2FA enabled successfully' };
   }
 
   async findOne(id: string) {

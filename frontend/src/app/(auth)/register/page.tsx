@@ -133,6 +133,25 @@ export default function RegisterPage() {
 
                 <Card className="p-8 md:p-10 border-slate-800/50 shadow-2xl bg-slate-900/50 backdrop-blur-xl">
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+                        {error && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0, x: 0 }}
+                                animate={{
+                                    opacity: 1,
+                                    height: 'auto',
+                                    x: [0, -4, 4, -4, 4, 0],
+                                }}
+                                transition={{
+                                    opacity: { duration: 0.2 },
+                                    height: { duration: 0.2 },
+                                    x: { duration: 0.4, ease: "easeInOut", times: [0, 0.2, 0.4, 0.6, 0.8, 1] }
+                                }}
+                                className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm"
+                            >
+                                <AlertCircle className="w-5 h-5 shrink-0" />
+                                <p>{error}</p>
+                            </motion.div>
+                        )}
                         <AnimatePresence mode="wait">
                             {step === 1 ? (
                                 <motion.div

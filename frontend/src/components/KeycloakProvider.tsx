@@ -12,6 +12,7 @@ interface KeycloakContextType {
     login: (options?: any) => void;
     logout: () => void;
     register: (options?: any) => void;
+    setTokens: (tokens: { access_token: string; refresh_token: string }) => void;
 }
 
 const KeycloakContext = createContext<KeycloakContextType | null>(null);
@@ -51,8 +52,38 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     const logout = () => keycloak?.logout();
     const register = (options?: any) => keycloak?.register(options);
 
+    const setTokens = (tokens: { access_token: string; refresh_token: string }) => {
+        if (keycloak) {
+            try {
+                // Decode token manually to update state immediately
+                const payload = JSON.parse(atob(tokens.access_token.split('.')[1]));
+                setToken(tokens.access_token);
+                setAuthenticated(true);
+                setUserId(payload.sub);
+                setUsername(payload.preferred_username || payload.email);
+                setRoles(payload.realm_access?.roles || []);
+
+                // Store for persistence
+                localStorage.setItem('kc_token', tokens.access_token);
+                localStorage.setItem('kc_refreshToken', tokens.refresh_token);
+
+                // Role-based redirection logic
+                const roles = payload.realm_access?.roles || [];
+                if (roles.includes('ADMIN')) {
+                    window.location.href = '/admin';
+                } else {
+                    window.location.href = '/dashboard';
+                }
+            } catch (err) {
+                console.error('Failed to parse injected tokens', err);
+                // Fallback redirect
+                window.location.href = '/dashboard';
+            }
+        }
+    };
+
     return (
-        <KeycloakContext.Provider value={{ authenticated, token, username, userId, roles, login, logout, register }}>
+        <KeycloakContext.Provider value={{ authenticated, token, username, userId, roles, login, logout, register, setTokens }}>
             {children}
         </KeycloakContext.Provider>
     );

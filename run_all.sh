@@ -27,7 +27,7 @@ sleep 20
 echo "🔑 Initializing Keycloak configuration..."
 docker exec freelance_keycloak /opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password admin || true
 docker exec freelance_keycloak /opt/keycloak/bin/kcadm.sh create realms -s realm=freelance-marketplace -s enabled=true || true
-docker exec freelance_keycloak /opt/keycloak/bin/kcadm.sh update realms/freelance-marketplace -s registrationAllowed=true -s resetPasswordAllowed=true -s verifyEmail=true -s rememberMe=true -s loginTheme=freelance || true
+docker exec freelance_keycloak /opt/keycloak/bin/kcadm.sh update realms/freelance-marketplace -s registrationAllowed=true -s resetPasswordAllowed=true -s verifyEmail=true -s rememberMe=true -s loginTheme=freelance -s 'smtpServer={"host":"mailhog", "port":"1025", "from":"noreply@freelance.hub"}' || true
 docker exec freelance_keycloak /opt/keycloak/bin/kcadm.sh create clients -r freelance-marketplace -s clientId=freelance-client -s enabled=true -s publicClient=true -s 'redirectUris=["http://localhost:3000/*"]' -s 'webOrigins=["*"]' -s 'directAccessGrantsEnabled=true' || true
 
 # Create Roles

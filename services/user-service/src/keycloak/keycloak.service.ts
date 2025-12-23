@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, UnauthorizedException, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -20,6 +20,35 @@ export class KeycloakService {
         this.realm = this.configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace');
         this.adminUser = this.configService.get<string>('KEYCLOAK_ADMIN_USER', 'admin');
         this.adminPass = this.configService.get<string>('KEYCLOAK_ADMIN_PASSWORD', 'admin');
+    }
+
+    async login(credentials: { email: string; password: string }): Promise<any> {
+        const url = `${this.keycloakUrl}/realms/${this.realm}/protocol/openid-connect/token`;
+        const data = qs.stringify({
+            grant_type: 'password',
+            client_id: 'freelance-client', // Note: This should match the client in run_all.sh
+            username: credentials.email,
+            password: credentials.password,
+            scope: 'openid profile email',
+        });
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.post(url, data, {
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                }),
+            );
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status;
+            const errorData = error.response?.data;
+            this.logger.error(`Failed to login with Keycloak: ${errorData?.error_description || error.message}`);
+
+            if (status === 401 || (status === 400 && errorData?.error === 'invalid_grant')) {
+                throw new UnauthorizedException('Invalid email or password');
+            }
+            throw new HttpException(errorData?.error_description || 'Authentication failed', status || HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     async getAdminToken(): Promise<string> {
@@ -86,10 +115,82 @@ export class KeycloakService {
                 await this.assignRole(keycloakId, userData.role, token);
             }
 
+            // Trigger verification email
+            const verifyUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${keycloakId}/execute-actions-email`;
+            await firstValueFrom(
+                this.httpService.put(verifyUrl, ['VERIFY_EMAIL'], {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            );
+
             return keycloakId;
         } catch (error) {
-            this.logger.error(`Failed to create Keycloak user: ${error.response?.data?.errorMessage || error.message}`);
-            throw error;
+            const status = error.response?.status;
+            const errorMsg = error.response?.data?.errorMessage || error.message;
+            this.logger.error(`Failed to create Keycloak user: ${errorMsg}`);
+
+            if (status === 409) {
+                throw new ConflictException('An account with this email already exists');
+            }
+            throw new HttpException(errorMsg || 'Failed to create user', status || HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    async sendPasswordResetEmail(email: string): Promise<void> {
+        const token = await this.getAdminToken();
+        // First find user by email
+        const findUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users?email=${email}`;
+        try {
+            const findResponse = await firstValueFrom(
+                this.httpService.get(findUrl, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            );
+            const users = findResponse.data;
+            if (!users || users.length === 0) {
+                // Return silently for security, or handle as needed
+                this.logger.warn(`Password reset requested for non-existent email: ${email}`);
+                return;
+            }
+            const userId = users[0].id;
+
+            // Trigger reset email
+            const resetUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/execute-actions-email`;
+            await firstValueFrom(
+                this.httpService.put(resetUrl, ['UPDATE_PASSWORD'], {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            );
+        } catch (error) {
+            if (error instanceof HttpException) throw error;
+            this.logger.error(`Failed to send password reset email: ${error.response?.data?.errorMessage || error.message}`);
+            throw new HttpException('Failed to process password reset', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    async updatePassword(userId: string, newPassword: string): Promise<void> {
+        const token = await this.getAdminToken();
+        const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/reset-password`;
+
+        const payload = {
+            type: 'password',
+            value: newPassword,
+            temporary: false,
+        };
+
+        try {
+            await firstValueFrom(
+                this.httpService.put(url, payload, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                }),
+            );
+        } catch (error) {
+            const errorMsg = error.response?.data?.errorMessage || error.message;
+            this.logger.error(`Failed to update Keycloak password for user ${userId}: ${errorMsg}`);
+            throw new HttpException(errorMsg || 'Failed to update password', error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
