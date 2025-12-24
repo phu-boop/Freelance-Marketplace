@@ -33,7 +33,7 @@ export default function LoginPage() {
 
         try {
             if (step === 'LOGIN') {
-                const response = await api.post('/users/login', formData);
+                const response = await api.post('/auth/login', formData);
 
                 if (response.data.required2FA) {
                     setTempToken(response.data.tempToken);
@@ -44,7 +44,7 @@ export default function LoginPage() {
                 }
             } else {
                 // 2FA Verification
-                const response = await api.post('/users/login/2fa', {
+                const response = await api.post('/auth/login/2fa', {
                     tempToken,
                     code: twoFactorCode.replace(/\s/g, '') // remove spaces
                 });

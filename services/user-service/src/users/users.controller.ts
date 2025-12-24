@@ -1,33 +1,39 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { Public } from 'nest-keycloak-connect';
 
 @Controller('')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
+  @Public()
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
   }
 
+  @Public()
   @Post('register')
   register(@Body() createUserDto: CreateUserDto) {
     return this.usersService.register(createUserDto);
   }
 
+  @Public()
   @Post('login')
   login(@Body() credentials: { email: string; password: string }) {
     return this.usersService.login(credentials);
   }
 
+  @Public()
   @Post('login/2fa')
   verifyLoginTwoFactor(@Body() body: { tempToken: string; code: string }) {
     return this.usersService.verifyLoginTwoFactor(body.tempToken, body.code);
   }
 
+  @Public()
   @Post('forgot-password')
   forgotPassword(@Body() data: { email: string }) {
     return this.usersService.forgotPassword(data.email);
@@ -40,6 +46,15 @@ export class UsersController {
     @Query('role') role?: string,
   ) {
     return this.usersService.findAll(page, limit, role);
+  }
+
+  @Get('me')
+  getMe(@Request() req) {
+    if (req.user && req.user.sub) {
+      return this.usersService.findOne(req.user.sub);
+    }
+    // Fallback if no user in request (should not happen with auth guard)
+    throw new UnauthorizedException('User not authenticated');
   }
 
   @Get(':id')
@@ -160,13 +175,6 @@ export class UsersController {
   @Post(':id/ban')
   banUser(@Param('id') id: string) {
     return this.usersService.banUser(id);
-  }
-
-  @Get('me')
-  getMe(@Query('userId') id: string) {
-    // In a real app, this would come from a JWT decorator
-    // For now, we'll use a placeholder or expect the frontend to pass the ID
-    return this.usersService.findOne(id);
   }
 
   @Patch(':id/onboarding')

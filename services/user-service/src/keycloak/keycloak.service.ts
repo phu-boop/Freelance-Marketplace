@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpException, HttpStatus, UnauthorizedException, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, UnauthorizedException, ConflictException, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -42,12 +42,18 @@ export class KeycloakService {
         } catch (error) {
             const status = error.response?.status;
             const errorData = error.response?.data;
-            this.logger.error(`Failed to login with Keycloak: ${errorData?.error_description || error.message}`);
+            const errorDescription = errorData?.error_description || error.message;
+
+            this.logger.error(`Failed to login with Keycloak: ${errorDescription}`);
+
+            if (errorDescription === 'Account is not fully set up') {
+                throw new ForbiddenException('Please verify your email address before logging in. Check your inbox (or MailHog locally).');
+            }
 
             if (status === 401 || (status === 400 && errorData?.error === 'invalid_grant')) {
                 throw new UnauthorizedException('Invalid email or password');
             }
-            throw new HttpException(errorData?.error_description || 'Authentication failed', status || HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new HttpException(errorDescription || 'Authentication failed', status || HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

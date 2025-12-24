@@ -41,6 +41,9 @@ model User {
   primaryCategoryId String?
   completionPercentage Int @default(0)
   availableConnects Int @default(50)
+  profile Profile? @relation("UserProfile")
+
+
   
   // Client fields
   companyName       String?
@@ -86,6 +89,23 @@ model User {
   referredBy  Referral[] @relation("Referred")
 
   @@map("users")
+  @@schema("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation("UserProfile", fields: [userId], references: [id])
+  headline    String?
+  bio         String?
+  hourlyRate  Decimal?
+  skills      String[]
+  primaryCategoryId String?
+  isComplete  Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("profiles")
   @@schema("users")
 }
 

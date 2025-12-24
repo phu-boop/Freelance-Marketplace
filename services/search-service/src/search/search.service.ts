@@ -1,9 +1,30 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ElasticsearchService } from '@nestjs/elasticsearch';
 
 @Injectable()
-export class SearchService {
+export class SearchService implements OnModuleInit {
+    private readonly logger = new Logger(SearchService.name);
+
     constructor(private readonly elasticsearchService: ElasticsearchService) { }
+
+    async onModuleInit() {
+        await this.initializeIndices();
+    }
+
+    private async initializeIndices() {
+        const indices = ['jobs', 'users'];
+        for (const index of indices) {
+            try {
+                const exists = await this.elasticsearchService.indices.exists({ index });
+                if (!exists) {
+                    await this.elasticsearchService.indices.create({ index });
+                    this.logger.log(`Created index: ${index}`);
+                }
+            } catch (error) {
+                this.logger.error(`Error initializing index ${index}:`, error);
+            }
+        }
+    }
 
     async indexJob(job: any) {
         return this.elasticsearchService.index({
@@ -72,25 +93,33 @@ export class SearchService {
             });
         }
 
-        const result = await this.elasticsearchService.search({
-            index: 'jobs',
-            from,
-            size: limit,
-            query: {
-                bool: { must, filter },
-            },
-        });
+        try {
+            const result = await this.elasticsearchService.search({
+                index: 'jobs',
+                from,
+                size: limit,
+                query: {
+                    bool: { must, filter },
+                },
+            });
 
-        const total = typeof result.hits.total === 'number'
-            ? result.hits.total
-            : (result.hits.total as any).value;
+            const total = typeof result.hits.total === 'number'
+                ? result.hits.total
+                : (result.hits.total as any).value;
 
-        return {
-            total,
-            page,
-            limit,
-            results: result.hits.hits.map((hit) => hit._source),
-        };
+            return {
+                total,
+                page,
+                limit,
+                results: result.hits.hits.map((hit) => hit._source),
+            };
+        } catch (error) {
+            if ((error as any)?.meta?.body?.error?.type === 'index_not_found_exception') {
+                this.logger.warn('Jobs index not found, returning empty result');
+                return { total: 0, page, limit, results: [] };
+            }
+            throw error;
+        }
     }
 
     async searchUsers(query: string, page: number = 1, limit: number = 10) {
@@ -109,24 +138,32 @@ export class SearchService {
             must.push({ match_all: {} });
         }
 
-        const result = await this.elasticsearchService.search({
-            index: 'users',
-            from,
-            size: limit,
-            query: {
-                bool: { must },
-            },
-        });
+        try {
+            const result = await this.elasticsearchService.search({
+                index: 'users',
+                from,
+                size: limit,
+                query: {
+                    bool: { must },
+                },
+            });
 
-        const total = typeof result.hits.total === 'number'
-            ? result.hits.total
-            : (result.hits.total as any).value;
+            const total = typeof result.hits.total === 'number'
+                ? result.hits.total
+                : (result.hits.total as any).value;
 
-        return {
-            total,
-            page,
-            limit,
-            results: result.hits.hits.map((hit) => hit._source),
-        };
+            return {
+                total,
+                page,
+                limit,
+                results: result.hits.hits.map((hit) => hit._source),
+            };
+        } catch (error) {
+            if ((error as any)?.meta?.body?.error?.type === 'index_not_found_exception') {
+                this.logger.warn('Users index not found, returning empty result');
+                return { total: 0, page, limit, results: [] };
+            }
+            throw error;
+        }
     }
 }

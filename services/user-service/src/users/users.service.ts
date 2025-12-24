@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ConflictException, HttpException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -20,24 +20,39 @@ export class UsersService {
   ) { }
 
   async register(createUserDto: CreateUserDto) {
-    // 1. Create user in Keycloak
-    const keycloakId = await this.keycloakService.createUser({
-      email: createUserDto.email,
-      password: createUserDto.password,
-      firstName: createUserDto.firstName,
-      lastName: createUserDto.lastName,
-      role: createUserDto.roles?.[0] || 'FREELANCER'
-    });
+    try {
+      // 1. Create user in Keycloak
+      const keycloakId = await this.keycloakService.createUser({
+        email: createUserDto.email,
+        password: createUserDto.password,
+        firstName: createUserDto.firstName,
+        lastName: createUserDto.lastName,
+        role: createUserDto.roles?.[0] || 'FREELANCER'
+      });
 
-    // 2. Create profile in our database
-    const { password, ...userData } = createUserDto;
-    return this.prisma.user.create({
-      data: {
-        ...userData,
-        id: keycloakId, // Use Keycloak UUID as our DB primary key
-        status: 'ACTIVE'
-      },
-    });
+      // 2. Create profile in our database
+      const { password, ...userData } = createUserDto;
+      return await this.prisma.user.create({
+        data: {
+          ...userData,
+          id: keycloakId, // Use Keycloak UUID as our DB primary key
+          status: 'ACTIVE'
+        },
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw new ConflictException('Email already exists');
+      }
+      if (error.code === 'P2002') { // Prisma unique constraint error
+        throw new ConflictException('User with this email already exists');
+      }
+      // Rethrow http exceptions
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      // Default fallback
+      throw new BadRequestException(error.message || 'Registration failed');
+    }
   }
 
   // Encryption helpers

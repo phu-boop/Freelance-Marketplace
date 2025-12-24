@@ -185,6 +185,93 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Trending Jobs Section */}
+      <section className="py-24 px-4 bg-slate-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-4">
+            <div>
+              <span className="text-blue-500 font-semibold tracking-wider text-sm">HOT OPPORTUNITIES</span>
+              <h2 className="text-3xl md:text-4xl font-bold mt-2">Trending Jobs</h2>
+            </div>
+            <Link href="/jobs" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
+              View all jobs <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                title: "Senior Full Stack React/Node.js Developer",
+                budget: "$3,000 - $5,000",
+                type: "Fixed Price",
+                posted: "2 hours ago",
+                tags: ["React", "Node.js", "TypeScript"],
+                proposals: "10-15",
+                description: "Looking for an expert to build a scalable marketplace platform from scratch."
+              },
+              {
+                title: "UI/UX Designer for Fintech App",
+                budget: "$40 - $75/hr",
+                type: "Hourly",
+                posted: "45 mins ago",
+                tags: ["Figma", "UI Design", "Mobile"],
+                proposals: "5-10",
+                description: "Redesign our mobile banking application with focus on user experience and modern aesthetics."
+              },
+              {
+                title: "SEO Specialist & Content Strategy",
+                budget: "$1,500",
+                type: "Fixed Price",
+                posted: "5 hours ago",
+                tags: ["SEO", "Content Marketing", "Audit"],
+                proposals: "20-50",
+                description: "Optimize our e-commerce site and develop a 3-month content strategy for growth."
+              }
+            ].map((job, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
+                whileHover={{ y: -5 }}
+                className="group p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/30 transition-all cursor-pointer"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <span className="px-3 py-1 rounded-full bg-slate-800 text-xs font-medium text-slate-400">
+                    {job.posted}
+                  </span>
+                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white -rotate-45 group-hover:rotate-0 transition-all" />
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">{job.title}</h3>
+                <p className="text-slate-400 text-sm mb-6 line-clamp-2">{job.description}</p>
+
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {job.tags.map(tag => (
+                    <span key={tag} className="px-2.5 py-1 rounded-md bg-slate-800/50 text-xs text-slate-300 border border-slate-700">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-500">Budget</span>
+                    <span className="text-sm font-semibold text-white">{job.budget}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs text-slate-500">Proposals</span>
+                    <span className="text-sm font-semibold text-white">{job.proposals}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 px-4">
         <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-12 text-center relative overflow-hidden">

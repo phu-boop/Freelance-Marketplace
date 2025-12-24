@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
         setError(null);
 
         try {
-            await api.post('/users/forgot-password', { email });
+            await api.post('/auth/forgot-password', { email });
             setSuccess(true);
         } catch (err: any) {
             setError(err.response?.data?.message || err.message || 'Something went wrong. Please try again.');

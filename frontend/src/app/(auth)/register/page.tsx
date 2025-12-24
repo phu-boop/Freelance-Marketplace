@@ -64,9 +64,10 @@ export default function RegisterPage() {
         setLoading(true);
         setError(null);
         try {
-            await api.post('/users/register', {
-                ...data,
-                roles: [data.role],
+            const { role, ...rest } = data;
+            await api.post('/auth/register', {
+                ...rest,
+                roles: [role],
             });
             setSuccess(true);
             setTimeout(() => router.push('/login'), 2000);

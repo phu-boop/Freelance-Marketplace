@@ -7,20 +7,16 @@ services:
     routes:
 
       # =====================
-      # Public Auth Routes (KHÔNG JWT)
-      # /api/users/register -> /register
+      # Auth Routes (PUBLIC)
+      # /api/auth/register -> /register
       # =====================
-      - name: user-auth
+      - name: auth-public
         paths:
-          - /api/users/register
-          - /api/users/login
-          - /api/users/login/2fa
-          - /api/users/forgot-password
+          - /api/auth
         strip_path: true
-        regex_priority: 100
 
       # =====================
-      # Public Read Routes (GET)
+      # User Read Routes (PUBLIC)
       # /api/users -> /
       # =====================
       - name: user-read
@@ -29,12 +25,11 @@ services:
         methods:
           - GET
         strip_path: true
-        regex_priority: 10
 
       # =====================
-      # Protected Write Routes (JWT)
+      # User Protected Routes (JWT)
       # =====================
-      - name: user-write
+      - name: user-protected
         paths:
           - /api/users
         methods:
@@ -43,7 +38,6 @@ services:
           - PATCH
           - DELETE
         strip_path: true
-        regex_priority: 0
         plugins:
           - name: jwt
             config:
@@ -178,7 +172,7 @@ services:
                 - exp
 
   - name: search-service
-    url: http://search-service:3010
+    url: http://search-service:3010/search
     routes:
       - name: search-read
         paths:
@@ -239,7 +233,7 @@ services:
                 - exp
 
   - name: common-service
-    url: http://common-service:3013
+    url: http://common-service:3013/common
     routes:
       - name: common-read
         paths:
@@ -289,7 +283,7 @@ plugins:
   - name: cors
     config:
       origins:
-        - "*"
+        - "http://localhost:3000"
       methods:
         - GET
         - POST
