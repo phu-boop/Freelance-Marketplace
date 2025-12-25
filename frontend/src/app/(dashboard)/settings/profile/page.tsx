@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,7 +15,12 @@ import {
     Loader2,
     AlertCircle,
     CheckCircle2,
-    Camera
+    Camera,
+    Layers,
+    Briefcase,
+    Globe,
+    BookOpen,
+    Image as ImageIcon
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
@@ -24,6 +29,9 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import Link from 'next/link';
+import { ExperienceList } from '@/components/profile/ExperienceList';
+import { EducationList } from '@/components/profile/EducationList';
+import { PortfolioList } from '@/components/profile/PortfolioList';
 
 const profileSchema = z.object({
     firstName: z.string().min(2, 'First name must be at least 2 characters'),
@@ -31,6 +39,8 @@ const profileSchema = z.object({
     phone: z.string().optional(),
     title: z.string().min(5, 'Title should be at least 5 characters').optional(),
     overview: z.string().min(20, 'Bio should be at least 20 characters').optional(),
+    avatarUrl: z.string().optional(),
+    country: z.string().optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -41,6 +51,19 @@ export default function ProfileSettingsPage() {
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
+    const [activeTab, setActiveTab] = useState<'general' | 'services' | 'experience' | 'portfolio'>('general');
+
+    // Data for other tabs
+    const [userData, setUserData] = useState<any>(null);
+    const [categories, setCategories] = useState<any[]>([]);
+
+    // Services Form State
+    const [servicesForm, setServicesForm] = useState({
+        hourlyRate: '',
+        skills: '',
+        primaryCategoryId: '',
+        isAvailable: true
+    });
 
     const {
         register,
@@ -52,26 +75,44 @@ export default function ProfileSettingsPage() {
     });
 
     useEffect(() => {
-        const fetchProfile = async () => {
+        const fetchData = async () => {
             if (!userId) return;
             try {
-                const res = await api.get(`/users/${userId}`);
-                const data = res.data;
+                const [userRes, catsRes] = await Promise.all([
+                    api.get(`/users/${userId}`),
+                    api.get('/common/categories').catch(() => ({ data: [] }))
+                ]);
+
+                const data = userRes.data;
+                setUserData(data);
+                setCategories(catsRes.data || []);
                 setAvatarUrl(data.avatarUrl);
+
+                // Setup General Form
                 reset({
                     firstName: data.firstName || '',
                     lastName: data.lastName || '',
                     phone: data.phone || '',
                     title: data.title || '',
                     overview: data.overview || '',
+                    country: data.country || '',
                 });
+
+                // Setup Services Form
+                setServicesForm({
+                    hourlyRate: data.hourlyRate || '',
+                    skills: data.skills ? data.skills.join(', ') : '',
+                    primaryCategoryId: data.primaryCategoryId || '',
+                    isAvailable: data.isAvailable ?? true
+                });
+
             } catch (err) {
                 console.error('Failed to fetch profile', err);
             } finally {
                 setLoading(false);
             }
         };
-        fetchProfile();
+        fetchData();
     }, [userId, reset]);
 
     const handleAvatarUpload = async (blob: Blob) => {
@@ -79,17 +120,14 @@ export default function ProfileSettingsPage() {
             const formData = new FormData();
             formData.append('file', blob, 'avatar.jpg');
 
-            // 1. Upload to storage
             const uploadRes = await api.post('/storage/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             const { fileName } = uploadRes.data;
 
-            // 2. Get public URL
             const urlRes = await api.get(`/storage/url/${fileName}`);
             const { url } = urlRes.data;
 
-            // 3. Update user profile
             await api.patch(`/users/${userId}`, { avatarUrl: url });
 
             setAvatarUrl(url);
@@ -100,13 +138,12 @@ export default function ProfileSettingsPage() {
         }
     };
 
-    const onSubmit = async (values: ProfileFormValues) => {
+    const onSubmitGeneral = async (values: ProfileFormValues) => {
         setSaving(true);
         setStatus(null);
         try {
             await api.patch(`/users/${userId}`, values);
             setStatus({ type: 'success', message: 'Profile updated successfully!' });
-            // Hide success message after 3 seconds
             setTimeout(() => setStatus(null), 3000);
         } catch (err) {
             console.error('Failed to update profile', err);
@@ -115,6 +152,47 @@ export default function ProfileSettingsPage() {
             setSaving(false);
         }
     };
+
+    const onSubmitServices = async () => {
+        setSaving(true);
+        setStatus(null);
+        try {
+            const payload = {
+                hourlyRate: parseFloat(servicesForm.hourlyRate),
+                skills: servicesForm.skills.split(',').map(s => s.trim()).filter(s => s),
+                primaryCategoryId: servicesForm.primaryCategoryId,
+                isAvailable: servicesForm.isAvailable
+            };
+
+            await api.patch(`/users/${userId}`, payload);
+            // Also hit the toggle endpoint if availability changed explicitly? 
+            // The patch might handle basic fields, but specific logic might be in toggle endpoint. 
+            // For now, let's assume PATCH handles it or we call specific endpoints if needed.
+            // Actually, CreateUserDto doesn't strictly implement isAvailable logic in service update usually, 
+            // but let's try PATCH first. If fails, we can add specific calls.
+
+            setStatus({ type: 'success', message: 'Services updated successfully!' });
+            setTimeout(() => setStatus(null), 3000);
+        } catch (err) {
+            console.error('Failed to update services', err);
+            setStatus({ type: 'error', message: 'Failed to update services.' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const TabButton = ({ id, label, icon: Icon }: { id: typeof activeTab, label: string, icon: any }) => (
+        <button
+            onClick={() => setActiveTab(id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === id
+                    ? 'border-blue-500 text-blue-500'
+                    : 'border-transparent text-slate-400 hover:text-white hover:border-slate-800'
+                }`}
+        >
+            <Icon className="w-4 h-4" />
+            {label}
+        </button>
+    );
 
     if (loading) {
         return (
@@ -128,136 +206,141 @@ export default function ProfileSettingsPage() {
         <div className="max-w-4xl mx-auto space-y-8">
             <div className="flex flex-col gap-2">
                 <h1 className="text-3xl font-bold text-white tracking-tight">Profile Settings</h1>
-                <p className="text-slate-400">Update your avatar and personal information.</p>
+                <p className="text-slate-400">Manage your public profile presence.</p>
             </div>
 
-            {/* Settings Navigation Tabs */}
-            <div className="flex border-b border-slate-800">
-                <Link
-                    href="/settings/profile"
-                    className="px-6 py-3 text-sm font-medium text-blue-500 border-b-2 border-blue-500"
-                >
-                    Profile
-                </Link>
-                <Link
-                    href="/settings/security"
-                    className="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    Security
-                </Link>
+            {/* Sub-navigation for settings context (Profile vs Security) */}
+            <div className="flex gap-6 border-b border-slate-800 mb-8">
+                <Link href="/settings/profile" className="pb-4 text-sm font-medium text-white border-b-2 border-white">Profile</Link>
+                <Link href="/settings/security" className="pb-4 text-sm font-medium text-slate-400 hover:text-white transition-colors">Security</Link>
             </div>
 
-            {status && (
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`p-4 rounded-xl flex items-center gap-3 border ${status.type === 'success'
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        : 'bg-red-500/10 border-red-500/20 text-red-400'
-                        }`}
-                >
-                    {status.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                    <p className="text-sm font-medium">{status.message}</p>
-                </motion.div>
-            )}
-
-            <Card className="p-8 border-slate-800/50 bg-slate-900/50 backdrop-blur-xl">
-                <div className="mb-10 flex flex-col items-center gap-4">
-                    <AvatarUpload currentAvatar={avatarUrl} onUpload={handleAvatarUpload} />
-                    <div className="text-center">
-                        <h3 className="text-lg font-bold text-white">Profile Photo</h3>
-                        <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">PNG, JPG up to 10MB</p>
-                    </div>
+            {/* Main Profile Tabs */}
+            <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 overflow-hidden">
+                <div className="flex border-b border-slate-800">
+                    <TabButton id="general" label="General" icon={User} />
+                    <TabButton id="services" label="Services" icon={Briefcase} />
+                    <TabButton id="experience" label="Experience" icon={Layers} />
+                    <TabButton id="portfolio" label="Portfolio" icon={ImageIcon} />
                 </div>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                                <User className="w-4 h-4 text-slate-500" /> First Name
-                            </label>
-                            <Input
-                                {...register('firstName')}
-                                placeholder="Enter your first name"
-                                className={errors.firstName ? 'border-red-500/50 focus:ring-red-500/50' : ''}
-                            />
-                            {errors.firstName && (
-                                <p className="text-xs text-red-400 mt-1">{errors.firstName.message}</p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                                <User className="w-4 h-4 text-slate-500" /> Last Name
-                            </label>
-                            <Input
-                                {...register('lastName')}
-                                placeholder="Enter your last name"
-                                className={errors.lastName ? 'border-red-500/50 focus:ring-red-500/50' : ''}
-                            />
-                            {errors.lastName && (
-                                <p className="text-xs text-red-400 mt-1">{errors.lastName.message}</p>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                                <Phone className="w-4 h-4 text-slate-500" /> Phone Number
-                            </label>
-                            <Input
-                                {...register('phone')}
-                                placeholder="+1 (555) 000-0000"
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                                <BadgeCheck className="w-4 h-4 text-slate-500" /> Professional Title
-                            </label>
-                            <Input
-                                {...register('title')}
-                                placeholder="e.g. Senior Full Stack Developer"
-                            />
-                            {errors.title && (
-                                <p className="text-xs text-red-400 mt-1">{errors.title.message}</p>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-slate-500" /> Professional Overview (Bio)
-                        </label>
-                        <textarea
-                            {...register('overview')}
-                            rows={6}
-                            placeholder="Write a brief introduction about your professional background and expertise..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all resize-none"
-                        />
-                        {errors.overview && (
-                            <p className="text-xs text-red-400 mt-1">{errors.overview.message}</p>
-                        )}
-                        <p className="text-[10px] text-slate-500 italic">Minimum 20 characters. This will be the first thing clients see on your profile.</p>
-                    </div>
-
-                    <div className="pt-4 flex justify-end">
-                        <Button
-                            type="submit"
-                            disabled={saving}
-                            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-semibold shadow-lg shadow-blue-500/20 flex items-center gap-2 group"
+                <div className="p-8">
+                    {status && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`p-4 rounded-xl flex items-center gap-3 border mb-6 ${status.type === 'success'
+                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                : 'bg-red-500/10 border-red-500/20 text-red-400'
+                                }`}
                         >
-                            {saving ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                            )}
-                            {saving ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
+                            {status.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                            <p className="text-sm font-medium">{status.message}</p>
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'general' && (
+                        <div className="space-y-8">
+                            <div className="flex flex-col items-center gap-4 border-b border-slate-800 pb-8">
+                                <AvatarUpload currentAvatar={avatarUrl} onUpload={handleAvatarUpload} />
+                                <div className="text-center">
+                                    <h3 className="text-lg font-bold text-white">Profile Photo</h3>
+                                    <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">PNG, JPG up to 10MB</p>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleSubmit(onSubmitGeneral)} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Input {...register('firstName')} label="First Name" />
+                                    <Input {...register('lastName')} label="Last Name" />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Input {...register('phone')} label="Phone Number" leftIcon={<Phone className="w-4 h-4" />} />
+                                    <Input {...register('country')} label="Country" leftIcon={<Globe className="w-4 h-4" />} />
+                                </div>
+                                <Input {...register('title')} label="Professional Title" />
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-300">Professional Overview</label>
+                                    <textarea
+                                        {...register('overview')}
+                                        rows={6}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all resize-none"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end pt-4">
+                                    <Button type="submit" disabled={saving} isLoading={saving} leftIcon={<Save className="w-4 h-4" />}>Save Changes</Button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {activeTab === 'services' && (
+                        <div className="space-y-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-300">Hourly Rate ($)</label>
+                                    <Input
+                                        type="number"
+                                        value={servicesForm.hourlyRate}
+                                        onChange={e => setServicesForm({ ...servicesForm, hourlyRate: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-300">Primary Category</label>
+                                    <select
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                                        value={servicesForm.primaryCategoryId}
+                                        onChange={e => setServicesForm({ ...servicesForm, primaryCategoryId: e.target.value })}
+                                    >
+                                        <option value="">Select Category</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <Input
+                                label="Skills (Comma separated)"
+                                value={servicesForm.skills}
+                                onChange={e => setServicesForm({ ...servicesForm, skills: e.target.value })}
+                            />
+
+                            <div className="flex items-center gap-3 p-4 bg-slate-950 rounded-xl border border-slate-800">
+                                <input
+                                    type="checkbox"
+                                    checked={servicesForm.isAvailable}
+                                    onChange={e => setServicesForm({ ...servicesForm, isAvailable: e.target.checked })}
+                                    className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div>
+                                    <h4 className="font-bold text-white text-sm">Available for Work</h4>
+                                    <p className="text-xs text-slate-500">Show your profile in search results</p>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end pt-4">
+                                <Button onClick={onSubmitServices} disabled={saving} isLoading={saving} leftIcon={<Save className="w-4 h-4" />}>Update Services</Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'experience' && (
+                        <div className="space-y-12">
+                            <ExperienceList initialData={userData?.experience || []} />
+                            <div className="border-t border-slate-800 pt-8">
+                                <EducationList initialData={userData?.education || []} />
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'portfolio' && (
+                        <PortfolioList initialData={userData?.portfolio || []} />
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

@@ -57,6 +57,10 @@ export class CreateUserDto {
     @IsOptional()
     website?: string;
 
+    @IsString()
+    @IsOptional()
+    primaryCategoryId?: string;
+
     @IsArray()
     @IsOptional()
     roles?: string[];

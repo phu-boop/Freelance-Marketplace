@@ -26,6 +26,8 @@ import { cn } from '@/lib/utils';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { useRouter } from 'next/navigation';
 
+import { AvatarUpload } from '@/components/AvatarUpload';
+
 const steps = [
     { title: 'Identity', icon: User },
     { title: 'Professional', icon: Award },
@@ -42,6 +44,7 @@ export default function WizardPage() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [categories, setCategories] = useState<any[]>([]);
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -53,19 +56,30 @@ export default function WizardPage() {
         skills: [] as string[],
         primaryCategoryId: '',
         industry: '',
+        avatarUrl: '',
+        education: [] as any[],
+        experience: [] as any[],
+        portfolio: [] as any[],
     });
 
     useEffect(() => {
-        const fetchDraft = async () => {
+        if (!authenticated && !initialLoading) {
+            router.push('/login');
+            return;
+        }
+
+        const fetchInitialData = async () => {
             if (authenticated && userId) {
                 try {
-                    const [userRes, draftRes] = await Promise.all([
+                    const [userRes, draftRes, categoriesRes] = await Promise.all([
                         api.get(`/users/${userId}`),
-                        api.get(`/users/profile/draft/${userId}`).catch(() => ({ data: null }))
+                        api.get(`/users/profile/draft/${userId}`).catch(() => ({ data: null })),
+                        api.get('/common/categories').catch(() => ({ data: [] }))
                     ]);
 
                     const user = userRes.data;
                     const draft = draftRes.data;
+                    setCategories(categoriesRes.data || []);
 
                     setFormData(prev => ({
                         ...prev,
@@ -73,6 +87,10 @@ export default function WizardPage() {
                         lastName: user.lastName || '',
                         phone: user.phone || '',
                         country: user.country || '',
+                        avatarUrl: user.avatarUrl || '',
+                        education: user.education || [],
+                        experience: user.experience || [],
+                        portfolio: user.portfolio || [],
                         ...(draft && {
                             headline: draft.headline || '',
                             bio: draft.bio || '',
@@ -86,10 +104,13 @@ export default function WizardPage() {
                 } finally {
                     setInitialLoading(false);
                 }
+            } else if (!authenticated) {
+                // If we know for sure we aren't authenticated (after Keycloak init)
+                setInitialLoading(false);
             }
         };
-        fetchDraft();
-    }, [authenticated, userId]);
+        fetchInitialData();
+    }, [authenticated, userId, initialLoading, router]);
 
     const saveDraft = async (data: any) => {
         if (!userId) return;
@@ -200,6 +221,25 @@ export default function WizardPage() {
                                         <h2 className="text-3xl font-bold text-white">Basic Information</h2>
                                         <p className="text-slate-400">Let's start with your identity and location.</p>
                                     </div>
+
+                                    <div className="flex flex-col items-center gap-4 py-4">
+                                        <AvatarUpload
+                                            currentAvatar={formData.avatarUrl}
+                                            onUpload={async (blob) => {
+                                                const uploadFormData = new FormData();
+                                                uploadFormData.append('file', blob, 'avatar.jpg');
+                                                const uploadRes = await api.post('/storage/upload', uploadFormData, {
+                                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                                });
+                                                const { fileName } = uploadRes.data;
+                                                const urlRes = await api.get(`/storage/url/${fileName}`);
+                                                const { url } = urlRes.data;
+                                                setFormData({ ...formData, avatarUrl: url });
+                                            }}
+                                        />
+                                        <p className="text-sm text-slate-500">Upload a professional photo</p>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-6">
                                         <Input
                                             label="First Name"
@@ -270,11 +310,9 @@ export default function WizardPage() {
                                             onChange={(e) => setFormData({ ...formData, primaryCategoryId: e.target.value })}
                                         >
                                             <option value="">Select a category</option>
-                                            <option value="web-dev">Web Development</option>
-                                            <option value="mobile-dev">Mobile Development</option>
-                                            <option value="design">Design & Creative</option>
-                                            <option value="writing">Writing & Translation</option>
-                                            <option value="marketing">Sales & Marketing</option>
+                                            {categories.map(cat => (
+                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div className="space-y-2">
@@ -316,14 +354,215 @@ export default function WizardPage() {
                                 </div>
                             )}
 
-                            {/* Additional placeholders for Education, Experience, Portfolio */}
-                            {step > 4 && (
-                                <div className="space-y-8 text-center py-10">
-                                    <h2 className="text-3xl font-bold text-white">Coming Soon</h2>
-                                    <p className="text-slate-400">
-                                        The {steps[step - 1].title} section is being finalized.
-                                        Click "Continue" to proceed to the next step or complete your profile.
-                                    </p>
+                            {step === 5 && (
+                                <div className="space-y-8">
+                                    <div className="space-y-2">
+                                        <h2 className="text-3xl font-bold text-white">Education</h2>
+                                        <p className="text-slate-400">Add your educational background.</p>
+                                    </div>
+                                    {formData.education.map((edu, idx) => (
+                                        <div key={idx} className="p-6 bg-slate-900/30 rounded-2xl border border-slate-800 space-y-4 relative group">
+                                            <button
+                                                onClick={() => setFormData({ ...formData, education: formData.education.filter((_, i) => i !== idx) })}
+                                                className="absolute top-4 right-4 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Check className="w-4 h-4 rotate-45" />
+                                            </button>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <Input
+                                                    label="Institution"
+                                                    value={edu.institution}
+                                                    onChange={(e) => {
+                                                        const newEdu = [...formData.education];
+                                                        newEdu[idx].institution = e.target.value;
+                                                        setFormData({ ...formData, education: newEdu });
+                                                    }}
+                                                />
+                                                <Input
+                                                    label="Degree"
+                                                    value={edu.degree}
+                                                    onChange={(e) => {
+                                                        const newEdu = [...formData.education];
+                                                        newEdu[idx].degree = e.target.value;
+                                                        setFormData({ ...formData, education: newEdu });
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <Input
+                                                    label="Field of Study"
+                                                    value={edu.fieldOfStudy}
+                                                    onChange={(e) => {
+                                                        const newEdu = [...formData.education];
+                                                        newEdu[idx].fieldOfStudy = e.target.value;
+                                                        setFormData({ ...formData, education: newEdu });
+                                                    }}
+                                                />
+                                                <Input
+                                                    label="Start Date"
+                                                    type="date"
+                                                    value={edu.startDate?.split('T')[0] || ''}
+                                                    onChange={(e) => {
+                                                        const newEdu = [...formData.education];
+                                                        newEdu[idx].startDate = e.target.value;
+                                                        setFormData({ ...formData, education: newEdu });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-dashed"
+                                        onClick={() => setFormData({
+                                            ...formData,
+                                            education: [...formData.education, { institution: '', degree: '', fieldOfStudy: '', startDate: '' }]
+                                        })}
+                                    >
+                                        + Add Education
+                                    </Button>
+                                </div>
+                            )}
+
+                            {step === 6 && (
+                                <div className="space-y-8">
+                                    <div className="space-y-2">
+                                        <h2 className="text-3xl font-bold text-white">Work Experience</h2>
+                                        <p className="text-slate-400">Tell us about your professional history.</p>
+                                    </div>
+                                    {formData.experience.map((exp, idx) => (
+                                        <div key={idx} className="p-6 bg-slate-900/30 rounded-2xl border border-slate-800 space-y-4 relative group">
+                                            <button
+                                                onClick={() => setFormData({ ...formData, experience: formData.experience.filter((_, i) => i !== idx) })}
+                                                className="absolute top-4 right-4 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Check className="w-4 h-4 rotate-45" />
+                                            </button>
+                                            <Input
+                                                label="Company"
+                                                value={exp.company}
+                                                onChange={(e) => {
+                                                    const newExp = [...formData.experience];
+                                                    newExp[idx].company = e.target.value;
+                                                    setFormData({ ...formData, experience: newExp });
+                                                }}
+                                            />
+                                            <Input
+                                                label="Job Title"
+                                                value={exp.title}
+                                                onChange={(e) => {
+                                                    const newExp = [...formData.experience];
+                                                    newExp[idx].title = e.target.value;
+                                                    setFormData({ ...formData, experience: newExp });
+                                                }}
+                                            />
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <Input
+                                                    label="Start Date"
+                                                    type="date"
+                                                    value={exp.startDate?.split('T')[0] || ''}
+                                                    onChange={(e) => {
+                                                        const newExp = [...formData.experience];
+                                                        newExp[idx].startDate = e.target.value;
+                                                        setFormData({ ...formData, experience: newExp });
+                                                    }}
+                                                />
+                                                <Input
+                                                    label="End Date"
+                                                    type="date"
+                                                    disabled={exp.current}
+                                                    value={exp.endDate?.split('T')[0] || ''}
+                                                    onChange={(e) => {
+                                                        const newExp = [...formData.experience];
+                                                        newExp[idx].endDate = e.target.value;
+                                                        setFormData({ ...formData, experience: newExp });
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={exp.current}
+                                                    onChange={(e) => {
+                                                        const newExp = [...formData.experience];
+                                                        newExp[idx].current = e.target.checked;
+                                                        if (e.target.checked) newExp[idx].endDate = null;
+                                                        setFormData({ ...formData, experience: newExp });
+                                                    }}
+                                                />
+                                                <label className="text-sm text-slate-400">Currently work here</label>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-dashed"
+                                        onClick={() => setFormData({
+                                            ...formData,
+                                            experience: [...formData.experience, { company: '', title: '', startDate: '', current: false }]
+                                        })}
+                                    >
+                                        + Add Experience
+                                    </Button>
+                                </div>
+                            )}
+
+                            {step === 7 && (
+                                <div className="space-y-8">
+                                    <div className="space-y-2">
+                                        <h2 className="text-3xl font-bold text-white">Portfolio</h2>
+                                        <p className="text-slate-400">Showcase your best work samples.</p>
+                                    </div>
+                                    {formData.portfolio.map((item, idx) => (
+                                        <div key={idx} className="p-6 bg-slate-900/30 rounded-2xl border border-slate-800 space-y-4 relative group">
+                                            <button
+                                                onClick={() => setFormData({ ...formData, portfolio: formData.portfolio.filter((_, i) => i !== idx) })}
+                                                className="absolute top-4 right-4 text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Check className="w-4 h-4 rotate-45" />
+                                            </button>
+                                            <Input
+                                                label="Project Title"
+                                                value={item.title}
+                                                onChange={(e) => {
+                                                    const newPort = [...formData.portfolio];
+                                                    newPort[idx].title = e.target.value;
+                                                    setFormData({ ...formData, portfolio: newPort });
+                                                }}
+                                            />
+                                            <Input
+                                                label="Project Image URL"
+                                                value={item.imageUrl}
+                                                onChange={(e) => {
+                                                    const newPort = [...formData.portfolio];
+                                                    newPort[idx].imageUrl = e.target.value;
+                                                    setFormData({ ...formData, portfolio: newPort });
+                                                }}
+                                            />
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-slate-400 ml-1">Description</label>
+                                                <textarea
+                                                    className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all min-h-[100px]"
+                                                    value={item.description}
+                                                    onChange={(e) => {
+                                                        const newPort = [...formData.portfolio];
+                                                        newPort[idx].description = e.target.value;
+                                                        setFormData({ ...formData, portfolio: newPort });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-dashed"
+                                        onClick={() => setFormData({
+                                            ...formData,
+                                            portfolio: [...formData.portfolio, { title: '', imageUrl: '', description: '' }]
+                                        })}
+                                    >
+                                        + Add Portfolio Item
+                                    </Button>
                                 </div>
                             )}
 

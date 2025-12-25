@@ -23,5 +23,6 @@ import { KeycloakModule } from '../keycloak/keycloak.module';
   ],
   controllers: [UsersController],
   providers: [UsersService],
+  exports: [UsersService],
 })
 export class UsersModule { }

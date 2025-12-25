@@ -269,9 +269,16 @@ export class UsersService {
   }
 
   update(id: string, updateUserDto: UpdateUserDto) {
+    console.log('UPDATING USER:', id, JSON.stringify(updateUserDto));
     return this.prisma.user.update({
       where: { id },
       data: updateUserDto,
+    }).then(res => {
+      console.log('UPDATE RESULT:', JSON.stringify(res));
+      return res;
+    }).catch(err => {
+      console.error('UPDATE ERROR:', err);
+      throw err;
     });
   }
 
@@ -460,10 +467,15 @@ export class UsersService {
     });
   }
 
-  private calculateCompletionPercentage(user: any): number {
-    const commonFields = ['firstName', 'lastName', 'phone', 'country'];
+  public calculateCompletionPercentage(user: any): number {
+    const commonFields = ['firstName', 'lastName', 'phone', 'country', 'avatarUrl'];
     const freelancerFields = ['title', 'overview', 'hourlyRate', 'skills'];
     const clientFields = ['companyName', 'industry'];
+
+    const professionalFields: string[] = [];
+    if (user.education?.length > 0) professionalFields.push('education');
+    if (user.experience?.length > 0) professionalFields.push('experience');
+    if (user.portfolio?.length > 0) professionalFields.push('portfolio');
 
     let fields = [...commonFields];
     if (user.roles?.includes('FREELANCER')) {
@@ -484,7 +496,11 @@ export class UsersService {
       }
     });
 
-    return Math.round((filled / fields.length) * 100);
+    // Add bonus for professional history
+    filled += professionalFields.length;
+    const totalFields = fields.length + 3; // +3 for education, experience, portfolio
+
+    return Math.round((filled / totalFields) * 100);
   }
 
   async exportData(userId: string) {

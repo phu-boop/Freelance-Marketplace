@@ -209,7 +209,7 @@ services:
                 - exp
 
   - name: storage-service
-    url: http://storage-service:3011
+    url: http://storage-service:3011/storage
     routes:
       - name: storage-read
         paths:
