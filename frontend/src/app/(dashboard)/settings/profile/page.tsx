@@ -20,7 +20,11 @@ import {
     Briefcase,
     Globe,
     BookOpen,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Eye,
+    Share2,
+    Sparkles,
+    ChevronRight
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
@@ -115,6 +119,52 @@ export default function ProfileSettingsPage() {
         fetchData();
     }, [userId, reset]);
 
+    const calculateCompletion = () => {
+        if (!userData) return { percentage: 0, suggestions: [] };
+
+        const weights = {
+            avatar: 10,
+            basics: 15,
+            overview: 20,
+            services: 20,
+            skills: 15,
+            experience: 10,
+            education: 5,
+            portfolio: 5
+        };
+
+        let score = 0;
+        const suggestions = [];
+
+        if (userData.avatarUrl) score += weights.avatar;
+        else suggestions.push({ text: 'Add a profile photo', tab: 'general', weight: weights.avatar });
+
+        if (userData.firstName && userData.lastName && userData.title) score += weights.basics;
+        else suggestions.push({ text: 'Complete your name and professional title', tab: 'general', weight: weights.basics });
+
+        if (userData.overview && userData.overview.length >= 20) score += weights.overview;
+        else suggestions.push({ text: 'Write a professional bio (min. 20 chars)', tab: 'general', weight: weights.overview });
+
+        if (userData.hourlyRate && userData.primaryCategoryId) score += weights.services;
+        else suggestions.push({ text: 'Set your hourly rate and category', tab: 'services', weight: weights.services });
+
+        if (userData.skills && userData.skills.length > 0) score += weights.skills;
+        else suggestions.push({ text: 'List your top skills', tab: 'services', weight: weights.skills });
+
+        if (userData.experience && userData.experience.length > 0) score += weights.experience;
+        else suggestions.push({ text: 'Add your work experience', tab: 'experience', weight: weights.experience });
+
+        if (userData.education && userData.education.length > 0) score += weights.education;
+        else suggestions.push({ text: 'Add your educational background', tab: 'experience', weight: weights.education });
+
+        if (userData.portfolio && userData.portfolio.length > 0) score += weights.portfolio;
+        else suggestions.push({ text: 'Add items to your portfolio', tab: 'portfolio', weight: weights.portfolio });
+
+        return { percentage: score, suggestions };
+    };
+
+    const completion = calculateCompletion();
+
     const handleAvatarUpload = async (blob: Blob) => {
         try {
             const formData = new FormData();
@@ -185,8 +235,8 @@ export default function ProfileSettingsPage() {
         <button
             onClick={() => setActiveTab(id)}
             className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === id
-                    ? 'border-blue-500 text-blue-500'
-                    : 'border-transparent text-slate-400 hover:text-white hover:border-slate-800'
+                ? 'border-blue-500 text-blue-500'
+                : 'border-transparent text-slate-400 hover:text-white hover:border-slate-800'
                 }`}
         >
             <Icon className="w-4 h-4" />
@@ -204,10 +254,88 @@ export default function ProfileSettingsPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold text-white tracking-tight">Profile Settings</h1>
-                <p className="text-slate-400">Manage your public profile presence.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col gap-2">
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Profile Settings</h1>
+                    <p className="text-slate-400">Manage your public profile presence.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => {
+                            const url = `${window.location.origin}/profiles/${userId}`;
+                            navigator.clipboard.writeText(url);
+                            setStatus({ type: 'success', message: 'Profile link copied to clipboard!' });
+                            setTimeout(() => setStatus(null), 3000);
+                        }}
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all font-medium"
+                    >
+                        <Share2 className="w-4 h-4" />
+                        Share Link
+                    </button>
+                    <Link
+                        href={`/profiles/${userId}`}
+                        target="_blank"
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/20 font-medium"
+                    >
+                        <Eye className="w-4 h-4" />
+                        Preview Profile
+                    </Link>
+                </div>
             </div>
+
+            {/* Profile Strength Meter */}
+            <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-md">
+                <div className="flex flex-col md:flex-row md:items-center gap-8">
+                    <div className="flex-1 space-y-4">
+                        <div className="flex justify-between items-end">
+                            <div className="space-y-1">
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-yellow-500" />
+                                    Profile Strength
+                                </h3>
+                                <p className="text-sm text-slate-400">Complete your profile to unlock more opportunities.</p>
+                            </div>
+                            <span className={`text-2xl font-black ${completion.percentage >= 80 ? 'text-emerald-500' :
+                                completion.percentage >= 40 ? 'text-yellow-500' : 'text-red-500'
+                                }`}>
+                                {completion.percentage}%
+                            </span>
+                        </div>
+                        <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${completion.percentage}%` }}
+                                className={`h-full transition-all duration-1000 ${completion.percentage >= 80 ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
+                                    completion.percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`}
+                            />
+                        </div>
+                    </div>
+                    {completion.suggestions.length > 0 && (
+                        <div className="md:w-px md:h-16 bg-slate-800 hidden md:block" />
+                    )}
+                    {completion.suggestions.length > 0 && (
+                        <div className="flex-1">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Improve your score</p>
+                            <div className="space-y-2">
+                                {completion.suggestions.slice(0, 2).map((suggestion, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setActiveTab(suggestion.tab as any)}
+                                        className="flex items-center justify-between w-full p-2 text-left text-sm text-slate-300 hover:text-white hover:bg-slate-800/50 rounded-lg transition-all group"
+                                    >
+                                        <span className="flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                            {suggestion.text}
+                                        </span>
+                                        <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-blue-500 transition-colors" />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </Card>
 
             {/* Sub-navigation for settings context (Profile vs Security) */}
             <div className="flex gap-6 border-b border-slate-800 mb-8">

@@ -74,7 +74,7 @@ export default function LandingPage() {
               ) : (
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={login}
+                    onClick={() => login()}
                     className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
                   >
                     Sign In

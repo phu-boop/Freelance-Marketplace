@@ -13,7 +13,8 @@ import {
     ChevronRight,
     Loader2,
     ArrowLeft,
-    ChevronLeft
+    ChevronLeft,
+    Tag
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -52,8 +53,32 @@ export default function PublicJobsPage() {
         minSalary: '',
         maxSalary: '',
         types: [] as string[],
-        levels: [] as string[]
+        levels: [] as string[],
+        categoryId: '',
+        sortBy: 'createdAt',
+        sortOrder: 'desc' as 'asc' | 'desc',
+        postedWithin: '',
+        skills: ''
     });
+
+    const [categories, setCategories] = useState<any[]>([]);
+    const [availableSkills, setAvailableSkills] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchFilterData = async () => {
+            try {
+                const [catsRes, skillsRes] = await Promise.all([
+                    api.get('/jobs/categories'),
+                    api.get('/jobs/skills')
+                ]);
+                setCategories(catsRes.data || []);
+                setAvailableSkills(skillsRes.data || []);
+            } catch (err) {
+                console.error('Failed to fetch filter data', err);
+            }
+        };
+        fetchFilterData();
+    }, []);
 
     const fetchJobs = async (query = searchQuery, page = currentPage, currentFilters = filters) => {
         setLoading(true);
@@ -64,6 +89,11 @@ export default function PublicJobsPage() {
             if (currentFilters.maxSalary) url += `&maxSalary=${currentFilters.maxSalary}`;
             if (currentFilters.types.length) url += `&types=${currentFilters.types.join(',')}`;
             if (currentFilters.levels.length) url += `&levels=${currentFilters.levels.join(',')}`;
+            if (currentFilters.categoryId) url += `&categoryId=${currentFilters.categoryId}`;
+            if (currentFilters.postedWithin) url += `&postedWithin=${currentFilters.postedWithin}`;
+            if (currentFilters.skills) url += `&skills=${currentFilters.skills}`;
+            if (currentFilters.sortBy) url += `&sortBy=${currentFilters.sortBy}`;
+            if (currentFilters.sortOrder) url += `&sortOrder=${currentFilters.sortOrder}`;
 
             const response = await api.get(url);
             // Check if response has pagination wrapper
@@ -167,17 +197,34 @@ export default function PublicJobsPage() {
                     <div className="hidden lg:block space-y-6">
                         <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
                             <div className="space-y-4">
+                                <h3 className="font-semibold text-white">Category</h3>
+                                <select
+                                    value={filters.categoryId}
+                                    onChange={(e) => handleFilterChange('categoryId', e.target.value)}
+                                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                                >
+                                    <option value="">All Categories</option>
+                                    {categories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-4 pt-6 border-t border-slate-800">
                                 <h3 className="font-semibold text-white">Job Type</h3>
                                 <div className="space-y-2">
-                                    {['Full-time', 'Contract', 'Part-time', 'Freelance'].map((type) => (
-                                        <label key={type} className="flex items-center gap-3 cursor-pointer group">
+                                    {[
+                                        { label: 'Fixed Price', value: 'FIXED_PRICE' },
+                                        { label: 'Hourly', value: 'HOURLY' }
+                                    ].map((type) => (
+                                        <label key={type.value} className="flex items-center gap-3 cursor-pointer group">
                                             <input
                                                 type="checkbox"
-                                                checked={filters.types.includes(type)}
-                                                onChange={() => toggleFilter('types', type)}
+                                                checked={filters.types.includes(type.value)}
+                                                onChange={() => toggleFilter('types', type.value)}
                                                 className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-blue-600 focus:ring-blue-500/20"
                                             />
-                                            <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{type}</span>
+                                            <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{type.label}</span>
                                         </label>
                                     ))}
                                 </div>
@@ -186,17 +233,50 @@ export default function PublicJobsPage() {
                             <div className="space-y-4 pt-6 border-t border-slate-800">
                                 <h3 className="font-semibold text-white">Experience Level</h3>
                                 <div className="space-y-2">
-                                    {['Entry Level', 'Intermediate', 'Senior', 'Expert'].map((level) => (
-                                        <label key={level} className="flex items-center gap-3 cursor-pointer group">
+                                    {[
+                                        { label: 'Entry Level', value: 'ENTRY' },
+                                        { label: 'Intermediate', value: 'MID' },
+                                        { label: 'Expert', value: 'EXPERT' }
+                                    ].map((level) => (
+                                        <label key={level.value} className="flex items-center gap-3 cursor-pointer group">
                                             <input
                                                 type="checkbox"
-                                                checked={filters.levels.includes(level)}
-                                                onChange={() => toggleFilter('levels', level)}
+                                                checked={filters.levels.includes(level.value)}
+                                                onChange={() => toggleFilter('levels', level.value)}
                                                 className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-blue-600 focus:ring-blue-500/20"
                                             />
-                                            <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{level}</span>
+                                            <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{level.label}</span>
                                         </label>
                                     ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 pt-6 border-t border-slate-800">
+                                <h3 className="font-semibold text-white">Date Posted</h3>
+                                <select
+                                    value={filters.postedWithin}
+                                    onChange={(e) => handleFilterChange('postedWithin', e.target.value)}
+                                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                                >
+                                    <option value="">Any Time</option>
+                                    <option value="24h">Last 24 Hours</option>
+                                    <option value="3d">Last 3 Days</option>
+                                    <option value="7d">Last 7 Days</option>
+                                    <option value="30d">Last Month</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-4 pt-6 border-t border-slate-800">
+                                <h3 className="font-semibold text-white">Skills</h3>
+                                <div className="relative">
+                                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                    <input
+                                        type="text"
+                                        placeholder="React, Node.js..."
+                                        value={filters.skills}
+                                        onChange={(e) => handleFilterChange('skills', e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                    />
                                 </div>
                             </div>
 
@@ -247,7 +327,12 @@ export default function PublicJobsPage() {
                                         minSalary: '',
                                         maxSalary: '',
                                         types: [],
-                                        levels: []
+                                        levels: [],
+                                        categoryId: '',
+                                        sortBy: 'createdAt',
+                                        sortOrder: 'desc' as const,
+                                        postedWithin: '',
+                                        skills: ''
                                     };
                                     setFilters(reset);
                                     fetchJobs(searchQuery, 1, reset);
@@ -260,114 +345,145 @@ export default function PublicJobsPage() {
                     </div>
 
                     {/* Jobs List */}
-                    <div className="lg:col-span-3 space-y-4">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-                                <p className="text-slate-400">Searching for the best opportunities...</p>
+                    <div className="lg:col-span-3 space-y-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
+                            <h2 className="text-xl font-bold text-white">
+                                {loading ? 'Searching...' : `${totalItems} Jobs Found`}
+                            </h2>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-slate-500">Sort by:</span>
+                                <select
+                                    className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                                    value={`${filters.sortBy}-${filters.sortOrder}`}
+                                    onChange={(e) => {
+                                        const [sortBy, sortOrder] = e.target.value.split('-');
+                                        const newFilters = { ...filters, sortBy, sortOrder: sortOrder as any };
+                                        setFilters(newFilters);
+                                        fetchJobs(searchQuery, 1, newFilters);
+                                    }}
+                                >
+                                    <option value="createdAt-desc">Newest First</option>
+                                    <option value="budget-desc">Highest Budget</option>
+                                    <option value="budget-asc">Lowest Budget</option>
+                                </select>
                             </div>
-                        ) : error ? (
-                            <div className="p-8 rounded-2xl bg-red-500/10 border border-red-500/20 text-center">
-                                <p className="text-red-400">{error}</p>
-                            </div>
-                        ) : jobs.length === 0 ? (
-                            <div className="p-20 text-center text-slate-400">
-                                No jobs found matching your criteria.
-                            </div>
-                        ) : (
-                            <>
-                                {jobs.map((job, idx) => (
-                                    <motion.div
-                                        key={job.id}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: idx * 0.1 }}
-                                        className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/30 transition-all group cursor-pointer"
-                                        onClick={() => handleJobClick(job)}
-                                    >
-                                        <div className="flex flex-col md:flex-row justify-between gap-4">
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
-                                                        <Briefcase className="w-6 h-6 text-blue-400" />
+                        </div>
+
+                        <div className="space-y-4">
+                            {loading ? (
+                                <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                                    <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                                    <p className="text-slate-400">Searching for the best opportunities...</p>
+                                </div>
+                            ) : error ? (
+                                <div className="p-8 rounded-2xl bg-red-500/10 border border-red-500/20 text-center">
+                                    <p className="text-red-400">{error}</p>
+                                </div>
+                            ) : jobs.length === 0 ? (
+                                <div className="p-20 text-center text-slate-400">
+                                    No jobs found matching your criteria.
+                                </div>
+                            ) : (
+                                <>
+                                    {jobs.map((job, idx) => (
+                                        <motion.div
+                                            key={job.id}
+                                            initial={{ opacity: 0, x: 20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: idx * 0.1 }}
+                                            className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/30 transition-all group cursor-pointer"
+                                            onClick={() => handleJobClick(job)}
+                                        >
+                                            <div className="flex flex-col md:flex-row justify-between gap-4">
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
+                                                            <Briefcase className="w-6 h-6 text-blue-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
+                                                            <p className="text-sm text-slate-400">{job.company}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
-                                                        <p className="text-sm text-slate-400">{job.company}</p>
+                                                    <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <MapPin className="w-4 h-4" />
+                                                            {job.location || 'Remote'}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <DollarSign className="w-4 h-4" />
+                                                            {job.salary || 'Competitive'}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Clock className="w-4 h-4" />
+                                                            {job.posted || 'Recent'}
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-sm text-slate-400 line-clamp-2">{job.description}</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {job.skills?.map((skill) => (
+                                                            <span key={skill} className="px-3 py-1 rounded-full bg-slate-800 text-xs text-slate-300 border border-slate-700">
+                                                                {skill}
+                                                            </span>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-wrap gap-4 text-sm text-slate-500">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <MapPin className="w-4 h-4" />
-                                                        {job.location || 'Remote'}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <DollarSign className="w-4 h-4" />
-                                                        {job.salary || 'Competitive'}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Clock className="w-4 h-4" />
-                                                        {job.posted || 'Recent'}
-                                                    </div>
-                                                </div>
-                                                <p className="text-sm text-slate-400 line-clamp-2">{job.description}</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {job.skills?.map((skill) => (
-                                                        <span key={skill} className="px-3 py-1 rounded-full bg-slate-800 text-xs text-slate-300 border border-slate-700">
-                                                            {skill}
-                                                        </span>
-                                                    ))}
+                                                <div className="flex md:flex-col justify-between items-end gap-4">
+                                                    <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
+                                                        {job.type}
+                                                    </span>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            authenticated ? handleJobClick(job) : login();
+                                                        }}
+                                                        className="px-4 py-2 rounded-xl bg-blue-600/10 text-blue-400 text-sm font-bold hover:bg-blue-600 hover:text-white transition-all"
+                                                    >
+                                                        {authenticated ? 'Apply Now' : 'Sign in to Apply'}
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div className="flex md:flex-col justify-between items-end gap-4">
-                                                <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
-                                                    {job.type}
-                                                </span>
-                                                <button className="px-4 py-2 rounded-xl bg-blue-600/10 text-blue-400 text-sm font-bold hover:bg-blue-600 hover:text-white transition-all">
-                                                    {authenticated ? 'Apply Now' : 'Sign in to Apply'}
-                                                </button>
+                                        </motion.div>
+                                    ))}
+
+                                    {/* Pagination Controls */}
+                                    {totalPages > 1 && (
+                                        <div className="flex items-center justify-center gap-4 pt-8">
+                                            <button
+                                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                                disabled={currentPage === 1}
+                                                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                <ChevronLeft className="w-5 h-5" />
+                                            </button>
+
+                                            <div className="flex items-center gap-2">
+                                                {[...Array(totalPages)].map((_, i) => (
+                                                    <button
+                                                        key={i + 1}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        className={`w-10 h-10 rounded-xl font-medium transition-all ${currentPage === i + 1
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30'
+                                                            }`}
+                                                    >
+                                                        {i + 1}
+                                                    </button>
+                                                ))}
                                             </div>
+
+                                            <button
+                                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                                disabled={currentPage === totalPages}
+                                                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                <ChevronRight className="w-5 h-5" />
+                                            </button>
                                         </div>
-                                    </motion.div>
-                                ))}
-
-                                {/* Pagination Controls */}
-                                {totalPages > 1 && (
-                                    <div className="flex items-center justify-center gap-4 pt-8">
-                                        <button
-                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                            disabled={currentPage === 1}
-                                            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                        >
-                                            <ChevronLeft className="w-5 h-5" />
-                                        </button>
-
-                                        <div className="flex items-center gap-2">
-                                            {[...Array(totalPages)].map((_, i) => (
-                                                <button
-                                                    key={i + 1}
-                                                    onClick={() => setCurrentPage(i + 1)}
-                                                    className={`w-10 h-10 rounded-xl font-medium transition-all ${currentPage === i + 1
-                                                        ? 'bg-blue-600 text-white'
-                                                        : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30'
-                                                        }`}
-                                                >
-                                                    {i + 1}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        <button
-                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                            disabled={currentPage === totalPages}
-                                            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                        >
-                                            <ChevronRight className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             </main>

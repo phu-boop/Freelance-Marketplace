@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     User as UserIcon,
     Mail,
@@ -17,7 +17,10 @@ import {
     Loader2,
     Briefcase,
     ArrowLeft,
-    ExternalLink
+    ExternalLink,
+    Share2,
+    Check,
+    Copy
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -54,6 +57,8 @@ export default function PublicProfilePage() {
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'about' | 'reviews'>('about');
+    const [showShareMenu, setShowShareMenu] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         const fetchProfileData = async () => {
@@ -139,10 +144,57 @@ export default function PublicProfilePage() {
                             </div>
                         </div>
                     </div>
-                    <div className="absolute -bottom-12 right-8 pb-4">
+                    <div className="absolute -bottom-12 right-8 pb-4 flex items-center gap-3">
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowShareMenu(!showShareMenu)}
+                                className="p-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all"
+                                title="Share profile"
+                            >
+                                <Share2 className="w-5 h-5" />
+                            </button>
+
+                            <AnimatePresence>
+                                {showShareMenu && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        className="absolute bottom-full mb-4 right-0 w-48 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 overflow-hidden"
+                                    >
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(window.location.href);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-xl transition-colors"
+                                        >
+                                            {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                                            {copied ? 'Copied!' : 'Copy Link'}
+                                        </button>
+                                        <button
+                                            onClick={() => window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`, '_blank')}
+                                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-xl transition-colors"
+                                        >
+                                            <Linkedin className="w-4 h-4 text-[#0A66C2]" />
+                                            LinkedIn
+                                        </button>
+                                        <button
+                                            onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}`, '_blank')}
+                                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-xl transition-colors"
+                                        >
+                                            <Twitter className="w-4 h-4 text-white" />
+                                            X (Twitter)
+                                        </button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
                         {!authenticated ? (
                             <button
-                                onClick={login}
+                                onClick={() => login()}
                                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-all shadow-lg shadow-blue-600/20"
                             >
                                 Sign in to Hire

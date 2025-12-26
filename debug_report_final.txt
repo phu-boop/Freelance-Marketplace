@@ -1,0 +1,48 @@
+--- REGISTERING ---
+{"id":"0d900108-015a-43d7-99b7-b337992061b5","email":"debug_1766736932@example.com","password":null,"googleId":null,"linkedinId":null,"firstName":"Debug","lastName":"User","avatarUrl":null,"phone":null,"address":null,"country":null,"timezone":"UTC","language":"en","roles":["FREELANCER"],"status":"ACTIVE","banReason":null,"banExpiresAt":null,"isAvailable":true,"createdAt":"2025-12-26T08:15:34.051Z","updatedAt":"2025-12-26T08:15:34.051Z","title":null,"overview":null,"hourlyRate":null,"skills":[],"primaryCategoryId":null,"completionPercentage":0,"availableConnects":50,"companyName":null,"companyLogo":null,"companySize":null,"industry":null,"website":null,"isPaymentVerified":false,"kycStatus":"PENDING","idDocument":null,"isIdentityVerified":false,"twoFactorEnabled":false,"twoFactorSecret":null,"resetPasswordToken":null,"resetPasswordExpiresAt":null,"emailNotifications":true,"pushNotifications":true,"inAppNotifications":true,"rating":"0","reviewCount":0,"jobSuccessScore":100,"trustScore":100,"badges":[],"isPromoted":false,"promotionExpiresAt":null}
+--- VERIFYING EMAIL ---
+--- LOGGING IN ---
+{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJsVDhZem5sV1E3Ri1wa1I0RG9YQXlqYW5wTkNtVkRoZ21mNlNzb24xcFJrIn0.eyJleHAiOjE3NjY3MzcyMzQsImlhdCI6MTc2NjczNjkzNCwianRpIjoiYTkwNGI5OGQtMDM3Mi00YTNhLWExMDEtODAyODI4MzYxNmYyIiwiaXNzIjoiaHR0cDovLzE3Mi4yMi4wLjE6ODA4MC9yZWFsbXMvZnJlZWxhbmNlLW1hcmtldHBsYWNlIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjBkOTAwMTA4LTAxNWEtNDNkNy05OWI3LWIzMzc5OTIwNjFiNSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImZyZWVsYW5jZS1jbGllbnQiLCJzZXNzaW9uX3N0YXRlIjoiNWI3YjRkMmItMjRjYy00ODA3LWJlM2QtMmQ4NTQ1ZjBhNjRhIiwiYWNyIjoiMSIsImFsbG93ZWQtb3JpZ2lucyI6WyIqIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJvZmZsaW5lX2FjY2VzcyIsIkZSRUVMQU5DRVIiLCJ1bWFfYXV0aG9yaXphdGlvbiIsImRlZmF1bHQtcm9sZXMtZnJlZWxhbmNlLW1hcmtldHBsYWNlIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsInNpZCI6IjViN2I0ZDJiLTI0Y2MtNDgwNy1iZTNkLTJkODU0NWYwYTY0YSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJuYW1lIjoiRGVidWcgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImRlYnVnXzE3NjY3MzY5MzJAZXhhbXBsZS5jb20iLCJnaXZlbl9uYW1lIjoiRGVidWciLCJmYW1pbHlfbmFtZSI6IlVzZXIiLCJlbWFpbCI6ImRlYnVnXzE3NjY3MzY5MzJAZXhhbXBsZS5jb20ifQ.RDIL2s_4RLbjEompXWdauUX_DlL38O0UcQjHLIoFN8boDb0EnLBEZMt9gBLiVrOUxVHhNV88ZzMwBTnVMj6rlkQW1v-hMD2pJB-uIb_KkghsQgGMfpn1phdMtESjtNysT0R0KKkpTBpmFZ0RyhobvZUcCcgz8q6oaA2EI7PYi3X8TN2AP2Wtuf2cRmoCHI1zBeRUl2CQl05iNw9kOT9VV8jia0QtIl_itza-EJSe2hTfOGg7lt2S57jGs01BuLEI5eAggnLW8ceR0-qgZVGQR9ph08ReKwKPuqhzY5N3oYdr9ytFDWYwqRQuq4v6QxMBEBHDavMVBhnbWBw7Z4s36A","expires_in":300,"refresh_expires_in":1800,"refresh_token":"eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJiNTQ1YzcxYy0xZDkwLTQ0MzktOWI0Mi02YzhiZDY2ZjFjYzcifQ.eyJleHAiOjE3NjY3Mzg3MzQsImlhdCI6MTc2NjczNjkzNCwianRpIjoiYzQwMGY1MGEtNWUxNS00MzRhLTk3YzgtZGQ0ZDRkOWQ4NjdjIiwiaXNzIjoiaHR0cDovLzE3Mi4yMi4wLjE6ODA4MC9yZWFsbXMvZnJlZWxhbmNlLW1hcmtldHBsYWNlIiwiYXVkIjoiaHR0cDovLzE3Mi4yMi4wLjE6ODA4MC9yZWFsbXMvZnJlZWxhbmNlLW1hcmtldHBsYWNlIiwic3ViIjoiMGQ5MDAxMDgtMDE1YS00M2Q3LTk5YjctYjMzNzk5MjA2MWI1IiwidHlwIjoiUmVmcmVzaCIsImF6cCI6ImZyZWVsYW5jZS1jbGllbnQiLCJzZXNzaW9uX3N0YXRlIjoiNWI3YjRkMmItMjRjYy00ODA3LWJlM2QtMmQ4NTQ1ZjBhNjRhIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsInNpZCI6IjViN2I0ZDJiLTI0Y2MtNDgwNy1iZTNkLTJkODU0NWYwYTY0YSJ9.0XKKn2qXroh2OxLjJxejTtg-HuSzVoOzlKivqwE5hP4XpcijBjACVrzdhVPwEZT-AFpGYpubGfe73i9pypjZaQ","token_type":"Bearer","id_token":"eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJsVDhZem5sV1E3Ri1wa1I0RG9YQXlqYW5wTkNtVkRoZ21mNlNzb24xcFJrIn0.eyJleHAiOjE3NjY3MzcyMzQsImlhdCI6MTc2NjczNjkzNCwiYXV0aF90aW1lIjowLCJqdGkiOiIyYWUyOGQyNS0xNjFjLTRmNTMtYWRlMy01NDY0NTZlZjQ5OWMiLCJpc3MiOiJodHRwOi8vMTcyLjIyLjAuMTo4MDgwL3JlYWxtcy9mcmVlbGFuY2UtbWFya2V0cGxhY2UiLCJhdWQiOiJmcmVlbGFuY2UtY2xpZW50Iiwic3ViIjoiMGQ5MDAxMDgtMDE1YS00M2Q3LTk5YjctYjMzNzk5MjA2MWI1IiwidHlwIjoiSUQiLCJhenAiOiJmcmVlbGFuY2UtY2xpZW50Iiwic2Vzc2lvbl9zdGF0ZSI6IjViN2I0ZDJiLTI0Y2MtNDgwNy1iZTNkLTJkODU0NWYwYTY0YSIsImF0X2hhc2giOiJLNjNhRWxTNjBuT0Zwc2JKMHNBNHVnIiwiYWNyIjoiMSIsInNpZCI6IjViN2I0ZDJiLTI0Y2MtNDgwNy1iZTNkLTJkODU0NWYwYTY0YSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJuYW1lIjoiRGVidWcgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImRlYnVnXzE3NjY3MzY5MzJAZXhhbXBsZS5jb20iLCJnaXZlbl9uYW1lIjoiRGVidWciLCJmYW1pbHlfbmFtZSI6IlVzZXIiLCJlbWFpbCI6ImRlYnVnXzE3NjY3MzY5MzJAZXhhbXBsZS5jb20ifQ.PnTlL9WyHjp6qU2_xedrfVwB-feLK-YEBQandr5X850Wklr3xT1o4SqHuBUzfbfc5xJA1EU65F9gm93nfXMezXEJX0A8envZUyhJ26a22vRNF50JCya-j2xyS2zYUYhJ00-i4sA-uzgN-2a0s3oDKSKZ8ZqSamFwKOoYjenhj2GnDZnRf4a0_iaR4t453vQdmxpklV7syN7qoENRLo4V-pxoH91Tss4Tv8aRrnF-0NIQAZm2ijn9j6JDdhwZ-hK32z2Sjos2ebwzsppSTHCe0rv0PeVRPGQFBR_a790DteFThm7EDO-fA9OF0VdVhq20b6tHS9iMb43lN-geoW23Aw","not-before-policy":0,"session_state":"5b7b4d2b-24cc-4807-be3d-2d8545f0a64a","scope":"openid profile email"}
+--- DECODING TOKEN ---
+{
+  "exp": 1766737234,
+  "iat": 1766736934,
+  "jti": "a904b98d-0372-4a3a-a101-8028283616f2",
+  "iss": "http://172.22.0.1:8080/realms/freelance-marketplace",
+  "aud": "account",
+  "sub": "0d900108-015a-43d7-99b7-b337992061b5",
+  "typ": "Bearer",
+  "azp": "freelance-client",
+  "session_state": "5b7b4d2b-24cc-4807-be3d-2d8545f0a64a",
+  "acr": "1",
+  "allowed-origins": [
+    "*"
+  ],
+  "realm_access": {
+    "roles": [
+      "offline_access",
+      "FREELANCER",
+      "uma_authorization",
+      "default-roles-freelance-marketplace"
+    ]
+  },
+  "resource_access": {
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "openid profile email",
+  "sid": "5b7b4d2b-24cc-4807-be3d-2d8545f0a64a",
+  "email_verified": true,
+  "name": "Debug User",
+  "preferred_username": "debug_1766736932@example.com",
+  "given_name": "Debug",
+  "family_name": "User",
+  "email": "debug_1766736932@example.com"
+}
+--- TESTING ME ENDPOINT ---
+{"id":"0d900108-015a-43d7-99b7-b337992061b5","email":"debug_1766736932@example.com","password":null,"googleId":null,"linkedinId":null,"firstName":"Debug","lastName":"User","avatarUrl":null,"phone":null,"address":null,"country":null,"timezone":"UTC","language":"en","roles":["FREELANCER"],"status":"ACTIVE","banReason":null,"banExpiresAt":null,"isAvailable":true,"createdAt":"2025-12-26T08:15:34.051Z","updatedAt":"2025-12-26T08:15:34.051Z","title":null,"overview":null,"hourlyRate":null,"skills":[],"primaryCategoryId":null,"completionPercentage":0,"availableConnects":50,"companyName":null,"companyLogo":null,"companySize":null,"industry":null,"website":null,"isPaymentVerified":false,"kycStatus":"PENDING","idDocument":null,"isIdentityVerified":false,"twoFactorEnabled":false,"twoFactorSecret":null,"resetPasswordToken":null,"resetPasswordExpiresAt":null,"emailNotifications":true,"pushNotifications":true,"inAppNotifications":true,"rating":"0","reviewCount":0,"jobSuccessScore":100,"trustScore":100,"badges":[],"isPromoted":false,"promotionExpiresAt":null,"education":[],"experience":[],"portfolio":[]}

@@ -27,7 +27,7 @@ export class JobsService {
       finalSkillIds = [...new Set([...finalSkillIds, ...skillInstances.map(s => s.id)])];
     }
 
-    return this.prisma.job.create({
+    const job = await this.prisma.job.create({
       data: {
         ...jobData,
         skills: {
@@ -45,6 +45,46 @@ export class JobsService {
         }
       }
     });
+
+    // Sync to search service
+    await this.syncToSearch(job);
+
+    return job;
+  }
+
+  private async syncToSearch(job: any) {
+    try {
+      const searchUrl = process.env.SEARCH_SERVICE_URL || 'http://search-service:3010';
+      console.log(`Syncing job ${job.id} to ${searchUrl}/search/jobs/index`);
+      const indexedJob = {
+        id: job.id,
+        title: job.title,
+        description: job.description,
+        budget: job.budget,
+        location: job.location,
+        type: job.type,
+        experienceLevel: job.experienceLevel,
+        category: job.category?.name,
+        categoryId: job.categoryId,
+        skills: job.skills?.map((s: any) => s.skill.name) || [],
+        createdAt: job.createdAt,
+        status: job.status
+      };
+
+      const response = await fetch(`${searchUrl}/search/jobs/index`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(indexedJob),
+      });
+
+      if (!response.ok) {
+        console.error(`Search sync failed with status ${response.status}: ${await response.text()}`);
+      } else {
+        console.log(`Successfully synced job ${job.id} to search service`);
+      }
+    } catch (error) {
+      console.error('Failed to sync job to search service:', error);
+    }
   }
 
   async findAll(page: number = 1, limit: number = 10) {
@@ -112,7 +152,7 @@ export class JobsService {
       await this.prisma.jobSkill.deleteMany({ where: { jobId: id } });
     }
 
-    return this.prisma.job.update({
+    const job = await this.prisma.job.update({
       where: { id },
       data: {
         ...jobData,
@@ -133,6 +173,9 @@ export class JobsService {
         }
       }
     });
+
+    await this.syncToSearch(job);
+    return job;
   }
 
   remove(id: string) {
@@ -142,25 +185,34 @@ export class JobsService {
   }
 
   // Admin Actions
-  approveJob(id: string) {
-    return this.prisma.job.update({
+  async approveJob(id: string) {
+    const job = await this.prisma.job.update({
       where: { id },
-      data: { status: 'OPEN' }
+      data: { status: 'OPEN' },
+      include: { category: true, skills: { include: { skill: true } } }
     });
+    await this.syncToSearch(job);
+    return job;
   }
 
-  rejectJob(id: string) {
-    return this.prisma.job.update({
+  async rejectJob(id: string) {
+    const job = await this.prisma.job.update({
       where: { id: id },
-      data: { status: 'REJECTED' }
+      data: { status: 'REJECTED' },
+      include: { category: true, skills: { include: { skill: true } } }
     });
+    await this.syncToSearch(job);
+    return job;
   }
 
-  closeJob(id: string) {
-    return this.prisma.job.update({
+  async closeJob(id: string) {
+    const job = await this.prisma.job.update({
       where: { id: id },
-      data: { status: 'CLOSED' }
+      data: { status: 'CLOSED' },
+      include: { category: true, skills: { include: { skill: true } } }
     });
+    await this.syncToSearch(job);
+    return job;
   }
 
   lockJob(id: string) {

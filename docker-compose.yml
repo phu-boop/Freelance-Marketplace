@@ -107,7 +107,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=users
       - PORT=3000
-      - KEYCLOAK_URL=http://172.22.0.1:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
@@ -129,6 +129,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
       - PORT=3002
+      - SEARCH_SERVICE_URL=http://search-service:3010
     depends_on:
       - postgres
     restart: always
@@ -261,6 +262,7 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
@@ -427,7 +429,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://172.22.0.1:8080
       - NEXT_PUBLIC_KEYCLOAK_REALM=freelance-marketplace
       - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=freelance-client
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api

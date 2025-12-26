@@ -23,6 +23,11 @@ export class SearchController {
         @Query('minSalary') minSalary?: string,
         @Query('maxSalary') maxSalary?: string,
         @Query('location') location?: string,
+        @Query('categoryId') categoryId?: string,
+        @Query('skills') skills?: string,
+        @Query('sortBy') sortBy?: string,
+        @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+        @Query('postedWithin') postedWithin?: string,
         @Query('page') page: number = 1,
         @Query('limit') limit: number = 10,
     ) {
@@ -32,6 +37,11 @@ export class SearchController {
             minSalary,
             maxSalary,
             location,
+            categoryId,
+            skills,
+            sortBy,
+            sortOrder,
+            postedWithin,
             page,
             limit
         });
