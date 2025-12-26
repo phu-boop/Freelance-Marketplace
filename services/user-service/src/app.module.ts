@@ -40,7 +40,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
         realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
         clientId: 'freelance-client',
-        secret: '',
+        secret: configService.get<string>('KEYCLOAK_SECRET', ''),
         logLevels: ['error', 'warn'],
         useNestLogger: true,
       }),

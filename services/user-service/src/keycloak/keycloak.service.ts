@@ -11,6 +11,7 @@ export class KeycloakService {
     private readonly realm: string;
     private readonly adminUser: string;
     private readonly adminPass: string;
+    private readonly clientSecret: string;
 
     constructor(
         private readonly httpService: HttpService,
@@ -20,6 +21,7 @@ export class KeycloakService {
         this.realm = this.configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace');
         this.adminUser = this.configService.get<string>('KEYCLOAK_ADMIN_USER', 'admin');
         this.adminPass = this.configService.get<string>('KEYCLOAK_ADMIN_PASSWORD', 'admin');
+        this.clientSecret = this.configService.get<string>('KEYCLOAK_SECRET', '');
     }
 
     async login(credentials: { email: string; password: string }): Promise<any> {
@@ -29,6 +31,7 @@ export class KeycloakService {
             client_id: 'freelance-client', // Note: This should match the client in run_all.sh
             username: credentials.email,
             password: credentials.password,
+            client_secret: this.clientSecret,
             scope: 'openid profile email',
         });
 
