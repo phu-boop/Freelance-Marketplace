@@ -5,135 +5,199 @@ services:
   - name: user-service
     url: http://user-service:3000
     routes:
-      - name: user-routes
+
+      # =====================
+      # Auth Routes (PUBLIC)
+      # /api/auth/register -> /register
+      # =====================
+      - name: auth-public
         paths:
-          - /users
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/auth
+        strip_path: true
+
+      # =====================
+      # User Read Routes (PUBLIC)
+      # /api/users -> /
+      # =====================
+      - name: user-read
+        paths:
+          - /api/users
+        methods:
+          - GET
+        strip_path: true
+
+      # =====================
+      # User Protected Routes (JWT)
+      # =====================
+      - name: user-protected
+        paths:
+          - /api/users
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
+
+
   - name: job-service
     url: http://job-service:3002
     routes:
-      - name: job-routes
+      - name: job-read
         paths:
-          - /jobs
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/jobs
+        methods:
+          - GET
+        strip_path: true
+      - name: job-write
+        paths:
+          - /api/jobs
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
+
   - name: proposal-service
     url: http://proposal-service:3003
     routes:
       - name: proposal-routes
         paths:
-          - /proposals
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/proposals
+        strip_path: true
+
   - name: contract-service
     url: http://contract-service:3004
     routes:
       - name: contract-routes
         paths:
-          - /contracts
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/contracts
+        strip_path: true
+
   - name: payment-service
     url: http://payment-service:3005
     routes:
       - name: payment-routes
         paths:
-          - /payments
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/payments
+        strip_path: true
+
   - name: chat-service
     url: http://chat-service:3006
     routes:
       - name: chat-routes
         paths:
-          - /chats
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/chat
+        strip_path: true
+
   - name: notification-service
     url: http://notification-service:3007
     routes:
       - name: notification-routes
         paths:
-          - /notifications
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/notifications
+        strip_path: true
+
   - name: review-service
     url: http://review-service:3008
     routes:
-      - name: review-routes
+      - name: review-read
         paths:
-          - /reviews
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/reviews
+        methods:
+          - GET
+        strip_path: true
+      - name: review-write
+        paths:
+          - /api/reviews
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
+
   - name: admin-service
     url: http://admin-service:3009
     routes:
       - name: admin-routes
         paths:
-          - /admins
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/admin
+        strip_path: true
+
   - name: search-service
-    url: http://search-service:3010
+    url: http://search-service:3010/search
     routes:
-      - name: search-routes
+      - name: search-read
         paths:
-          - /search
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/search
+        methods:
+          - GET
+        strip_path: true
+      - name: search-write
+        paths:
+          - /api/search
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
+
   - name: analytics-service
-    url: http://analytics-service:3011
+    url: http://analytics-service:3014
     routes:
       - name: analytics-routes
         paths:
-          - /analytics
-        strip_path: false
-    plugins:
-      - name: jwt
-        config:
-          claims_to_verify:
-            - exp
+          - /api/analytics
+        strip_path: true
+
+  - name: storage-service
+    url: http://storage-service:3011/storage
+    routes:
+      - name: storage-read
+        paths:
+          - /api/storage
+        methods:
+          - GET
+        strip_path: true
+      - name: storage-write
+        paths:
+          - /api/storage
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
+
+  - name: common-service
+    url: http://common-service:3013/common
+    routes:
+      - name: common-read
+        paths:
+          - /api/common
+        methods:
+          - GET
+        strip_path: true
+      - name: common-write
+        paths:
+          - /api/common
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: true
+
+  - name: email-service
+    url: http://email-service:3012
+    routes:
+      - name: email-routes
+        paths:
+          - /api/email
+        strip_path: true
 
 consumers:
   - username: keycloak-user
@@ -149,7 +213,7 @@ plugins:
   - name: cors
     config:
       origins:
-        - "*"
+        - "http://localhost:3000"
       methods:
         - GET
         - POST

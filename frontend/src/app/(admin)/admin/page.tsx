@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import {
     Users,
     Briefcase,
@@ -11,7 +12,9 @@ import {
     ArrowDown,
     Loader2,
     ShieldAlert,
-    Clock
+    Clock,
+    Settings,
+    Terminal
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -21,6 +24,8 @@ interface Metrics {
     pendingJobs: number;
     activeJobs: number;
     suspendedUsers: number;
+    totalVolume: number;
+    totalPayments: number;
 }
 
 export default function AdminDashboardPage() {
@@ -73,6 +78,14 @@ export default function AdminDashboardPage() {
             trend: 'neutral',
             icon: Activity,
             color: 'red'
+        },
+        {
+            label: 'Total Volume',
+            value: `$${(metrics?.totalVolume || 0).toLocaleString()}`,
+            change: 'Platform Wide',
+            trend: 'neutral',
+            icon: DollarSign,
+            color: 'emerald'
         }
     ];
 
@@ -92,7 +105,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 {stats.map((stat, idx) => (
                     <motion.div
                         key={stat.label}
@@ -158,6 +171,39 @@ export default function AdminDashboardPage() {
                                 </div>
                             </div>
                             <button className="text-xs text-blue-400 hover:underline">Verify Now</button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950/50 border border-red-500/20">
+                            <div className="flex items-center gap-3">
+                                <ShieldAlert className="w-5 h-5 text-red-500" />
+                                <div>
+                                    <p className="text-sm font-medium text-white">Dispute Management</p>
+                                    <p className="text-xs text-slate-500">Review and resolve contract disputes</p>
+                                </div>
+                            </div>
+                            <Link href="/admin/disputes" className="text-xs text-blue-400 hover:underline">View Disputes</Link>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950/50 border border-slate-700">
+                            <div className="flex items-center gap-3">
+                                <Settings className="w-5 h-5 text-slate-400" />
+                                <div>
+                                    <p className="text-sm font-medium text-white">System Settings</p>
+                                    <p className="text-xs text-slate-500">Configure platform fees and rules</p>
+                                </div>
+                            </div>
+                            <Link href="/admin/settings" className="text-xs text-blue-400 hover:underline">Configure</Link>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950/50 border border-slate-700">
+                            <div className="flex items-center gap-3">
+                                <Terminal className="w-5 h-5 text-slate-400" />
+                                <div>
+                                    <p className="text-sm font-medium text-white">System Logs</p>
+                                    <p className="text-xs text-slate-500">Monitor system events and errors</p>
+                                </div>
+                            </div>
+                            <Link href="/admin/logs" className="text-xs text-blue-400 hover:underline">View Logs</Link>
                         </div>
                     </div>
                 </div>

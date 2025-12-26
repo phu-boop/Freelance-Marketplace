@@ -21,12 +21,49 @@ model Contract {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // Dispute
-  disputeStatus String?  // OPEN, RESOLVED
-  disputeReason String?
+  // Escrow
+  escrowStatus  String   @default("PENDING") // PENDING, FUNDED, RELEASED, REFUNDED
+  escrowAmount  Decimal  @default(0.0)
+  
+  // Template
+  templateUrl   String?
 
   // Relations
   milestones    Milestone[]
+  timeLogs      TimeLog[]
+  disputes      Dispute[]
+  disputeStatus String?
+  disputeReason String?
+
+  @@schema("contracts")
+}
+
+model Dispute {
+  id            String   @id @default(uuid())
+  contractId    String
+  contract      Contract @relation(fields: [contractId], references: [id])
+  raisedById    String   // User ID who raised the dispute
+  reason        String
+  evidence      String[] // URLs to files
+  status        String   @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
+  resolution    String?  // Final decision text
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("contracts")
+}
+
+model TimeLog {
+  id          String   @id @default(uuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id])
+  hours       Decimal
+  description String
+  date        DateTime
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("contracts")
 }
@@ -35,10 +72,39 @@ model Milestone {
   id          String   @id @default(uuid())
   description String
   amount      Decimal
-  status      String   @default("PENDING") // PENDING, ACTIVE, COMPLETED
+  status      String   @default("PENDING") // PENDING, ACTIVE, IN_REVIEW, COMPLETED
   dueDate     DateTime?
+  progressPercentage Int @default(0)
   contractId  String
   contract    Contract @relation(fields: [contractId], references: [id])
+  submissions Submission[]
   
+  @@schema("contracts")
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  content     String
+  attachments String[] // URLs to files
+  type        String   @default("PROGRESS_REPORT") // PROGRESS_REPORT, FINAL_RESULT
+  revisionCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id])
+  revisions   RevisionRequest[]
+
+  @@schema("contracts")
+}
+
+model RevisionRequest {
+  id            String   @id @default(uuid())
+  feedback      String
+  attachments   String[]
+  status        String   @default("OPEN") // OPEN, ADDRESSED
+  submissionId  String
+  submission    Submission @relation(fields: [submissionId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   @@schema("contracts")
 }

@@ -42,7 +42,28 @@ export class ChatsService {
       .exec();
   }
 
-  async remove(id: string): Promise<any> {
-    return this.messageModel.findByIdAndDelete(id).exec();
+  async getConversations(userId: string): Promise<any[]> {
+    const messages = await this.messageModel
+      .find({
+        $or: [{ senderId: userId }, { receiverId: userId }],
+      })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const conversationsMap = new Map();
+
+    messages.forEach((msg) => {
+      const otherId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+      if (!conversationsMap.has(otherId)) {
+        conversationsMap.set(otherId, {
+          otherId,
+          lastMessage: msg.content,
+          timestamp: msg.createdAt,
+          isRead: msg.isRead,
+        });
+      }
+    });
+
+    return Array.from(conversationsMap.values());
   }
 }

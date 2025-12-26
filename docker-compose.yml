@@ -11,6 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: always
     networks:
       - freelance_network
 
@@ -25,11 +26,16 @@ services:
       KC_DB_PASSWORD: password
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_URL: http://172.22.0.1:8080
+      KC_HOSTNAME_STRICT: "false"
     command: start-dev
     ports:
       - "8080:8080"
+    volumes:
+      - ./keycloak/themes:/opt/keycloak/themes
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -39,6 +45,7 @@ services:
     container_name: freelance_redis
     ports:
       - "6380:6379"
+    restart: always
     networks:
       - freelance_network
 
@@ -53,6 +60,7 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    restart: always
     networks:
       - freelance_network
 
@@ -84,6 +92,7 @@ services:
       - "8443:8443"
       - "127.0.0.1:8001:8001"
       - "127.0.0.1:8444:8444"
+    restart: always
     networks:
       - freelance_network
 
@@ -96,10 +105,16 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=public
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=users
       - PORT=3000
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_ADMIN_USER=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -114,8 +129,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
       - PORT=3002
+      - SEARCH_SERVICE_URL=http://search-service:3010
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -132,6 +149,7 @@ services:
       - PORT=3003
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -148,6 +166,7 @@ services:
       - PORT=3004
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -164,6 +183,7 @@ services:
       - PORT=3006
     depends_on:
       - mongo
+    restart: always
     networks:
       - freelance_network
 
@@ -180,6 +200,7 @@ services:
       - PORT=3007
     depends_on:
       - mongo
+    restart: always
     networks:
       - freelance_network
 
@@ -196,6 +217,7 @@ services:
       - PORT=3008
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -212,6 +234,7 @@ services:
       - PORT=3009
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -228,6 +251,7 @@ services:
       - PORT=3010
     depends_on:
       - elasticsearch
+    restart: always
     networks:
       - freelance_network
 
@@ -238,9 +262,11 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
+    restart: always
     networks:
       - freelance_network
 
@@ -254,6 +280,7 @@ services:
       - "5601:5601"
     depends_on:
       - elasticsearch
+    restart: always
     networks:
       - freelance_network
 
@@ -274,6 +301,7 @@ services:
       - PORT=3014
     depends_on:
       - clickhouse
+    restart: always
     networks:
       - freelance_network
   clickhouse:
@@ -281,7 +309,7 @@ services:
     container_name: freelance_clickhouse
     ports:
       - "8123:8123"
-      - "9000:9000"
+      - "9002:9000"
     environment:
       - CLICKHOUSE_DB=freelance_analytics
       - CLICKHOUSE_USER=admin
@@ -290,6 +318,7 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    restart: always
     networks:
       - freelance_network
 
@@ -306,6 +335,7 @@ services:
       - PORT=3005
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -322,6 +352,7 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    restart: always
     networks:
       - freelance_network
 
@@ -332,6 +363,7 @@ services:
     ports:
       - "1025:1025" # SMTP port
       - "8025:8025" # Web UI
+    restart: always
     networks:
       - freelance_network
 
@@ -347,6 +379,7 @@ services:
       - PORT=3012
       - EMAIL_USER=user@example.com
       - EMAIL_PASS=password
+    restart: always
     networks:
       - freelance_network
 
@@ -366,6 +399,7 @@ services:
       - MINIO_SECRET_KEY=password
     depends_on:
       - minio
+    restart: always
     networks:
       - freelance_network
 
@@ -382,6 +416,7 @@ services:
       - PORT=3013
     depends_on:
       - postgres
+    restart: always
     networks:
       - freelance_network
 
@@ -394,14 +429,16 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://172.22.0.1:8080
       - NEXT_PUBLIC_KEYCLOAK_REALM=freelance-marketplace
       - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=freelance-client
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
     depends_on:
       - keycloak
       - kong
       - user-service
       - job-service
+    restart: always
     networks:
       - freelance_network
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { KeycloakProvider } from "@/components/KeycloakProvider";
+import Providers from "./providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,9 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <KeycloakProvider>
+        <Providers>
           {children}
-        </KeycloakProvider>
+        </Providers>
       </body>
     </html>
   );

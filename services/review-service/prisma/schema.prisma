@@ -14,7 +14,11 @@ model Review {
   reviewee_id   String
   job_id        String
   contract_id   String
-  rating        Int
+  ratingOverall Int      @default(0)
+  ratingCommunication Int @default(0)
+  ratingQuality       Int @default(0)
+  ratingValue         Int @default(0)
+  ratingSchedule      Int @default(0)
   comment       String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

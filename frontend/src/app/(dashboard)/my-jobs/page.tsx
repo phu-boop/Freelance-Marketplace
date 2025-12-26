@@ -11,8 +11,12 @@ import {
     Plus,
     Loader2,
     Users,
-    ChevronRight
+    ChevronRight,
+    XCircle,
+    Copy,
+    Trash2
 } from 'lucide-react';
+import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 
 interface Job {
@@ -27,49 +31,55 @@ interface Job {
 }
 
 export default function MyJobsPage() {
+    const { userId } = useKeycloak();
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const fetchMyJobs = async () => {
-            try {
-                // In a real app, this endpoint would filter by the current user's ID
-                // For now, we might need a specific endpoint or filter in the Job Service
-                const response = await api.get('/jobs/my-jobs');
-                setJobs(response.data);
-            } catch (err) {
-                console.error('Failed to fetch my jobs', err);
-                // Fallback mock data for demonstration
-                setJobs([
-                    {
-                        id: '1',
-                        title: 'Senior React Developer',
-                        location: 'Remote',
-                        budget: 5000,
-                        type: 'Full-time',
-                        createdAt: new Date().toISOString(),
-                        status: 'Open',
-                        proposalCount: 3
-                    },
-                    {
-                        id: '2',
-                        title: 'Backend Node.js Engineer',
-                        location: 'Remote',
-                        budget: 4000,
-                        type: 'Contract',
-                        createdAt: new Date(Date.now() - 86400000).toISOString(),
-                        status: 'Open',
-                        proposalCount: 5
-                    }
-                ]);
-            } finally {
-                setLoading(false);
-            }
-        };
+    const fetchMyJobs = async () => {
+        if (!userId) return;
+        try {
+            const response = await api.get(`/jobs/my-jobs?clientId=${userId}`);
+            setJobs(response.data);
+        } catch (err) {
+            console.error('Failed to fetch my jobs', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    useEffect(() => {
         fetchMyJobs();
-    }, []);
+    }, [userId]);
+
+    const handleClose = async (id: string) => {
+        if (!confirm('Are you sure you want to close this job?')) return;
+        try {
+            await api.post(`/jobs/${id}/close`);
+            fetchMyJobs();
+        } catch (err) {
+            console.error('Failed to close job', err);
+        }
+    };
+
+    const handleDuplicate = async (id: string) => {
+        try {
+            await api.post(`/jobs/${id}/duplicate`);
+            fetchMyJobs();
+        } catch (err) {
+            console.error('Failed to duplicate job', err);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this job?')) return;
+        try {
+            await api.delete(`/jobs/${id}`);
+            fetchMyJobs();
+        } catch (err) {
+            console.error('Failed to delete job', err);
+        }
+    };
 
     if (loading) {
         return (
@@ -87,7 +97,7 @@ export default function MyJobsPage() {
                     <p className="text-slate-400">Manage your job postings and view proposals.</p>
                 </div>
                 <Link
-                    href="/jobs/create"
+                    href="/marketplace/create"
                     className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20"
                 >
                     <Plus className="w-5 h-5" />
@@ -105,7 +115,7 @@ export default function MyJobsPage() {
                         You haven't posted any jobs yet. Create your first job posting to start finding talent.
                     </p>
                     <Link
-                        href="/jobs/create"
+                        href="/marketplace/create"
                         className="inline-flex px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all mt-4"
                     >
                         Post a Job
@@ -127,8 +137,10 @@ export default function MyJobsPage() {
                                         <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">
                                             {job.title}
                                         </h3>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${job.status === 'Open'
-                                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${job.status === 'OPEN'
+                                            ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                            : job.status === 'CLOSED'
+                                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
                                                 : 'bg-slate-800 text-slate-400 border-slate-700'
                                             }`}>
                                             {job.status}
@@ -158,13 +170,38 @@ export default function MyJobsPage() {
                                         </div>
                                         <span className="text-xs text-slate-500">Received so far</span>
                                     </div>
-                                    <Link
-                                        href={`/my-jobs/${job.id}/proposals`}
-                                        className="px-4 py-2 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-xl transition-all flex items-center gap-2"
-                                    >
-                                        View Proposals
-                                        <ChevronRight className="w-4 h-4" />
-                                    </Link>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleDuplicate(job.id)}
+                                            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all"
+                                            title="Duplicate Job"
+                                        >
+                                            <Copy className="w-4 h-4" />
+                                        </button>
+                                        {job.status !== 'CLOSED' && (
+                                            <button
+                                                onClick={() => handleClose(job.id)}
+                                                className="p-2 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-xl transition-all"
+                                                title="Close Job"
+                                            >
+                                                <XCircle className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleDelete(job.id)}
+                                            className="p-2 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-xl transition-all"
+                                            title="Delete Job"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <Link
+                                            href={`/my-jobs/${job.id}/proposals`}
+                                            className="px-4 py-2 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-xl transition-all flex items-center gap-2"
+                                        >
+                                            View Proposals
+                                            <ChevronRight className="w-4 h-4" />
+                                        </Link>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>

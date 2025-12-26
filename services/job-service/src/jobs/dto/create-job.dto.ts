@@ -18,6 +18,11 @@ export class CreateJobDto {
     client_id: string;
 
     @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    skills?: string[];
+
+    @IsArray()
     @IsUUID('4', { each: true })
     @IsOptional()
     skillIds?: string[];
@@ -29,6 +34,22 @@ export class CreateJobDto {
     @IsString()
     @IsOptional()
     type?: string;
+
+    @IsString()
+    @IsOptional()
+    experienceLevel?: string;
+
+    @IsString()
+    @IsOptional()
+    locationType?: string;
+
+    @IsString()
+    @IsOptional()
+    location?: string;
+
+    @IsString()
+    @IsOptional()
+    duration?: string;
 
     @IsArray()
     @IsString({ each: true })

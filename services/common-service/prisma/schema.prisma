@@ -1,9 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["common"]
 }
 
 model Category {
@@ -13,6 +15,9 @@ model Category {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@map("categories")
+  @@schema("common")
 }
 
 model Skill {
@@ -21,4 +26,7 @@ model Skill {
   slug        String   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@map("skills")
+  @@schema("common")
 }

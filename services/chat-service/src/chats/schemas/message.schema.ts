@@ -17,6 +17,12 @@ export class Message extends Document {
 
     @Prop()
     contractId?: string; // Optional: link message to a contract
+
+    @Prop({ type: [String], default: [] })
+    attachments: string[];
+
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

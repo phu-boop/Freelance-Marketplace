@@ -2,44 +2,141 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["users"]
 }
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String?  // Nullable if using only social login, but usually needed
+  googleId  String?  @unique
+  linkedinId String? @unique
   firstName String?
   lastName  String?
+  avatarUrl String?
+  phone     String?
+  address   String?
+  country   String?
+  timezone  String?  @default("UTC")
+  language  String?  @default("en")
   roles     String[] @default(["FREELANCER"]) // FREELANCER, CLIENT, ADMIN
   status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, BANNED
+  banReason String?
+  banExpiresAt DateTime?
+  isAvailable Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Profile fields can be in a separate table or here. Let's keep it simple for now.
   // Profile fields
   title       String?  // Professional Title
   overview    String?  // Detailed Bio
   hourlyRate  Decimal?
   skills      String[]
+  primaryCategoryId String?
+  completionPercentage Int @default(0)
+  availableConnects Int @default(50)
+  profile Profile? @relation("UserProfile")
+
+
+  
+  // Client fields
+  companyName       String?
+  companyLogo       String?
+  companySize       String?
+  industry          String?
+  website           String?
+  isPaymentVerified Boolean @default(false)
   
   // KYC
   kycStatus   String   @default("PENDING") // PENDING, VERIFIED, REJECTED
   idDocument  String?  // URL to ID document
+  isIdentityVerified Boolean @default(false)
+  
+  // Security
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
+  resetPasswordToken String?
+  resetPasswordExpiresAt DateTime?
+
+  // Notifications
+  emailNotifications Boolean @default(true)
+  pushNotifications  Boolean @default(true)
+  inAppNotifications Boolean @default(true)
 
   // Reputation
   rating          Decimal  @default(0.0)
   reviewCount     Int      @default(0)
   jobSuccessScore Int      @default(100)
+  trustScore      Int      @default(100)
+  badges          String[]
+  isPromoted      Boolean  @default(false)
+  promotionExpiresAt DateTime?
 
   // Relations
   education   Education[]
   experience  Experience[]
   portfolio   PortfolioItem[]
+  teams       TeamMember[]
+  ownedTeams  Team[]
+  availability AvailabilityCalendar[]
+  referrals   Referral[] @relation("Referrer")
+  referredBy  Referral[] @relation("Referred")
+
+  @@map("users")
+  @@schema("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation("UserProfile", fields: [userId], references: [id])
+  headline    String?
+  bio         String?
+  hourlyRate  Decimal?
+  skills      String[]
+  primaryCategoryId String?
+  isComplete  Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("profiles")
+  @@schema("users")
+}
+
+model Referral {
+  id          String   @id @default(uuid())
+  referrerId  String
+  referrer    User     @relation("Referrer", fields: [referrerId], references: [id])
+  referredId  String
+  referred    User     @relation("Referred", fields: [referredId], references: [id])
+  status      String   @default("PENDING") // PENDING, COMPLETED
+  rewardAmount Decimal @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([referredId])
+  @@map("referrals")
+  @@schema("users")
+}
+
+model AvailabilityCalendar {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  date      DateTime
+  isBusy    Boolean  @default(true)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@schema("users")
 }
 
 model Education {
@@ -52,6 +149,8 @@ model Education {
   description  String?
   userId       String
   user         User     @relation(fields: [userId], references: [id])
+
+  @@schema("users")
 }
 
 model Experience {
@@ -65,6 +164,8 @@ model Experience {
   description  String?
   userId       String
   user         User     @relation(fields: [userId], references: [id])
+
+  @@schema("users")
 }
 
 model PortfolioItem {
@@ -73,6 +174,38 @@ model PortfolioItem {
   description  String?
   imageUrl     String
   projectUrl   String?
+  skills       String[]
+  completionDate DateTime?
   userId       String
   user         User     @relation(fields: [userId], references: [id])
+
+  @@schema("users")
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  logoUrl     String?
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  members     TeamMember[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@schema("users")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String   @default("MEMBER") // OWNER, ADMIN, MEMBER
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, userId])
+  @@schema("users")
 }

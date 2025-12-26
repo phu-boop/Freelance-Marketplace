@@ -11,7 +11,8 @@ import {
     LogOut,
     ShieldAlert,
     Briefcase,
-    Tags
+    Tags,
+    Terminal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useKeycloak } from '@/components/KeycloakProvider';
@@ -22,6 +23,7 @@ const adminMenuItems = [
     { icon: Briefcase, label: 'Job Approval', href: '/admin/jobs' },
     { icon: Tags, label: 'Taxonomy', href: '/admin/taxonomy' },
     { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
+    { icon: Terminal, label: 'System Logs', href: '/admin/logs' },
     { icon: Settings, label: 'Settings', href: '/admin/settings' },
 ];
 

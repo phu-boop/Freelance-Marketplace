@@ -29,6 +29,16 @@ export class ChatsController {
     return this.chatsService.findAll();
   }
 
+  @Get('conversations/:userId')
+  getConversations(@Param('userId') userId: string) {
+    return this.chatsService.getConversations(userId);
+  }
+
+  @Get('history')
+  getHistory(@Query('user1') user1: string, @Query('user2') user2: string) {
+    return this.chatsService.findByUsers(user1, user2);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.chatsService.findOne(id);
@@ -37,10 +47,5 @@ export class ChatsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateChatDto: UpdateChatDto) {
     return this.chatsService.update(id, updateChatDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.chatsService.remove(id);
   }
 }

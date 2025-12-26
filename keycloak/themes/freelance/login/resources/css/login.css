@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+    background-color: #020617 !important;
+    background-image: radial-gradient(ellipse at top, #0f172a, #020617, #000000) !important;
+    font-family: 'Inter', sans-serif !important;
+    color: #f8fafc !important;
+}
+
+#kc-header-wrapper {
+    display: none !important;
+}
+
+.card-pf {
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(51, 65, 85, 0.5) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+    padding: 40px !important;
+}
+
+#kc-page-title {
+    color: #ffffff !important;
+    font-size: 32px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.025em !important;
+    margin-bottom: 8px !important;
+    text-align: center !important;
+}
+
+.login-pf-page .login-pf-signup {
+    text-align: center !important;
+    color: #94a3b8 !important;
+}
+
+.login-pf-page .login-pf-signup a {
+    color: #3b82f6 !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+}
+
+.login-pf-page .login-pf-signup a:hover {
+    color: #60a5fa !important;
+}
+
+label {
+    color: #94a3b8 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    margin-bottom: 8px !important;
+}
+
+input {
+    background: rgba(30, 41, 59, 0.5) !important;
+    border: 1px solid rgba(51, 65, 85, 0.5) !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+    padding: 12px 16px !important;
+    font-size: 16px !important;
+    transition: all 0.2s !important;
+}
+
+input:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+    outline: none !important;
+}
+
+.btn-primary {
+    background-color: #2563eb !important;
+    background-image: linear-gradient(to right, #2563eb, #4f46e5) !important;
+    border: none !important;
+    border-radius: 9999px !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 14px 24px !important;
+    text-transform: none !important;
+    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3) !important;
+    transition: all 0.2s !important;
+}
+
+.btn-primary:hover {
+    background-color: #1d4ed8 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.4) !important;
+}
+
+#kc-form-options {
+    margin-top: 16px !important;
+}
+
+.login-pf-settings {
+    color: #94a3b8 !important;
+}
+
+/* Social Login Buttons */
+#kc-social-providers {
+    border-top: 1px solid rgba(51, 65, 85, 0.5) !important;
+    margin-top: 24px !important;
+    padding-top: 24px !important;
+}
+
+#kc-social-providers ul {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 16px !important;
+}
+
+#kc-social-providers li {
+    display: block !important;
+}
+
+#kc-social-providers a {
+    background: rgba(30, 41, 59, 0.5) !important;
+    border: 1px solid rgba(51, 65, 85, 0.5) !important;
+    border-radius: 12px !important;
+    color: #f8fafc !important;
+    display: flex !important;
+    justify-content: center !important;
+    padding: 10px !important;
+    text-decoration: none !important;
+    transition: all 0.2s !important;
+}
+
+#kc-social-providers a:hover {
+    background: rgba(51, 65, 85, 0.8) !important;
+    border-color: #94a3b8 !important;
+}

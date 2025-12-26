@@ -17,10 +17,21 @@ import {
     Star,
     Award,
     MessageSquare,
-    Loader2
+    Loader2,
+    Trash2,
+    CheckCircle2,
+    XCircle,
+    ShieldCheck,
+    ShieldAlert,
+    Building2,
+    Lock,
+    Unlock
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
+import { EducationModal } from '@/components/EducationModal';
+import { ExperienceModal } from '@/components/ExperienceModal';
+import { PortfolioModal } from '@/components/PortfolioModal';
 
 interface Review {
     id: string;
@@ -41,7 +52,17 @@ interface UserData {
     reviewCount: number;
     jobSuccessScore: number;
     skills: string[];
+    isAvailable: boolean;
     createdAt: string;
+    roles: string[];
+    companyName?: string;
+    companyLogo?: string;
+    isPaymentVerified: boolean;
+    kycStatus: string;
+    twoFactorEnabled: boolean;
+    education: any[];
+    experience: any[];
+    portfolio: any[];
 }
 
 export default function ProfilePage() {
@@ -49,26 +70,72 @@ export default function ProfilePage() {
     const [user, setUser] = useState<UserData | null>(null);
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'about' | 'reviews'>('about');
+    const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio' | 'security'>('about');
+
+    // Modal states
+    const [eduModal, setEduModal] = useState({ open: false, data: null });
+    const [expModal, setExpModal] = useState({ open: false, data: null });
+    const [portModal, setPortModal] = useState({ open: false, data: null });
+
+    const fetchProfileData = async () => {
+        if (!userId) return;
+        try {
+            const [userRes, reviewsRes] = await Promise.all([
+                api.get(`/users/${userId}`),
+                api.get(`/reviews/reviewee/${userId}`)
+            ]);
+            setUser(userRes.data);
+            setReviews(reviewsRes.data);
+        } catch (error) {
+            console.error('Failed to fetch profile data', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchProfileData = async () => {
-            if (!userId) return;
-            try {
-                const [userRes, reviewsRes] = await Promise.all([
-                    api.get(`/users/${userId}`),
-                    api.get(`/reviews/reviewee/${userId}`)
-                ]);
-                setUser(userRes.data);
-                setReviews(reviewsRes.data);
-            } catch (error) {
-                console.error('Failed to fetch profile data', error);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchProfileData();
     }, [userId]);
+
+    const handleToggleAvailability = async () => {
+        if (!userId) return;
+        try {
+            await api.post(`/users/${userId}/toggle-availability`);
+            fetchProfileData();
+        } catch (error) {
+            console.error('Failed to toggle availability', error);
+        }
+    };
+
+    const handleDelete = async (type: 'education' | 'experience' | 'portfolio', id: string) => {
+        if (!confirm('Are you sure you want to delete this?')) return;
+        try {
+            await api.delete(`/users/${type}/${id}`);
+            fetchProfileData();
+        } catch (error) {
+            console.error(`Failed to delete ${type}`, error);
+        }
+    };
+
+    const handleToggle2FA = async () => {
+        if (!userId) return;
+        try {
+            await api.post(`/users/${userId}/toggle-2fa`);
+            fetchProfileData();
+        } catch (error) {
+            console.error('Failed to toggle 2FA', error);
+        }
+    };
+
+    const handleVerifyPayment = async () => {
+        if (!userId) return;
+        try {
+            await api.post(`/users/${userId}/verify-payment`);
+            fetchProfileData();
+        } catch (error) {
+            console.error('Failed to verify payment', error);
+        }
+    };
 
     if (loading) {
         return (
@@ -96,16 +163,45 @@ export default function ProfilePage() {
                         <h1 className="text-3xl font-bold text-white">{user.firstName} {user.lastName}</h1>
                         <div className="flex items-center gap-4">
                             <p className="text-slate-400 flex items-center gap-2">
-                                {user.title || 'Freelancer'}
+                                {user.roles.includes('CLIENT') ? (
+                                    <span className="flex items-center gap-1.5">
+                                        <Building2 className="w-4 h-4" /> {user.companyName || 'Client'}
+                                    </span>
+                                ) : (
+                                    user.title || 'Freelancer'
+                                )}
                             </p>
                             <div className="flex items-center gap-1.5 px-3 py-1 bg-yellow-500/10 text-yellow-500 rounded-full text-sm font-bold border border-yellow-500/20">
                                 <Star className="w-4 h-4 fill-yellow-500" />
                                 {Number(user.rating).toFixed(1)}
                             </div>
-                            <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-400 rounded-full text-sm font-bold border border-blue-500/20">
-                                <Award className="w-4 h-4" />
-                                {user.jobSuccessScore}% JSS
-                            </div>
+                            {!user.roles.includes('CLIENT') && (
+                                <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-400 rounded-full text-sm font-bold border border-blue-500/20">
+                                    <Award className="w-4 h-4" />
+                                    {user.jobSuccessScore}% JSS
+                                </div>
+                            )}
+                            {user.roles.includes('CLIENT') && (
+                                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border ${user.isPaymentVerified
+                                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                    : 'bg-slate-500/10 text-slate-500 border-slate-500/20'
+                                    }`}>
+                                    {user.isPaymentVerified ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
+                                    {user.isPaymentVerified ? 'Payment Verified' : 'Payment Unverified'}
+                                </div>
+                            )}
+                            {!user.roles.includes('CLIENT') && (
+                                <button
+                                    onClick={handleToggleAvailability}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border transition-all ${user.isAvailable
+                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'
+                                        : 'bg-slate-500/10 text-slate-500 border-slate-500/20 hover:bg-slate-500/20'
+                                        }`}
+                                >
+                                    {user.isAvailable ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                    {user.isAvailable ? 'Available' : 'Busy'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -134,6 +230,26 @@ export default function ProfilePage() {
                 >
                     Reviews ({user.reviewCount})
                     {activeTab === 'reviews' && (
+                        <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('portfolio')}
+                    className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'portfolio' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
+                        }`}
+                >
+                    Portfolio ({user.portfolio?.length || 0})
+                    {activeTab === 'portfolio' && (
+                        <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('security')}
+                    className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'security' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
+                        }`}
+                >
+                    Security
+                    {activeTab === 'security' && (
                         <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
                     )}
                 </button>
@@ -213,36 +329,92 @@ export default function ProfilePage() {
                             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
                                 <div className="flex justify-between items-center">
                                     <h3 className="font-semibold text-white">Experience</h3>
-                                    <button className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 transition-all">
+                                    <button
+                                        onClick={() => setExpModal({ open: true, data: null })}
+                                        className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 transition-all"
+                                    >
                                         <Plus className="w-4 h-4" />
                                     </button>
                                 </div>
                                 <div className="space-y-8">
-                                    {[
-                                        {
-                                            role: 'Senior Full Stack Developer',
-                                            company: 'TechFlow Inc.',
-                                            period: '2022 - Present',
-                                            desc: 'Leading the development of a high-traffic SaaS platform using Next.js and microservices.'
-                                        },
-                                        {
-                                            role: 'Frontend Developer',
-                                            company: 'WebSolutions',
-                                            period: '2020 - 2022',
-                                            desc: 'Built responsive and interactive user interfaces for various client projects.'
-                                        }
-                                    ].map((exp, idx) => (
-                                        <div key={idx} className="relative pl-8 before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:bg-blue-500 before:rounded-full after:absolute after:left-[3px] after:top-6 after:bottom-[-32px] after:w-[2px] after:bg-slate-800 last:after:hidden">
-                                            <div className="text-sm font-bold text-white">{exp.role}</div>
-                                            <div className="text-xs text-blue-400 font-medium mt-0.5">{exp.company} • {exp.period}</div>
-                                            <p className="text-sm text-slate-400 mt-2 leading-relaxed">{exp.desc}</p>
+                                    {user.experience?.length > 0 ? user.experience.map((exp, idx) => (
+                                        <div key={exp.id} className="relative pl-8 group before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:bg-blue-500 before:rounded-full after:absolute after:left-[3px] after:top-6 after:bottom-[-32px] after:w-[2px] after:bg-slate-800 last:after:hidden">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="text-sm font-bold text-white">{exp.role || exp.title}</div>
+                                                    <div className="text-xs text-blue-400 font-medium mt-0.5">
+                                                        {exp.company} • {new Date(exp.startDate).getFullYear()} - {exp.current ? 'Present' : new Date(exp.endDate).getFullYear()}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                    <button
+                                                        onClick={() => setExpModal({ open: true, data: exp })}
+                                                        className="p-1 hover:text-blue-400 text-slate-500 transition-colors"
+                                                    >
+                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete('experience', exp.id)}
+                                                        className="p-1 hover:text-red-400 text-slate-500 transition-colors"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-slate-400 mt-2 leading-relaxed">{exp.description}</p>
                                         </div>
-                                    ))}
+                                    )) : (
+                                        <p className="text-sm text-slate-500">No experience added yet.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Education Section */}
+                            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-semibold text-white">Education</h3>
+                                    <button
+                                        onClick={() => setEduModal({ open: true, data: null })}
+                                        className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 transition-all"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="space-y-8">
+                                    {user.education?.length > 0 ? user.education.map((edu, idx) => (
+                                        <div key={edu.id} className="relative pl-8 group before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:bg-indigo-500 before:rounded-full after:absolute after:left-[3px] after:top-6 after:bottom-[-32px] after:w-[2px] after:bg-slate-800 last:after:hidden">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="text-sm font-bold text-white">{edu.degree} in {edu.fieldOfStudy}</div>
+                                                    <div className="text-xs text-indigo-400 font-medium mt-0.5">
+                                                        {edu.institution} • {new Date(edu.startDate).getFullYear()} - {edu.endDate ? new Date(edu.endDate).getFullYear() : 'Present'}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                    <button
+                                                        onClick={() => setEduModal({ open: true, data: edu })}
+                                                        className="p-1 hover:text-blue-400 text-slate-500 transition-colors"
+                                                    >
+                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete('education', edu.id)}
+                                                        className="p-1 hover:text-red-400 text-slate-500 transition-colors"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-slate-400 mt-2 leading-relaxed">{edu.description}</p>
+                                        </div>
+                                    )) : (
+                                        <p className="text-sm text-slate-500">No education added yet.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </>
-                ) : (
+                ) : activeTab === 'reviews' ? (
                     <div className="lg:col-span-3 space-y-6">
                         {reviews.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -286,8 +458,167 @@ export default function ProfilePage() {
                             </div>
                         )}
                     </div>
-                )}
+                ) : activeTab === 'portfolio' ? (
+                    <div className="lg:col-span-3 space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-white">Portfolio Projects</h3>
+                            <button
+                                onClick={() => setPortModal({ open: true, data: null })}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" /> Add Project
+                            </button>
+                        </div>
+                        {user.portfolio?.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {user.portfolio.map((item) => (
+                                    <div key={item.id} className="group relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-blue-500/50 transition-all">
+                                        <div className="aspect-video relative overflow-hidden">
+                                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                            <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
+                                                <button
+                                                    onClick={() => setPortModal({ open: true, data: item })}
+                                                    className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-md transition-all"
+                                                >
+                                                    <Edit3 className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete('portfolio', item.id)}
+                                                    className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-full text-red-400 backdrop-blur-md transition-all"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="p-4">
+                                            <h4 className="font-bold text-white mb-1">{item.title}</h4>
+                                            <p className="text-sm text-slate-400 line-clamp-2">{item.description}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+                                <Plus className="w-12 h-12 text-slate-700 mx-auto" />
+                                <div className="space-y-1">
+                                    <p className="text-white font-bold">No projects yet</p>
+                                    <p className="text-slate-500 text-sm">Showcase your best work to attract clients.</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : activeTab === 'security' ? (
+                    <div className="lg:col-span-3 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* 2FA Section */}
+                            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                <div className="flex justify-between items-start">
+                                    <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                                        <Lock className="w-6 h-6 text-blue-400" />
+                                    </div>
+                                    <button
+                                        onClick={handleToggle2FA}
+                                        className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${user.twoFactorEnabled
+                                            ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                                            : 'bg-blue-600 text-white hover:bg-blue-500'
+                                            }`}
+                                    >
+                                        {user.twoFactorEnabled ? 'Disable' : 'Enable'}
+                                    </button>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-white">Two-Factor Authentication</h4>
+                                    <p className="text-sm text-slate-400 mt-1">Add an extra layer of security to your account.</p>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-medium">
+                                    <span className={`w-2 h-2 rounded-full ${user.twoFactorEnabled ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                                    <span className={user.twoFactorEnabled ? 'text-emerald-500' : 'text-slate-500'}>
+                                        {user.twoFactorEnabled ? 'Currently Enabled' : 'Currently Disabled'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* KYC Section */}
+                            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                <div className="flex justify-between items-start">
+                                    <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                                        <ShieldCheck className="w-6 h-6 text-purple-400" />
+                                    </div>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${user.kycStatus === 'VERIFIED'
+                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                        : user.kycStatus === 'PENDING'
+                                            ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                            : 'bg-slate-500/10 text-slate-500 border-slate-500/20'
+                                        }`}>
+                                        {user.kycStatus}
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-white">Identity Verification (KYC)</h4>
+                                    <p className="text-sm text-slate-400 mt-1">Verify your identity to increase trust and unlock higher limits.</p>
+                                </div>
+                                {user.kycStatus === 'NOT_STARTED' && (
+                                    <button className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition-all">
+                                        Start Verification
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Payment Verification (Client Only) */}
+                            {user.roles.includes('CLIENT') && (
+                                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                    <div className="flex justify-between items-start">
+                                        <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                                            <Award className="w-6 h-6 text-emerald-400" />
+                                        </div>
+                                        {!user.isPaymentVerified && (
+                                            <button
+                                                onClick={handleVerifyPayment}
+                                                className="px-4 py-1.5 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg text-sm font-bold transition-all"
+                                            >
+                                                Verify Now
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-white">Payment Verification</h4>
+                                        <p className="text-sm text-slate-400 mt-1">Verify your payment method to attract top talent.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs font-medium">
+                                        <span className={`w-2 h-2 rounded-full ${user.isPaymentVerified ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                                        <span className={user.isPaymentVerified ? 'text-emerald-500' : 'text-slate-500'}>
+                                            {user.isPaymentVerified ? 'Payment Method Verified' : 'No Verified Payment Method'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
             </div>
+
+            {/* Modals */}
+            <EducationModal
+                isOpen={eduModal.open}
+                onClose={() => setEduModal({ open: false, data: null })}
+                onSuccess={fetchProfileData}
+                userId={userId!}
+                initialData={eduModal.data}
+            />
+            <ExperienceModal
+                isOpen={expModal.open}
+                onClose={() => setExpModal({ open: false, data: null })}
+                onSuccess={fetchProfileData}
+                userId={userId!}
+                initialData={expModal.data}
+            />
+            <PortfolioModal
+                isOpen={portModal.open}
+                onClose={() => setPortModal({ open: false, data: null })}
+                onSuccess={fetchProfileData}
+                userId={userId!}
+                initialData={portModal.data}
+            />
         </div>
     );
 }

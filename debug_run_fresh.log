@@ -1,0 +1,6 @@
+--- REGISTERING ---
+{"id":"a44f5c51-27af-4c2b-92c9-6fbd423adfe2","email":"debug_1766732198@example.com","password":null,"googleId":null,"linkedinId":null,"firstName":"Debug","lastName":"User","avatarUrl":null,"phone":null,"address":null,"country":null,"timezone":"UTC","language":"en","roles":["FREELANCER"],"status":"ACTIVE","banReason":null,"banExpiresAt":null,"isAvailable":true,"createdAt":"2025-12-26T06:56:39.556Z","updatedAt":"2025-12-26T06:56:39.556Z","title":null,"overview":null,"hourlyRate":null,"skills":[],"primaryCategoryId":null,"completionPercentage":0,"availableConnects":50,"companyName":null,"companyLogo":null,"companySize":null,"industry":null,"website":null,"isPaymentVerified":false,"kycStatus":"PENDING","idDocument":null,"isIdentityVerified":false,"twoFactorEnabled":false,"twoFactorSecret":null,"resetPasswordToken":null,"resetPasswordExpiresAt":null,"emailNotifications":true,"pushNotifications":true,"inAppNotifications":true,"rating":"0","reviewCount":0,"jobSuccessScore":100,"trustScore":100,"badges":[],"isPromoted":false,"promotionExpiresAt":null}
+--- VERIFYING EMAIL ---
+--- LOGGING IN ---
+{"message":"Invalid email or password","error":"Unauthorized","statusCode":401}
+LOGIN FAILED: No token received.

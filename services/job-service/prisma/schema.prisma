@@ -25,7 +25,59 @@ model Job {
   
   // Advanced fields
   type        String   @default("FIXED_PRICE") // FIXED_PRICE, HOURLY
+  experienceLevel String @default("ENTRY") // ENTRY, MID, EXPERT
+  locationType    String @default("REMOTE") // REMOTE, ONSITE, HYBRID
+  location        String?
   attachments String[] // URLs to files
+  duration    String?
+  isPromoted  Boolean  @default(false)
+  isTrending  Boolean  @default(false)
+  promotionExpiresAt DateTime?
+  closeReason String?
+
+  savedBy     SavedJob[]
+  invitations JobInvitation[]
+
+  @@schema("jobs")
+}
+
+model JobInvitation {
+  id           String   @id @default(uuid())
+  jobId        String
+  job          Job      @relation(fields: [jobId], references: [id])
+  freelancerId String   // User ID from User Service
+  clientId     String   // User ID from User Service
+  message      String?
+  status       String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@schema("jobs")
+}
+
+model ServicePackage {
+  id          String   @id @default(uuid())
+  freelancerId String
+  title       String
+  description String
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  
+  // Packages (Bronze, Silver, Gold)
+  bronzePrice Decimal
+  bronzeDeliveryTime Int // in days
+  bronzeDeliverables String[]
+  
+  silverPrice Decimal?
+  silverDeliveryTime Int?
+  silverDeliverables String[]
+  
+  goldPrice Decimal?
+  goldDeliveryTime Int?
+  goldDeliverables String[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("jobs")
 }
@@ -33,7 +85,13 @@ model Job {
 model Category {
   id    String @id @default(uuid())
   name  String @unique
+  slug  String @unique
   jobs  Job[]
+  servicePackages ServicePackage[]
+  
+  parentId String?
+  parent   Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
 
   @@schema("jobs")
 }
@@ -53,5 +111,31 @@ model JobSkill {
   skill   Skill @relation(fields: [skillId], references: [id])
 
   @@id([jobId, skillId])
+  @@schema("jobs")
+}
+
+model SavedJob {
+  id        String   @id @default(uuid())
+  userId    String
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@schema("jobs")
+}
+
+model JobAlert {
+  id          String   @id @default(uuid())
+  userId      String
+  keyword     String?
+  categoryId  String?
+  minBudget   Decimal?
+  maxBudget   Decimal?
+  experienceLevel String?
+  locationType    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@schema("jobs")
 }

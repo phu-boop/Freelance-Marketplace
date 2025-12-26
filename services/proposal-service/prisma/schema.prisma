@@ -18,5 +18,14 @@ model Proposal {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Advanced fields
+  isShortlisted Boolean @default(false)
+  attachments   String[] // URLs to files
+  estimatedDuration String?
+  
+  // Negotiation
+  counterOfferAmount Decimal?
+  counterOfferTerms  String?
+
   @@schema("proposals")
 }

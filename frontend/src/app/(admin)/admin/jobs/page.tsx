@@ -10,7 +10,9 @@ import {
     Filter,
     ExternalLink,
     Briefcase,
-    Loader2
+    Loader2,
+    Lock,
+    Unlock
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -71,6 +73,30 @@ export default function AdminJobsPage() {
         }
     };
 
+    const handleLock = async (id: string) => {
+        setActionLoading(id);
+        try {
+            await api.post(`/admins/jobs/${id}/lock`);
+            await fetchJobs();
+        } catch (error) {
+            console.error('Failed to lock job', error);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleUnlock = async (id: string) => {
+        setActionLoading(id);
+        try {
+            await api.post(`/admins/jobs/${id}/unlock`);
+            await fetchJobs();
+        } catch (error) {
+            console.error('Failed to unlock job', error);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const filteredJobs = jobs.filter(job =>
         filter === 'ALL' ? true : job.status === filter
     );
@@ -84,13 +110,13 @@ export default function AdminJobsPage() {
                 </div>
 
                 <div className="flex items-center gap-3 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                    {['PENDING_APPROVAL', 'OPEN', 'REJECTED', 'ALL'].map((f) => (
+                    {['PENDING_APPROVAL', 'OPEN', 'LOCKED', 'REJECTED', 'ALL'].map((f) => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f
-                                    ? 'bg-red-600 text-white shadow-lg'
-                                    : 'text-slate-400 hover:text-white'
+                                ? 'bg-red-600 text-white shadow-lg'
+                                : 'text-slate-400 hover:text-white'
                                 }`}
                         >
                             {f.replace('_', ' ')}
@@ -168,10 +194,25 @@ export default function AdminJobsPage() {
                                     )}
 
                                     {job.status === 'OPEN' && (
-                                        <span className="px-4 py-2 rounded-xl bg-green-500/10 text-green-500 text-sm font-bold border border-green-500/20 flex items-center gap-2">
-                                            <CheckCircle className="w-4 h-4" />
-                                            Approved
-                                        </span>
+                                        <button
+                                            onClick={() => handleLock(job.id)}
+                                            disabled={actionLoading === job.id}
+                                            className="w-full sm:w-auto px-6 py-2.5 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-500 border border-yellow-500/20 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
+                                        >
+                                            {actionLoading === job.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                                            Lock Job
+                                        </button>
+                                    )}
+
+                                    {job.status === 'LOCKED' && (
+                                        <button
+                                            onClick={() => handleUnlock(job.id)}
+                                            disabled={actionLoading === job.id}
+                                            className="w-full sm:w-auto px-6 py-2.5 bg-green-600/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
+                                        >
+                                            {actionLoading === job.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />}
+                                            Unlock Job
+                                        </button>
                                     )}
 
                                     {job.status === 'REJECTED' && (

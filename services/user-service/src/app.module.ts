@@ -5,8 +5,17 @@ import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
 import { HealthController } from './health/health.controller';
+import {
+  KeycloakConnectModule,
+  ResourceGuard,
+  RoleGuard,
+  AuthGuard
+} from 'nest-keycloak-connect';
+import { APP_GUARD } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -23,9 +32,36 @@ import { HealthController } from './health/health.controller';
     }]),
     TerminusModule,
     PrismaModule,
-    UsersModule
+    UsersModule,
+    ProfileModule,
+    KeycloakConnectModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
+        realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
+        clientId: 'freelance-client',
+        secret: configService.get<string>('KEYCLOAK_SECRET', ''),
+        logLevels: ['error', 'warn'],
+        useNestLogger: true,
+      }),
+      inject: [ConfigService],
+    }),
   ],
   controllers: [AppController, HealthController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ResourceGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RoleGuard,
+    },
+  ],
 })
 export class AppModule { }
