@@ -14,7 +14,8 @@ import {
     Loader2,
     ArrowLeft,
     ChevronLeft,
-    Tag
+    Tag,
+    Bookmark
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -63,6 +64,7 @@ export default function PublicJobsPage() {
 
     const [categories, setCategories] = useState<any[]>([]);
     const [availableSkills, setAvailableSkills] = useState<any[]>([]);
+    const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         const fetchFilterData = async () => {
@@ -79,6 +81,22 @@ export default function PublicJobsPage() {
         };
         fetchFilterData();
     }, []);
+
+    useEffect(() => {
+        if (authenticated) {
+            const fetchSavedJobs = async () => {
+                try {
+                    const response = await api.get('/jobs/saved');
+                    setSavedJobIds(new Set(response.data.map((job: any) => job.id)));
+                } catch (err) {
+                    console.error('Failed to fetch saved jobs', err);
+                }
+            };
+            fetchSavedJobs();
+        } else {
+            setSavedJobIds(new Set());
+        }
+    }, [authenticated]);
 
     const fetchJobs = async (query = searchQuery, page = currentPage, currentFilters = filters) => {
         setLoading(true);
@@ -144,6 +162,35 @@ export default function PublicJobsPage() {
     const router = useRouter();
     const handleJobClick = (job: Job) => {
         router.push(`/jobs/${job.id}`);
+    };
+
+    const handleToggleSave = async (e: React.MouseEvent, jobId: string) => {
+        e.stopPropagation();
+        if (!authenticated) {
+            login();
+            return;
+        }
+
+        const isSaved = savedJobIds.has(jobId);
+        try {
+            if (isSaved) {
+                await api.delete(`/jobs/${jobId}/unsave`);
+                setSavedJobIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(jobId);
+                    return next;
+                });
+            } else {
+                await api.post(`/jobs/${jobId}/save`);
+                setSavedJobIds(prev => {
+                    const next = new Set(prev);
+                    next.add(jobId);
+                    return next;
+                });
+            }
+        } catch (err) {
+            console.error('Failed to toggle save job', err);
+        }
     };
 
     return (
@@ -400,8 +447,19 @@ export default function PublicJobsPage() {
                                                         <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
                                                             <Briefcase className="w-6 h-6 text-blue-400" />
                                                         </div>
-                                                        <div>
-                                                            <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center justify-between">
+                                                                <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
+                                                                <button
+                                                                    onClick={(e) => handleToggleSave(e, job.id)}
+                                                                    className={`p-2 rounded-xl border transition-all ${savedJobIds.has(job.id)
+                                                                        ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                                                                        : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-white hover:border-slate-600'
+                                                                        }`}
+                                                                >
+                                                                    <Bookmark className={`w-4 h-4 ${savedJobIds.has(job.id) ? 'fill-current' : ''}`} />
+                                                                </button>
+                                                            </div>
                                                             <p className="text-sm text-slate-400">{job.company}</p>
                                                         </div>
                                                     </div>

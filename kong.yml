@@ -43,29 +43,11 @@ services:
   - name: job-service
     url: http://job-service:3002
     routes:
-      - name: job-read
+      - name: job-all-routes
         paths:
           - /api/jobs
-        methods:
-          - GET
-        strip_path: true
-      - name: job-write
-        paths:
-          - /api/jobs
-        methods:
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-        strip_path: true
-
-  - name: proposal-service
-    url: http://proposal-service:3003
-    routes:
-      - name: proposal-routes
-        paths:
           - /api/proposals
-        strip_path: true
+        strip_path: false
 
   - name: contract-service
     url: http://contract-service:3004

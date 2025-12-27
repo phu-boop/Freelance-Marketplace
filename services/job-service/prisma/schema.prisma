@@ -5,7 +5,14 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["jobs"]
+  schemas  = ["jobs", "users"]
+}
+
+model User {
+  id                String @id
+  availableConnects Int
+  @@map("users")
+  @@schema("users")
 }
 
 model Job {
@@ -37,6 +44,24 @@ model Job {
 
   savedBy     SavedJob[]
   invitations JobInvitation[]
+  proposals   Proposal[]
+
+  @@schema("jobs")
+}
+
+model Proposal {
+  id              String   @id @default(uuid())
+  jobId           String
+  job             Job      @relation(fields: [jobId], references: [id])
+  freelancerId    String   // User ID from User Service
+  coverLetter     String
+  bidAmount       Decimal?
+  timeline        String?  // e.g. "3 days", "1 week"
+  attachments     String[] // URLs to files
+  portfolioItemIds String[] // IDs of items from user-service
+  status          String   @default("PENDING") // PENDING, SHORTLISTED, REJECTED, WITHDRAWN, HIRED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@schema("jobs")
 }

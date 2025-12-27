@@ -130,6 +130,12 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
       - PORT=3002
       - SEARCH_SERVICE_URL=http://search-service:3010
+      - KEYCLOAK_URL=http://172.22.0.1:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - USER_SERVICE_INTERNAL_URL=http://user-service:3000
+      - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
     depends_on:
       - postgres
     restart: always
@@ -147,6 +153,12 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=proposals&options=-c%20search_path%3Dproposals
       - PORT=3003
+      - KEYCLOAK_URL=http://172.22.0.1:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - JOB_SERVICE_URL=http://job-service:3002
+      - USER_SERVICE_URL=http://user-service:3000
     depends_on:
       - postgres
     restart: always
@@ -379,6 +391,8 @@ services:
       - PORT=3012
       - EMAIL_USER=user@example.com
       - EMAIL_PASS=password
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
     restart: always
     networks:
       - freelance_network
