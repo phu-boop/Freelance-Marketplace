@@ -24,14 +24,20 @@ export default function ContractDetailsPage() {
     const [isApprovalOpen, setIsApprovalOpen] = React.useState(false);
     const [isRequestChangesOpen, setIsRequestChangesOpen] = React.useState(false);
     const [isSubHistoryOpen, setIsSubHistoryOpen] = React.useState(false);
+    const [isExtensionModalOpen, setIsExtensionModalOpen] = React.useState(false);
+    const [isTerminationOpen, setIsTerminationOpen] = React.useState(false);
     const [selectedMilestoneId, setSelectedMilestoneId] = React.useState<string | null>(null);
     const [viewingSubmissions, setViewingSubmissions] = React.useState<any[]>([]);
     const [feedback, setFeedback] = React.useState('');
+    const [currentUser, setCurrentUser] = React.useState<any>(null);
 
     // Form states...
     const [description, setDescription] = React.useState('');
     const [amount, setAmount] = React.useState('');
     const [dueDate, setDueDate] = React.useState('');
+    const [extensionDate, setExtensionDate] = React.useState('');
+    const [extensionReason, setExtensionReason] = React.useState('');
+    const [terminationReason, setTerminationReason] = React.useState('');
     const [submitting, setSubmitting] = React.useState(false);
     const [submissionContent, setSubmissionContent] = React.useState('');
     const [submissionFiles, setSubmissionFiles] = React.useState<string[]>([]);
@@ -58,6 +64,18 @@ export default function ContractDetailsPage() {
             setTransactionsLoading(false);
         }
     }, [params.id]);
+
+    React.useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const res = await api.get('/users/me');
+                setCurrentUser(res.data);
+            } catch (error) {
+                console.error('Failed to fetch user', error);
+            }
+        };
+        fetchUser();
+    }, []);
 
     React.useEffect(() => {
         fetchContract();
@@ -146,6 +164,48 @@ export default function ContractDetailsPage() {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = React.useState(false);
 
+    const handleRequestExtension = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            await api.post(`/proposals/contracts/${params.id}/extension-request`, {
+                date: extensionDate,
+                reason: extensionReason
+            });
+            setIsExtensionModalOpen(false);
+            setExtensionDate('');
+            setExtensionReason('');
+            fetchContract();
+            alert('Extension request sent successfully');
+        } catch (error) {
+            console.error('Failed to request extension', error);
+            alert('Failed to request extension');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleTerminateContract = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!terminationReason.trim()) return;
+
+        setSubmitting(true);
+        try {
+            await api.post(`/proposals/contracts/${params.id}/terminate`, {
+                reason: terminationReason
+            });
+            setIsTerminationOpen(false);
+            setTerminationReason('');
+            fetchContract();
+            alert('Contract terminated successfully');
+        } catch (error) {
+            console.error('Failed to terminate contract', error);
+            alert('Failed to terminate contract');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -197,6 +257,26 @@ export default function ContractDetailsPage() {
         setSubmissionFiles(prev => prev.filter(f => f !== fileName));
     };
 
+    const [progress, setProgress] = React.useState(0);
+    const [isEditingProgress, setIsEditingProgress] = React.useState(false);
+
+    React.useEffect(() => {
+        if (contract) {
+            setProgress(contract.progress || 0);
+        }
+    }, [contract]);
+
+    const handleSaveProgress = async () => {
+        try {
+            await api.patch(`/proposals/contracts/${params.id}/progress`, { progress });
+            setContract((prev: any) => ({ ...prev, progress }));
+            setIsEditingProgress(false);
+        } catch (error) {
+            console.error('Failed to update progress', error);
+            alert('Failed to update progress');
+        }
+    };
+
     const handleOpenSubHistory = (submissions: any[]) => {
         setViewingSubmissions(submissions);
         setIsSubHistoryOpen(true);
@@ -233,10 +313,97 @@ export default function ContractDetailsPage() {
                                 </span>
                                 <span className="flex items-center gap-1.5 text-sm">
                                     <CheckCircle className="w-4 h-4" />
-                                    Active
+                                    {contract.status === 'TERMINATED' ? 'Terminated' : 'Active'}
                                 </span>
+                                {contract.extensionRequestStatus === 'PENDING' && (
+                                    <span className="flex items-center gap-1.5 text-sm text-yellow-500">
+                                        <Clock className="w-4 h-4" />
+                                        Extension Requested
+                                    </span>
+                                )}
                             </div>
                         </div>
+                        {currentUser?.id === contract.freelancerId && contract.status !== 'TERMINATED' && (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setIsExtensionModalOpen(true)}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors text-sm font-medium border border-slate-700"
+                                >
+                                    Request Extension
+                                </button>
+                                <button
+                                    onClick={() => setIsTerminationOpen(true)}
+                                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg transition-colors text-sm font-medium"
+                                >
+                                    Terminate
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Progress Section */}
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-500" />
+                            Project Progress
+                        </h3>
+                        {/* Freelancer Edit Controls */}
+                        {isEditingProgress ? (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setIsEditingProgress(false);
+                                        setProgress(contract.progress || 0);
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveProgress}
+                                    className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+                                >
+                                    Save Update
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setIsEditingProgress(true)}
+                                className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-blue-400 transition-colors border border-slate-700 rounded-lg hover:border-blue-500/50"
+                            >
+                                Update Progress
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-slate-400">Completion</span>
+                            <span className="text-white font-medium">{progress}%</span>
+                        </div>
+
+                        {isEditingProgress ? (
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={progress}
+                                onChange={(e) => setProgress(Number(e.target.value))}
+                                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            />
+                        ) : (
+                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-500 ease-out"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">
+                            {progress === 100 ? 'Project marked as complete.' : 'Keep the client updated on your progress.'}
+                        </p>
                     </div>
                 </div>
 
@@ -570,60 +737,65 @@ export default function ContractDetailsPage() {
 
             {/* Submit Work Modal */}
             {isSubmitWorkOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
-                        <h3 className="text-xl font-bold text-white mb-4">Submit Work</h3>
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-900 rounded-2xl p-6 w-full max-w-lg border border-slate-800">
+                        <h2 className="text-xl font-bold text-white mb-4">Submit Work</h2>
                         <form onSubmit={handleSubmitWork} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-1">Details / Message</label>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">
+                                    Description of Work
+                                </label>
                                 <textarea
                                     required
                                     value={submissionContent}
                                     onChange={(e) => setSubmissionContent(e.target.value)}
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 h-32 resize-none"
-                                    placeholder="Describe the work completed or provide links to deliverables..."
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white h-32 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                    placeholder="Describe what you have completed..."
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-2">Attachments</label>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">
+                                    Attachments
+                                </label>
                                 <div className="space-y-2">
-                                    {submissionFiles.map((file) => (
-                                        <div key={file} className="flex items-center justify-between p-2 bg-slate-800 rounded-lg group">
-                                            <span className="text-xs text-slate-300 truncate">{file}</span>
+                                    {submissionFiles.map((file, i) => (
+                                        <div key={i} className="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
+                                            <span className="text-sm text-slate-300 truncate max-w-[200px]">{file}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => removeSubmissionFile(file)}
-                                                className="text-slate-500 hover:text-red-400 transition-colors"
+                                                className="text-red-400 hover:text-red-300 text-xs"
                                             >
-                                                <Plus className="w-4 h-4 rotate-45" />
+                                                Remove
                                             </button>
                                         </div>
                                     ))}
-                                    <div className="relative">
+                                    <label className="flex items-center justify-center gap-2 w-full p-2 border border-dashed border-slate-700 rounded-lg hover:border-slate-500 transition-colors cursor-pointer text-slate-400 hover:text-white text-sm">
+                                        <Plus className="w-4 h-4" />
+                                        Add File
                                         <input
                                             type="file"
-                                            id="submission-file"
                                             className="hidden"
                                             onChange={handleSubmissionFileUpload}
-                                            disabled={uploading}
                                         />
-                                        <label
-                                            htmlFor="submission-file"
-                                            className={`flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-800 rounded-xl cursor-pointer hover:border-slate-700 hover:bg-slate-800/50 transition-all ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        >
-                                            <Plus className="w-4 h-4 text-slate-500" />
-                                            <span className="text-xs text-slate-500 font-medium">
-                                                {uploading ? 'Uploading...' : 'Attach Files'}
-                                            </span>
-                                        </label>
-                                    </div>
+                                    </label>
                                 </div>
                             </div>
 
                             <div className="flex justify-end gap-3 pt-4">
-                                <button type="button" onClick={handleCloseSubmitModal} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">Cancel</button>
-                                <button type="submit" disabled={submitting || uploading} className="px-6 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-500 disabled:opacity-50 transition-all">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSubmitWorkOpen(false)}
+                                    className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting || !submissionContent.trim()}
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
                                     {submitting ? 'Submitting...' : 'Submit Work'}
                                 </button>
                             </div>

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Get, Request, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get, Request, Patch, Query } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
@@ -101,5 +101,23 @@ export class ProposalsController {
     @Roles({ roles: ['realm:CLIENT'] })
     async requestChanges(@Request() req, @Param('mid') mid: string, @Body('feedback') feedback: string) {
         return this.jobsService.requestChanges(mid, req.user.sub, feedback);
+    }
+
+    @Patch('contracts/:id/progress')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async updateProgress(@Request() req, @Param('id') id: string, @Body('progress') progress: number) {
+        return this.jobsService.updateProgress(id, req.user.sub, progress);
+    }
+
+    @Post('contracts/:id/extension-request')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async requestExtension(@Request() req, @Param('id') id: string, @Body() body: { date: string, reason: string }) {
+        return this.jobsService.requestExtension(id, req.user.sub, new Date(body.date), body.reason);
+    }
+
+    @Post('contracts/:id/terminate')
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async terminateContract(@Request() req, @Param('id') id: string, @Body('reason') reason: string) {
+        return this.jobsService.terminateContract(id, req.user.sub, reason);
     }
 }

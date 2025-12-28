@@ -128,7 +128,7 @@ services:
         strip_path: true
 
   - name: analytics-service
-    url: http://analytics-service:3014
+    url: http://freelance_analytics_service:3014
     routes:
       - name: analytics-routes
         paths:
@@ -155,7 +155,7 @@ services:
         strip_path: true
 
   - name: common-service
-    url: http://common-service:3013/common
+    url: http://freelance_common_service:3013/common
     routes:
       - name: common-read
         paths:

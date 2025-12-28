@@ -130,7 +130,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
       - PORT=3002
       - SEARCH_SERVICE_URL=http://search-service:3010
-      - KEYCLOAK_URL=http://172.22.0.1:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -153,7 +153,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=proposals&options=-c%20search_path%3Dproposals
       - PORT=3003
-      - KEYCLOAK_URL=http://172.22.0.1:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -443,7 +443,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_KEYCLOAK_URL=http://172.22.0.1:8080
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
       - NEXT_PUBLIC_KEYCLOAK_REALM=freelance-marketplace
       - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=freelance-client
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api

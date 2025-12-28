@@ -782,11 +782,11 @@ export class JobsService {
     return updated;
   }
 
-  async getContracts(userId: string) {
+  async getContracts(userId: string, status: string[] = ['HIRED']) {
     return this.prisma.proposal.findMany({
       where: {
         freelancerId: userId,
-        status: 'HIRED'
+        status: { in: status }
       },
       include: {
         job: true
@@ -893,7 +893,11 @@ export class JobsService {
   async submitMilestone(milestoneId: string, freelancerId: string, dto: { content: string, attachments?: string[] }) {
     const milestone = await this.prisma.milestone.findUnique({
       where: { id: milestoneId },
-      include: { proposal: true }
+      include: {
+        proposal: {
+          include: { job: true }
+        }
+      }
     });
 
     if (!milestone) throw new NotFoundException('Milestone not found');
@@ -914,8 +918,34 @@ export class JobsService {
         data: { status: 'SUBMITTED' }
       });
 
+      // Notify Client
+      const description = milestone.description.length > 30 ? milestone.description.substring(0, 30) + '...' : milestone.description;
+      await this.sendNotification(
+        milestone.proposal.job.client_id,
+        'PAYMENT_REQUESTED',
+        `Payment Requested: ${description}`,
+        `Freelancer has submitted work for milestone '${description}'. Please review and release payment.`,
+        { milestoneId, contractId: milestone.proposalId }
+      );
+
       return submission;
     });
+  }
+
+  private async sendNotification(userId: string, type: string, title: string, message: string, metadata?: any) {
+    try {
+      const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3007';
+      await this.httpService.axiosRef.post(`${notificationUrl}/api/notifications`, {
+        userId,
+        type,
+        title,
+        message,
+        metadata
+      });
+    } catch (error) {
+      console.error('Failed to send notification', error.message);
+      // Suppress error so core logic doesn't fail
+    }
   }
 
   async approveMilestone(milestoneId: string, clientId: string) {
@@ -956,5 +986,83 @@ export class JobsService {
       });
       throw new BadRequestException('Work approved but payment transfer failed');
     }
+  }
+
+  async updateProgress(contractId: string, userId: string, progress: number) {
+    const contract = await this.prisma.proposal.findUnique({
+      where: { id: contractId },
+    });
+
+    if (!contract) throw new NotFoundException('Contract not found');
+    if (contract.freelancerId !== userId) throw new ForbiddenException('Only the freelancer can update progress');
+    if (progress < 0 || progress > 100) throw new BadRequestException('Progress must be between 0 and 100');
+
+    return this.prisma.proposal.update({
+      where: { id: contractId },
+      data: { progress },
+    });
+  }
+
+  async requestExtension(contractId: string, userId: string, date: Date, reason: string) {
+    const contract = await this.prisma.proposal.findUnique({
+      where: { id: contractId },
+      include: { job: true }
+    });
+
+    if (!contract) throw new NotFoundException('Contract not found');
+    if (contract.freelancerId !== userId) throw new ForbiddenException('Only the freelancer can request extension');
+
+    const updatedContract = await this.prisma.proposal.update({
+      where: { id: contractId },
+      data: {
+        extensionRequestDate: date,
+        extensionRequestReason: reason,
+        extensionRequestStatus: 'PENDING'
+      }
+    });
+
+    // Notify Client
+    await this.sendNotification(
+      contract.job.client_id,
+      'EXTENSION_REQUESTED',
+      'Contract Extension Requested',
+      `Freelancer has requested to extend the contract deadline to ${new Date(date).toLocaleDateString()}. Reason: ${reason}`,
+      { contractId }
+    );
+
+    return updatedContract;
+  }
+
+  async terminateContract(contractId: string, userId: string, reason: string) {
+    const contract = await this.prisma.proposal.findUnique({
+      where: { id: contractId },
+      include: { job: true }
+    });
+
+    if (!contract) throw new NotFoundException('Contract not found');
+
+    // Allow either freelancer or client to terminate
+    if (contract.freelancerId !== userId && contract.job.client_id !== userId) {
+      throw new ForbiddenException('Only parties involved in the contract can terminate it');
+    }
+
+    const updatedContract = await this.prisma.proposal.update({
+      where: { id: contractId },
+      data: {
+        status: 'TERMINATED',
+      }
+    });
+
+    // Notify the other party
+    const targetUserId = userId === contract.freelancerId ? contract.job.client_id : contract.freelancerId;
+    await this.sendNotification(
+      targetUserId,
+      'CONTRACT_TERMINATED',
+      'Contract Terminated',
+      `The contract for '${contract.job.title}' has been terminated by the other party. Reason: ${reason}`,
+      { contractId }
+    );
+
+    return updatedContract;
   }
 }
