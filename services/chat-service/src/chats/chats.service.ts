@@ -32,6 +32,13 @@ export class ChatsService {
       .exec();
   }
 
+  async findByContract(contractId: string): Promise<Message[]> {
+    return this.messageModel
+      .find({ contractId })
+      .sort({ createdAt: 1 })
+      .exec();
+  }
+
   async findOne(id: string): Promise<Message | null> {
     return this.messageModel.findById(id).exec();
   }

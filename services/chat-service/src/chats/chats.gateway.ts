@@ -45,16 +45,36 @@ export class ChatGateway
         console.log(`Client ${client.id} joined room ${room}`);
     }
 
+    @SubscribeMessage('joinContract')
+    handleJoinContract(
+        @MessageBody() data: { contractId: string },
+        @ConnectedSocket() client: Socket,
+    ) {
+        client.join(data.contractId);
+        console.log(`Client ${client.id} joined contract room ${data.contractId}`);
+    }
+
     @SubscribeMessage('sendMessage')
     async handleMessage(
-        @MessageBody() data: { senderId: string; receiverId: string; content: string; contractId?: string },
+        @MessageBody() data: {
+            senderId: string;
+            receiverId: string;
+            content: string;
+            contractId?: string;
+            attachments?: string[];
+        },
         @ConnectedSocket() client: Socket,
     ) {
         const message = await this.chatsService.create(data);
-        const room = [data.senderId, data.receiverId].sort().join('_');
 
-        // Emit to the specific room
-        this.server.to(room).emit('newMessage', message);
+        if (data.contractId) {
+            // Emit to the contract room
+            this.server.to(data.contractId).emit('newMessage', message);
+        } else {
+            // Emit to the private user-to-user room
+            const room = [data.senderId, data.receiverId].sort().join('_');
+            this.server.to(room).emit('newMessage', message);
+        }
 
         return message;
     }

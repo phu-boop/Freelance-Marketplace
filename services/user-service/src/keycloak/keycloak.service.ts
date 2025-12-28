@@ -124,6 +124,7 @@ export class KeycloakService {
                 await this.assignRole(keycloakId, userData.role, token);
             }
 
+            /*
             // Trigger verification email
             const verifyUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${keycloakId}/execute-actions-email`;
             await firstValueFrom(
@@ -131,6 +132,7 @@ export class KeycloakService {
                     headers: { Authorization: `Bearer ${token}` },
                 }),
             );
+            */
 
             return keycloakId;
         } catch (error) {

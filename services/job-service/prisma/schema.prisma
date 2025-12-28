@@ -5,7 +5,76 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["jobs"]
+  schemas  = ["jobs", "users"]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?  // Nullable if using only social login, but usually needed
+  googleId  String?  @unique
+  linkedinId String? @unique
+  firstName String?
+  lastName  String?
+  avatarUrl String?
+  phone     String?
+  address   String?
+  country   String?
+  timezone  String?  @default("UTC")
+  language  String?  @default("en")
+  roles     String[] @default(["FREELANCER"]) // FREELANCER, CLIENT, ADMIN
+  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, BANNED
+  banReason String?
+  banExpiresAt DateTime?
+  isAvailable Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Profile fields
+  title       String?  // Professional Title
+  overview    String?  // Detailed Bio
+  hourlyRate  Decimal?
+  skills      String[]
+  primaryCategoryId String?
+  completionPercentage Int @default(0)
+  availableConnects Int @default(50)
+  // profile Profile? @relation("UserProfile") // Remove relations not used in job-service
+
+  // Client fields
+  companyName       String?
+  companyLogo       String?
+  companySize       String?
+  industry          String?
+  website           String?
+  isPaymentVerified Boolean @default(false)
+  
+  // KYC
+  kycStatus   String   @default("PENDING") // PENDING, VERIFIED, REJECTED
+  idDocument  String?  // URL to ID document
+  isIdentityVerified Boolean @default(false)
+  
+  // Security
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
+  resetPasswordToken String?
+  resetPasswordExpiresAt DateTime?
+
+  // Notifications
+  emailNotifications Boolean @default(true)
+  pushNotifications  Boolean @default(true)
+  inAppNotifications Boolean @default(true)
+
+  // Reputation
+  rating          Decimal  @default(0.0)
+  reviewCount     Int      @default(0)
+  jobSuccessScore Int      @default(100)
+  trustScore      Int      @default(100)
+  badges          String[]
+  isPromoted      Boolean  @default(false)
+  promotionExpiresAt DateTime?
+
+  @@map("users")
+  @@schema("users")
 }
 
 model Job {
@@ -37,6 +106,62 @@ model Job {
 
   savedBy     SavedJob[]
   invitations JobInvitation[]
+  proposals   Proposal[]
+
+  @@schema("jobs")
+}
+
+model Proposal {
+  id              String   @id @default(uuid())
+  jobId           String
+  job             Job      @relation(fields: [jobId], references: [id])
+  freelancerId    String   // User ID from User Service
+  coverLetter     String
+  bidAmount       Decimal?
+  timeline        String?  // e.g. "3 days", "1 week"
+  attachments     String[] // URLs to files
+  portfolioItemIds String[] // IDs of items from user-service
+  status          String   @default("PENDING") // PENDING, SHORTLISTED, REJECTED, WITHDRAWN, OFFERED, HIRED, NEGOTIATION, TERMINATED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  progress        Int      @default(0)
+  
+  // Extension Request
+  extensionRequestDate   DateTime?
+  extensionRequestReason String?
+  extensionRequestStatus String? // PENDING, APPROVED, REJECTED
+
+  milestones      Milestone[]
+
+  @@schema("jobs")
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  proposalId  String
+  proposal    Proposal @relation(fields: [proposalId], references: [id])
+  description String
+  amount      Decimal
+  dueDate     DateTime?
+  status      String   @default("PENDING") // PENDING, SUBMITTED, COMPLETED, PAID, CHANGES_REQUESTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  submissions Submission[]
+
+  @@schema("jobs")
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id])
+  freelancerId String
+  content     String
+  attachments String[]
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("jobs")
 }

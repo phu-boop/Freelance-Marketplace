@@ -1,310 +1,919 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import React from 'react';
 import api from '@/lib/api';
-import { Loader2, CheckCircle, AlertTriangle, Upload, Clock, MessageSquare, ChevronDown, ChevronUp, FileText, ExternalLink, XCircle, ShieldAlert } from 'lucide-react';
-import { useKeycloak } from '@/components/KeycloakProvider';
-import ReviewModal from '@/components/ReviewModal';
-import WorkSubmissionModal from '@/components/WorkSubmissionModal';
-import DisputeModal from '@/components/DisputeModal';
+import { Briefcase, Calendar, DollarSign, CheckCircle, Plus, Clock, FileText, ChevronLeft, ArrowUpRight } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { formatDistance } from 'date-fns';
+import ContractChat from '@/components/contracts/ContractChat';
+import { TransactionHistory } from '@/components/contracts/TransactionHistory';
 
-interface Submission {
-    id: string;
-    content: string;
-    attachments: string[];
-    type: 'PROGRESS_REPORT' | 'FINAL_RESULT';
-    createdAt: string;
-}
+export default function ContractDetailsPage() {
+    const params = useParams();
+    const router = useRouter();
+    const [contract, setContract] = React.useState<any>(null);
+    const [transactions, setTransactions] = React.useState<any[]>([]);
+    const [loading, setLoading] = React.useState(true);
+    const [transactionsLoading, setTransactionsLoading] = React.useState(false);
 
-interface Milestone {
-    id: string;
-    description: string;
-    amount: number;
-    status: 'PENDING' | 'ACTIVE' | 'IN_REVIEW' | 'COMPLETED';
-    dueDate?: string;
-    submissions: Submission[];
-}
+    // UI State
+    const [activeTab, setActiveTab] = React.useState<'milestones' | 'files' | 'messages' | 'payments'>('milestones');
+    const [isAddMilestoneOpen, setIsAddMilestoneOpen] = React.useState(false);
+    const [isSubmitWorkOpen, setIsSubmitWorkOpen] = React.useState(false);
+    const [isApprovalOpen, setIsApprovalOpen] = React.useState(false);
+    const [isRequestChangesOpen, setIsRequestChangesOpen] = React.useState(false);
+    const [isSubHistoryOpen, setIsSubHistoryOpen] = React.useState(false);
+    const [isExtensionModalOpen, setIsExtensionModalOpen] = React.useState(false);
+    const [isTerminationOpen, setIsTerminationOpen] = React.useState(false);
+    const [selectedMilestoneId, setSelectedMilestoneId] = React.useState<string | null>(null);
+    const [viewingSubmissions, setViewingSubmissions] = React.useState<any[]>([]);
+    const [feedback, setFeedback] = React.useState('');
+    const [currentUser, setCurrentUser] = React.useState<any>(null);
 
-interface Contract {
-    id: string;
-    title: string;
-    status: string;
-    totalAmount: number;
-    job_id: string;
-    client_id: string;
-    freelancer_id: string;
-    milestones: Milestone[];
-}
+    // Form states...
+    const [description, setDescription] = React.useState('');
+    const [amount, setAmount] = React.useState('');
+    const [dueDate, setDueDate] = React.useState('');
+    const [extensionDate, setExtensionDate] = React.useState('');
+    const [extensionReason, setExtensionReason] = React.useState('');
+    const [terminationReason, setTerminationReason] = React.useState('');
+    const [submitting, setSubmitting] = React.useState(false);
+    const [submissionContent, setSubmissionContent] = React.useState('');
+    const [submissionFiles, setSubmissionFiles] = React.useState<string[]>([]);
 
-export default function ContractPage() {
-    const { id } = useParams();
-    const { userId } = useKeycloak();
-    const [contract, setContract] = useState<Contract | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [actionLoading, setActionLoading] = useState(false);
-    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-    const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-    const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
-    const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
-    const [expandedMilestones, setExpandedMilestones] = useState<string[]>([]);
-
-    const fetchContract = async () => {
+    const fetchContract = React.useCallback(async () => {
         try {
-            const res = await api.get(`/contracts/${id}`);
+            const res = await api.get(`/proposals/contracts/${params.id}`);
             setContract(res.data);
         } catch (error) {
-            console.error('Failed to fetch contract', error);
+            console.error('Failed to fetch contract details', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [params.id]);
+
+    const fetchTransactions = React.useCallback(async () => {
+        setTransactionsLoading(true);
+        try {
+            const res = await api.get(`/payments/transactions/reference/${params.id}`);
+            setTransactions(res.data);
+        } catch (error) {
+            console.error('Failed to fetch transactions', error);
+        } finally {
+            setTransactionsLoading(false);
+        }
+    }, [params.id]);
+
+    React.useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const res = await api.get('/users/me');
+                setCurrentUser(res.data);
+            } catch (error) {
+                console.error('Failed to fetch user', error);
+            }
+        };
+        fetchUser();
+    }, []);
+
+    React.useEffect(() => {
+        fetchContract();
+        fetchTransactions();
+    }, [fetchContract, fetchTransactions]);
+
+    const handleAddMilestone = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            await api.post(`/proposals/contracts/${params.id}/milestones`, {
+                description,
+                amount: parseFloat(amount),
+                dueDate: dueDate || undefined
+            });
+            setIsAddMilestoneOpen(false);
+            setDescription('');
+            setAmount('');
+            setDueDate('');
+            fetchContract(); // Refresh list
+        } catch (error) {
+            console.error('Failed to add milestone', error);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleSubmitWork = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedMilestoneId) return;
+
+        setSubmitting(true);
+        try {
+            await api.post(`/proposals/milestones/${selectedMilestoneId}/submit`, {
+                content: submissionContent,
+                attachments: submissionFiles
+            });
+
+            setSubmissionContent('');
+            setSubmissionFiles([]);
+            setIsSubmitWorkOpen(false);
+            fetchContract();
+        } catch (error) {
+            console.error('Failed to submit work', error);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleApproveWork = async (milestoneId: string) => {
+        setLoading(true);
+        try {
+            await api.post(`/proposals/milestones/${milestoneId}/approve`);
+            fetchContract();
+        } catch (error: any) {
+            console.error('Failed to approve work', error);
+            alert('Approval failed: ' + (error.response?.data?.message || error.message));
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchContract();
-    }, [id]);
+    const handleRequestChanges = async (milestoneId: string) => {
+        if (!feedback.trim()) return;
 
-    const toggleMilestone = (milestoneId: string) => {
-        setExpandedMilestones(prev =>
-            prev.includes(milestoneId)
-                ? prev.filter(id => id !== milestoneId)
-                : [...prev, milestoneId]
-        );
-    };
-
-    const handleApproveWork = async (milestoneId: string) => {
-        if (!confirm('Are you sure you want to approve this work and release payment?')) return;
-        setActionLoading(true);
+        setLoading(true);
         try {
-            await api.post(`/contracts/${id}/approve`, { milestoneId });
-            await fetchContract();
-        } catch (error) {
-            console.error('Failed to approve work', error);
+            await api.post(`/proposals/milestones/${milestoneId}/request-changes`, { feedback });
+            setFeedback('');
+            fetchContract();
+        } catch (error: any) {
+            console.error('Failed to request changes', error);
+            alert('Request failed: ' + (error.response?.data?.message || error.message));
         } finally {
-            setActionLoading(false);
+            setLoading(false);
         }
     };
 
-    const handleRejectWork = async (milestoneId: string) => {
-        const reason = prompt('Please provide a reason for rejection:');
-        if (!reason) return;
+    // Modals
+    const handleCloseSubmitModal = () => setIsSubmitWorkOpen(false);
+    const handleOpenSubmitModal = (milestoneId: string) => {
+        setSelectedMilestoneId(milestoneId);
+        setIsSubmitWorkOpen(true);
+    };
 
-        setActionLoading(true);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [uploading, setUploading] = React.useState(false);
+
+    const handleRequestExtension = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
         try {
-            await api.post(`/contracts/${id}/reject-work`, { milestoneId, reason });
-            await fetchContract();
+            await api.post(`/proposals/contracts/${params.id}/extension-request`, {
+                date: extensionDate,
+                reason: extensionReason
+            });
+            setIsExtensionModalOpen(false);
+            setExtensionDate('');
+            setExtensionReason('');
+            fetchContract();
+            alert('Extension request sent successfully');
         } catch (error) {
-            console.error('Failed to reject work', error);
+            console.error('Failed to request extension', error);
+            alert('Failed to request extension');
         } finally {
-            setActionLoading(false);
+            setSubmitting(false);
         }
+    };
+
+    const handleTerminateContract = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!terminationReason.trim()) return;
+
+        setSubmitting(true);
+        try {
+            await api.post(`/proposals/contracts/${params.id}/terminate`, {
+                reason: terminationReason
+            });
+            setIsTerminationOpen(false);
+            setTerminationReason('');
+            fetchContract();
+            alert('Contract terminated successfully');
+        } catch (error) {
+            console.error('Failed to terminate contract', error);
+            alert('Failed to terminate contract');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const uploadRes = await api.post('/storage/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const fileName = uploadRes.data.fileName;
+
+            await api.patch(`/proposals/${params.id}/attachments`, { fileName });
+            fetchContract();
+        } catch (error) {
+            console.error('Failed to upload file', error);
+            alert('Upload failed');
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleSubmissionFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const uploadRes = await api.post('/storage/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const fileName = uploadRes.data.fileName;
+            setSubmissionFiles(prev => [...prev, fileName]);
+        } catch (error) {
+            console.error('Failed to upload submission file', error);
+            alert('Upload failed');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const removeSubmissionFile = (fileName: string) => {
+        setSubmissionFiles(prev => prev.filter(f => f !== fileName));
+    };
+
+    const [progress, setProgress] = React.useState(0);
+    const [isEditingProgress, setIsEditingProgress] = React.useState(false);
+
+    React.useEffect(() => {
+        if (contract) {
+            setProgress(contract.progress || 0);
+        }
+    }, [contract]);
+
+    const handleSaveProgress = async () => {
+        try {
+            await api.patch(`/proposals/contracts/${params.id}/progress`, { progress });
+            setContract((prev: any) => ({ ...prev, progress }));
+            setIsEditingProgress(false);
+        } catch (error) {
+            console.error('Failed to update progress', error);
+            alert('Failed to update progress');
+        }
+    };
+
+    const handleOpenSubHistory = (submissions: any[]) => {
+        setViewingSubmissions(submissions);
+        setIsSubHistoryOpen(true);
     };
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             </div>
         );
     }
 
-    if (!contract) {
-        return <div className="text-center text-slate-400">Contract not found</div>;
-    }
+    if (!contract) return null;
 
-    const isClient = userId === contract.client_id;
-    const isFreelancer = userId === contract.freelancer_id;
-    const revieweeId = isClient ? contract.freelancer_id : contract.client_id;
+    const { job, milestones } = contract;
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-white">Contract Details</h1>
-                    <p className="text-slate-400">ID: {contract.id}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                    {contract.status === 'COMPLETED' && (
-                        <button
-                            onClick={() => setIsReviewModalOpen(true)}
-                            className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-xl text-sm font-medium flex items-center gap-2"
-                        >
-                            <MessageSquare className="w-4 h-4" />
-                            Leave Review
-                        </button>
-                    )}
-                    {contract.status === 'ACTIVE' && (
-                        <button
-                            onClick={() => setIsDisputeModalOpen(true)}
-                            className="px-4 py-2 bg-slate-800 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border border-slate-700"
-                        >
-                            <ShieldAlert className="w-4 h-4" />
-                            Dispute
-                        </button>
-                    )}
-                    <div className={`px-4 py-2 rounded-full border text-sm font-bold ${contract.status === 'ACTIVE'
-                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                        : 'bg-green-500/10 text-green-400 border-green-500/20'
-                        }`}>
-                        {contract.status}
-                    </div>
-                </div>
-            </div>
-
-            <div className="space-y-6">
-                <h2 className="text-xl font-bold text-white">Milestones</h2>
-                {contract.milestones.map((milestone) => (
-                    <div key={milestone.id} className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
-                        <div
-                            className="p-6 flex justify-between items-center cursor-pointer hover:bg-slate-800/50 transition-all"
-                            onClick={() => toggleMilestone(milestone.id)}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className={`p-2 rounded-lg ${milestone.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500' :
-                                    milestone.status === 'IN_REVIEW' ? 'bg-yellow-500/10 text-yellow-500' :
-                                        'bg-blue-500/10 text-blue-500'
-                                    }`}>
-                                    {milestone.status === 'COMPLETED' ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-white">{milestone.description}</h3>
-                                    <div className="flex items-center gap-4 text-sm text-slate-400">
-                                        <span className="font-bold text-slate-300">${milestone.amount}</span>
-                                        {milestone.dueDate && (
-                                            <span className="flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                Due: {new Date(milestone.dueDate).toLocaleDateString()}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${milestone.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                                    milestone.status === 'IN_REVIEW' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                        'bg-slate-800 text-slate-400 border-slate-700'
-                                    }`}>
-                                    {milestone.status.replace('_', ' ')}
+        <div className="min-h-screen bg-slate-950 py-12 px-6">
+            <div className="max-w-5xl mx-auto space-y-8">
+                {/* Header */}
+                <div className="space-y-4">
+                    <Link href="/contracts" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+                        <ChevronLeft className="w-4 h-4" />
+                        Back to Contracts
+                    </Link>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-3xl font-bold text-white mb-2">{job.title}</h1>
+                            <div className="flex items-center gap-4 text-slate-400">
+                                <span className="flex items-center gap-1.5 text-sm">
+                                    <Clock className="w-4 h-4" />
+                                    Started {formatDistance(new Date(contract.updatedAt), new Date(), { addSuffix: true })}
                                 </span>
-                                {expandedMilestones.includes(milestone.id) ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
+                                <span className="flex items-center gap-1.5 text-sm">
+                                    <CheckCircle className="w-4 h-4" />
+                                    {contract.status === 'TERMINATED' ? 'Terminated' : 'Active'}
+                                </span>
+                                {contract.extensionRequestStatus === 'PENDING' && (
+                                    <span className="flex items-center gap-1.5 text-sm text-yellow-500">
+                                        <Clock className="w-4 h-4" />
+                                        Extension Requested
+                                    </span>
+                                )}
                             </div>
                         </div>
+                        {currentUser?.id === contract.freelancerId && contract.status !== 'TERMINATED' && (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setIsExtensionModalOpen(true)}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors text-sm font-medium border border-slate-700"
+                                >
+                                    Request Extension
+                                </button>
+                                <button
+                                    onClick={() => setIsTerminationOpen(true)}
+                                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg transition-colors text-sm font-medium"
+                                >
+                                    Terminate
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
-                        {expandedMilestones.includes(milestone.id) && (
-                            <div className="p-6 bg-slate-950/50 border-t border-slate-800 space-y-6">
-                                {/* Submissions List */}
+                {/* Progress Section */}
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-500" />
+                            Project Progress
+                        </h3>
+                        {/* Freelancer Edit Controls */}
+                        {isEditingProgress ? (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setIsEditingProgress(false);
+                                        setProgress(contract.progress || 0);
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveProgress}
+                                    className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+                                >
+                                    Save Update
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setIsEditingProgress(true)}
+                                className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-blue-400 transition-colors border border-slate-700 rounded-lg hover:border-blue-500/50"
+                            >
+                                Update Progress
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-slate-400">Completion</span>
+                            <span className="text-white font-medium">{progress}%</span>
+                        </div>
+
+                        {isEditingProgress ? (
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={progress}
+                                onChange={(e) => setProgress(Number(e.target.value))}
+                                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            />
+                        ) : (
+                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-500 ease-out"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">
+                            {progress === 100 ? 'Project marked as complete.' : 'Keep the client updated on your progress.'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-8 border-b border-slate-800">
+                    <button
+                        onClick={() => setActiveTab('milestones')}
+                        className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'milestones' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Milestones
+                        {activeTab === 'milestones' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('files')}
+                        className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'files' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Files
+                        {activeTab === 'files' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('messages')}
+                        className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'messages' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Messages
+                        {activeTab === 'messages' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('payments')}
+                        className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'payments' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Payments
+                        {activeTab === 'payments' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+                    </button>
+                </div>
+
+                {/* Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Main Content */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {activeTab === 'milestones' ? (
+                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <FileText className="w-5 h-5 text-blue-500" />
+                                        Milestones
+                                    </h2>
+                                    <button
+                                        onClick={() => setIsAddMilestoneOpen(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-colors"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Add Milestone
+                                    </button>
+                                </div>
+
                                 <div className="space-y-4">
-                                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Submissions</h4>
-                                    {milestone.submissions.length === 0 ? (
-                                        <p className="text-sm text-slate-500 italic">No submissions yet.</p>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            {milestone.submissions.map((sub) => (
-                                                <div key={sub.id} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                                                    <div className="flex justify-between items-start">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${sub.type === 'FINAL_RESULT' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'
-                                                            }`}>
-                                                            {sub.type.replace('_', ' ')}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-500">
-                                                            {new Date(sub.createdAt).toLocaleString()}
+                                    {milestones && milestones.length > 0 ? (
+                                        milestones.map((milestone: any) => (
+                                            <div key={milestone.id} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 flex justify-between items-center">
+                                                <div>
+                                                    <div className="font-medium text-white mb-1">{milestone.description}</div>
+                                                    <div className="text-sm text-slate-400 flex items-center gap-3">
+                                                        {milestone.dueDate && (
+                                                            <span className="flex items-center gap-1">
+                                                                <Calendar className="w-3 h-3" />
+                                                                Due {new Date(milestone.dueDate).toLocaleDateString()}
+                                                            </span>
+                                                        )}
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${milestone.status === 'PAID' ? 'bg-green-500/10 text-green-500' :
+                                                            milestone.status === 'SUBMITTED' ? 'bg-blue-500/10 text-blue-500' :
+                                                                milestone.status === 'CHANGES_REQUESTED' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                                    'bg-slate-700 text-slate-300'
+                                                            } uppercase tracking-wide`}>
+                                                            {milestone.status.replace('_', ' ')}
                                                         </span>
                                                     </div>
-                                                    <p className="text-sm text-slate-300 leading-relaxed">{sub.content}</p>
-                                                    {sub.attachments.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {sub.attachments.map((url, i) => (
-                                                                <a
-                                                                    key={i}
-                                                                    href={url}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="flex items-center gap-1.5 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-blue-400 hover:text-blue-300 transition-all"
-                                                                >
-                                                                    <FileText className="w-3 h-3" />
-                                                                    Attachment {i + 1}
-                                                                    <ExternalLink className="w-2 h-2" />
-                                                                </a>
-                                                            ))}
+
+                                                    {/* Latest Submission Info */}
+                                                    {milestone.submissions && milestone.submissions.length > 0 && (
+                                                        <div className="mt-3 p-3 rounded-lg bg-slate-900/50 border border-slate-700/30">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Latest Submission</div>
+                                                                {milestone.submissions.length > 1 && (
+                                                                    <button
+                                                                        onClick={() => handleOpenSubHistory(milestone.submissions)}
+                                                                        className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                                                                    >
+                                                                        View All {milestone.submissions.length}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-sm text-slate-300 line-clamp-2 italic">
+                                                                "{milestone.submissions[0].content}"
+                                                            </div>
+                                                            {milestone.submissions[0].attachments?.length > 0 && (
+                                                                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                                                                    {milestone.submissions[0].attachments.map((file: string, idx: number) => (
+                                                                        <a
+                                                                            key={idx}
+                                                                            href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/storage/url/${file}`}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="text-[10px] bg-slate-800 text-blue-400 px-2 py-1 rounded hover:bg-slate-700 transition-colors"
+                                                                        >
+                                                                            Attachment {idx + 1}
+                                                                        </a>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
-                                            ))}
+                                                <div className="flex items-center gap-4">
+                                                    <div className="text-right">
+                                                        <div className="font-bold text-white text-lg">${milestone.amount}</div>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        {(milestone.status === 'PENDING' || milestone.status === 'CHANGES_REQUESTED') && (
+                                                            <button
+                                                                onClick={() => handleOpenSubmitModal(milestone.id)}
+                                                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors"
+                                                            >
+                                                                {milestone.status === 'CHANGES_REQUESTED' ? 'Resubmit Work' : 'Submit Work'}
+                                                            </button>
+                                                        )}
+                                                        {milestone.status === 'SUBMITTED' && (
+                                                            <div className="flex flex-col gap-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedMilestoneId(milestone.id);
+                                                                        setIsApprovalOpen(true);
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-medium transition-colors"
+                                                                >
+                                                                    Approve
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedMilestoneId(milestone.id);
+                                                                        setIsRequestChangesOpen(true);
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium transition-colors"
+                                                                >
+                                                                    Request Changes
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {milestone.status === 'PAID' && milestone.submissions?.length > 0 && (
+                                                            <button
+                                                                onClick={() => handleOpenSubHistory(milestone.submissions)}
+                                                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors"
+                                                            >
+                                                                History
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-12 text-slate-500">
+                                            No milestones added yet.
                                         </div>
                                     )}
                                 </div>
-
-                                {/* Actions */}
-                                <div className="pt-4 flex gap-3">
-                                    {milestone.status === 'ACTIVE' && isFreelancer && (
+                            </div>
+                        ) : activeTab === 'messages' ? (
+                            <ContractChat
+                                contractId={params.id as string}
+                                freelancerId={contract.freelancerId}
+                                clientId={contract.job.client_id}
+                            />
+                        ) : activeTab === 'payments' ? (
+                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                                <TransactionHistory
+                                    transactions={transactions}
+                                    isLoading={transactionsLoading}
+                                />
+                            </div>
+                        ) : ( // This is the 'files' tab
+                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <FileText className="w-5 h-5 text-blue-500" />
+                                        Shared Files
+                                    </h2>
+                                    <div>
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            ref={fileInputRef}
+                                            onChange={handleFileUpload}
+                                        />
                                         <button
-                                            onClick={() => {
-                                                setSelectedMilestoneId(milestone.id);
-                                                setIsSubmitModalOpen(true);
-                                            }}
-                                            className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            disabled={uploading}
+                                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
                                         >
-                                            <Upload className="w-4 h-4" />
-                                            Submit Work
+                                            {uploading ? (
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <Plus className="w-4 h-4" />
+                                            )}
+                                            Upload File
                                         </button>
-                                    )}
+                                    </div>
+                                </div>
 
-                                    {milestone.status === 'IN_REVIEW' && isClient && (
-                                        <>
-                                            <button
-                                                onClick={() => handleRejectWork(milestone.id)}
-                                                disabled={actionLoading}
-                                                className="flex-1 py-2 bg-slate-800 hover:bg-red-500/10 text-slate-300 hover:text-red-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border border-slate-700"
+                                <div className="grid grid-cols-1 gap-4">
+                                    {contract.attachments && contract.attachments.length > 0 ? (
+                                        contract.attachments.map((fileName: string, index: number) => (
+                                            <a
+                                                key={index}
+                                                href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/storage/url/${fileName}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-4 rounded-xl bg-slate-800/30 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/50 transition-all flex items-center justify-between group"
                                             >
-                                                <XCircle className="w-4 h-4" />
-                                                Request Changes
-                                            </button>
-                                            <button
-                                                onClick={() => handleApproveWork(milestone.id)}
-                                                disabled={actionLoading}
-                                                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
-                                            >
-                                                <CheckCircle className="w-4 h-4" />
-                                                Approve & Pay
-                                            </button>
-                                        </>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 rounded-lg bg-slate-800 group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
+                                                        <FileText className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm font-medium text-white truncate max-w-[200px] md:max-w-md">
+                                                            {fileName}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500 uppercase tracking-wider mt-0.5">Workspace File</div>
+                                                    </div>
+                                                </div>
+                                                <ArrowUpRight className="w-4 h-4 text-slate-600 group-hover:text-blue-500 transition-colors" />
+                                            </a>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                                            No files uploaded yet.
+                                        </div>
                                     )}
                                 </div>
                             </div>
                         )}
                     </div>
-                ))}
+
+                    {/* Sidebar */}
+                    <div className="space-y-6">
+                        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+                            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                                <DollarSign className="w-5 h-5 text-green-500" />
+                                Financial Summary
+                            </h3>
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-end">
+                                    <div className="text-sm text-slate-400">Total Contract Value</div>
+                                    <div className="text-xl font-bold text-white">${contract.bidAmount}</div>
+                                </div>
+                                <div className="flex justify-between items-end">
+                                    <div className="text-sm text-slate-400">Paid to Date</div>
+                                    <div className="text-xl font-bold text-green-500">
+                                        ${contract.milestones.filter((m: any) => m.status === 'PAID').reduce((acc: number, m: any) => acc + Number(m.amount), 0).toFixed(2)}
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-end">
+                                    <div className="text-sm text-slate-400">Remaining</div>
+                                    <div className="text-xl font-bold text-slate-300">
+                                        ${(Number(contract.bidAmount) - contract.milestones.filter((m: any) => m.status === 'PAID').reduce((acc: number, m: any) => acc + Number(m.amount), 0)).toFixed(2)}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t border-slate-800">
+                                <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-2">Contract Details</div>
+                                <div className="space-y-2">
+                                    <div className="text-sm text-white">Timeline: <span className="text-slate-400">{contract.timeline}</span></div>
+                                    <div className="text-sm text-white">Project ID: <span className="text-slate-400 font-mono text-[10px]">{contract.jobId}</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {userId && (
-                <ReviewModal
-                    isOpen={isReviewModalOpen}
-                    onClose={() => setIsReviewModalOpen(false)}
-                    onSuccess={() => { }}
-                    contractId={contract.id}
-                    jobId={contract.job_id}
-                    reviewerId={userId}
-                    revieweeId={revieweeId}
-                />
+            {/* --- Modals --- */}
+
+            {/* Add Milestone Modal */}
+            {isAddMilestoneOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                        <h3 className="text-xl font-bold text-white mb-4">Add New Milestone</h3>
+                        <form onSubmit={handleAddMilestone} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    placeholder="e.g. First Draft"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">Amount ($)</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    step="0.01"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">Due Date</label>
+                                <input
+                                    type="date"
+                                    value={dueDate}
+                                    onChange={(e) => setDueDate(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button type="button" onClick={() => setIsAddMilestoneOpen(false)} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">Cancel</button>
+                                <button type="submit" disabled={submitting} className="px-6 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-500 disabled:opacity-50 transition-all">
+                                    {submitting ? 'Adding...' : 'Add Milestone'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
 
-            {selectedMilestoneId && (
-                <WorkSubmissionModal
-                    isOpen={isSubmitModalOpen}
-                    onClose={() => setIsSubmitModalOpen(false)}
-                    onSuccess={fetchContract}
-                    contractId={contract.id}
-                    milestoneId={selectedMilestoneId}
-                />
+            {/* Submit Work Modal */}
+            {isSubmitWorkOpen && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-900 rounded-2xl p-6 w-full max-w-lg border border-slate-800">
+                        <h2 className="text-xl font-bold text-white mb-4">Submit Work</h2>
+                        <form onSubmit={handleSubmitWork} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">
+                                    Description of Work
+                                </label>
+                                <textarea
+                                    required
+                                    value={submissionContent}
+                                    onChange={(e) => setSubmissionContent(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white h-32 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                    placeholder="Describe what you have completed..."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">
+                                    Attachments
+                                </label>
+                                <div className="space-y-2">
+                                    {submissionFiles.map((file, i) => (
+                                        <div key={i} className="flex items-center justify-between bg-slate-950 p-2 rounded border border-slate-800">
+                                            <span className="text-sm text-slate-300 truncate max-w-[200px]">{file}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeSubmissionFile(file)}
+                                                className="text-red-400 hover:text-red-300 text-xs"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <label className="flex items-center justify-center gap-2 w-full p-2 border border-dashed border-slate-700 rounded-lg hover:border-slate-500 transition-colors cursor-pointer text-slate-400 hover:text-white text-sm">
+                                        <Plus className="w-4 h-4" />
+                                        Add File
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            onChange={handleSubmissionFileUpload}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSubmitWorkOpen(false)}
+                                    className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting || !submissionContent.trim()}
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {submitting ? 'Submitting...' : 'Submit Work'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
 
-            <DisputeModal
-                isOpen={isDisputeModalOpen}
-                onClose={() => setIsDisputeModalOpen(false)}
-                onSuccess={fetchContract}
-                contractId={contract.id}
-            />
+            {/* Approval Confirmation Modal */}
+            {isApprovalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-sm p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200 text-center">
+                        <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle className="w-8 h-8 text-green-500" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Approve Deliverables?</h3>
+                        <p className="text-slate-400 text-sm mb-6">
+                            By approving this work, the funds for this milestone will be released instantly to the freelancer. This action cannot be undone.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <button
+                                onClick={() => {
+                                    handleApproveWork(selectedMilestoneId!);
+                                    setIsApprovalOpen(false);
+                                }}
+                                className="w-full py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-900/20"
+                            >
+                                Confirm & Pay
+                            </button>
+                            <button
+                                onClick={() => setIsApprovalOpen(false)}
+                                className="w-full py-3 text-slate-400 hover:text-white transition-colors"
+                            >
+                                Not yet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Request Changes Modal */}
+            {isRequestChangesOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                        <h3 className="text-xl font-bold text-white mb-2">Request Changes</h3>
+                        <p className="text-slate-400 text-sm mb-4">Provide detailed feedback to help the freelancer improve the deliverables.</p>
+                        <div className="space-y-4">
+                            <textarea
+                                value={feedback}
+                                onChange={(e) => setFeedback(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 h-32 resize-none"
+                                placeholder="What needs to be changed? Be specific..."
+                            />
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button onClick={() => setIsRequestChangesOpen(false)} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">Cancel</button>
+                                <button
+                                    onClick={() => {
+                                        handleRequestChanges(selectedMilestoneId!);
+                                        setIsRequestChangesOpen(false);
+                                        setFeedback('');
+                                    }}
+                                    disabled={!feedback.trim()}
+                                    className="px-6 py-2 rounded-lg bg-yellow-600/20 text-yellow-500 font-medium hover:bg-yellow-600/30 disabled:opacity-50 transition-all border border-yellow-600/50"
+                                >
+                                    Send Feedback
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Submission History Modal */}
+            {isSubHistoryOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-2xl p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white">Submission History</h3>
+                            <button onClick={() => setIsSubHistoryOpen(false)} className="text-slate-500 hover:text-white transition-colors">
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+                            {viewingSubmissions.map((sub, idx) => (
+                                <div key={sub.id} className="relative pl-8 border-l border-slate-800 pb-2 last:pb-0">
+                                    <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                            {sub.status === 'APPROVED' ? 'Final Deliverable' : `Submission #${viewingSubmissions.length - idx}`}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500">
+                                            {formatDistance(new Date(sub.createdAt), new Date(), { addSuffix: true })}
+                                        </span>
+                                    </div>
+                                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                                        <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{sub.content}</p>
+                                        {sub.attachments?.length > 0 && (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {sub.attachments.map((file: string, fIdx: number) => (
+                                                    <a
+                                                        key={fIdx}
+                                                        href={`${process.env.NEXT_PUBLIC_API_URL || '/api'}/storage/url/${file}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-blue-400 font-medium transition-all"
+                                                    >
+                                                        <FileText className="w-3 h-3" />
+                                                        {file.split('-').slice(1).join('-') || file}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

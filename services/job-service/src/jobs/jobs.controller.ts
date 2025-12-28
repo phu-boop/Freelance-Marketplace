@@ -1,18 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { CreateCategoryDto } from '../categories/create-category.dto';
+import { Public, Roles } from 'nest-keycloak-connect';
 
-@Controller('jobs')
+@Controller('api/jobs')
 export class JobsController {
   constructor(private readonly jobsService: JobsService) { }
 
   @Post()
+  @Roles({ roles: ['realm:CLIENT', 'realm:ADMIN'] })
   create(@Body() createJobDto: CreateJobDto) {
     return this.jobsService.create(createJobDto);
   }
 
+  @Public()
   @Get()
   findAll(
     @Query('page') page: number = 1,
@@ -26,28 +29,52 @@ export class JobsController {
     return this.jobsService.findByClient(clientId);
   }
 
+  // Saved Jobs
+  @Get('saved')
+  getSavedJobs(@Request() req) {
+    const userId = req.user.sub;
+    return this.jobsService.getSavedJobs(userId);
+  }
+
+  @Post(':id/save')
+  saveJob(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.jobsService.saveJob(userId, id);
+  }
+
+  @Delete(':id/unsave')
+  unsaveJob(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.jobsService.unsaveJob(userId, id);
+  }
+
   // Categories
+  @Public()
   @Post('categories')
   createCategory(@Body() createCategoryDto: CreateCategoryDto) {
     return this.jobsService.createCategory(createCategoryDto);
   }
 
+  @Public()
   @Get('categories')
   findAllCategories() {
     return this.jobsService.findAllCategories();
   }
 
   // Skills
+  @Public()
   @Post('skills')
   createSkill(@Body('name') name: string) {
     return this.jobsService.createSkill(name);
   }
 
+  @Public()
   @Get('skills')
   findAllSkills() {
     return this.jobsService.findAllSkills();
   }
 
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.jobsService.findOne(id);
@@ -64,7 +91,8 @@ export class JobsController {
   }
 
   @Post(':id/approve')
-  approveJob(@Param('id') id: string) {
+  @Roles({ roles: ['realm:ADMIN'] })
+  approve(@Param('id') id: string) {
     return this.jobsService.approveJob(id);
   }
 

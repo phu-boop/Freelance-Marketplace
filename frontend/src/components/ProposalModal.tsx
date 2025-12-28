@@ -17,9 +17,34 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModa
     const { userId } = useKeycloak();
     const [coverLetter, setCoverLetter] = useState('');
     const [bidAmount, setBidAmount] = useState('');
+    const [timeline, setTimeline] = useState('');
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+
+    React.useEffect(() => {
+        if (isOpen && !isDraftLoaded) {
+            const draft = localStorage.getItem('proposal_draft');
+            if (draft) {
+                try {
+                    const data = JSON.parse(draft);
+                    // Only pre-fill if fields are empty
+                    if (!coverLetter) setCoverLetter(data.coverLetter || '');
+                    if (!bidAmount) setBidAmount(data.bidAmount?.toString() || '');
+                    if (!timeline) setTimeline(data.timeline || '');
+                    setIsDraftLoaded(true);
+                } catch (e) {
+                    console.error('Failed to parse draft', e);
+                }
+            }
+        }
+    }, [isOpen, isDraftLoaded, coverLetter, bidAmount, timeline]);
+
+    const clearDraft = () => {
+        localStorage.removeItem('proposal_draft');
+        setIsDraftLoaded(false);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,17 +53,19 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModa
 
         try {
             await api.post('/proposals', {
-                job_id: jobId,
-                freelancer_id: userId,
+                jobId: jobId,
                 coverLetter: coverLetter,
                 bidAmount: parseFloat(bidAmount),
+                timeline: timeline,
             });
             setSuccess(true);
+            clearDraft();
             setTimeout(() => {
                 onClose();
                 setSuccess(false);
                 setCoverLetter('');
                 setBidAmount('');
+                setTimeline('');
             }, 2000);
         } catch (err) {
             console.error('Failed to submit proposal', err);
@@ -62,6 +89,12 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModa
                             <div>
                                 <h3 className="text-xl font-bold text-white">Submit Proposal</h3>
                                 <p className="text-sm text-slate-400 mt-1">For: {jobTitle}</p>
+                                {isDraftLoaded && localStorage.getItem('proposal_draft') && (
+                                    <div className="flex items-center gap-2 mt-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg w-fit">
+                                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Using Duplicated Details</span>
+                                        <button onClick={clearDraft} className="text-[10px] text-slate-500 hover:text-white underline">Clear</button>
+                                    </div>
+                                )}
                             </div>
                             <button
                                 onClick={onClose}
@@ -82,16 +115,29 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModa
                                 </div>
                             ) : (
                                 <>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-slate-300">Bid Amount ($)</label>
-                                        <input
-                                            type="number"
-                                            required
-                                            placeholder="e.g. 500"
-                                            value={bidAmount}
-                                            onChange={(e) => setBidAmount(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
-                                        />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-slate-300">Bid Amount ($)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                placeholder="e.g. 500"
+                                                value={bidAmount}
+                                                onChange={(e) => setBidAmount(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-slate-300">Estimated Delivery</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="e.g. 1 week"
+                                                value={timeline}
+                                                onChange={(e) => setTimeline(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-slate-300">Cover Letter</label>
@@ -115,7 +161,7 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModa
                                         ) : (
                                             <>
                                                 <Send className="w-5 h-5" />
-                                                Submit Proposal
+                                                Submit Proposal (-2 Connects)
                                             </>
                                         )}
                                     </button>

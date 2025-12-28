@@ -16,4 +16,7 @@ export class CreateChatDto {
     @IsString()
     @IsOptional()
     contractId?: string;
+
+    @IsOptional()
+    attachments?: string[];
 }

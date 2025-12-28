@@ -46,8 +46,13 @@ export class PaymentsController {
   }
 
   @Post('transfer')
-  transfer(@Body() body: { fromUserId: string; toUserId: string; amount: number; description: string }) {
-    return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description);
+  transfer(@Body() body: { fromUserId: string; toUserId: string; amount: number; description: string; referenceId?: string }) {
+    return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description, body.referenceId);
+  }
+
+  @Get('transactions/reference/:id')
+  getTransactionsByReference(@Param('id') id: string) {
+    return this.paymentsService.getTransactionsByReference(id);
   }
 
   @Get('metrics')

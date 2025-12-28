@@ -57,6 +57,7 @@ export class UsersController {
     throw new UnauthorizedException('User not authenticated');
   }
 
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
