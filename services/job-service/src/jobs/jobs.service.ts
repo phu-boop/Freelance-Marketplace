@@ -647,16 +647,17 @@ export class JobsService {
     // const job = await this.prisma.job.findUnique({ where: { id: proposal.jobId } });
     // if (job.client_id !== userId) throw new ForbiddenException(...);
 
-    // Update status to HIRED
+    // Update status to OFFERED
     const updatedProposal = await this.prisma.proposal.update({
       where: { id: proposalId },
-      data: { status: 'HIRED' }
+      data: { status: 'OFFERED' }
     });
 
     // Send Notification
     try {
       // Use the internal docker service name and port 3007
       const notificationUrl = 'http://notification-service:3007'; // Root path as per fix
+
       await this.httpService.axiosRef.post(notificationUrl, {
         userId: proposal.freelancerId,
         type: 'JOB_OFFER',
@@ -669,9 +670,291 @@ export class JobsService {
       });
     } catch (error) {
       console.error('Failed to send notification:', error.message);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Response status:', error.response.status);
+      }
       // Don't fail the request if notification fails, just log it.
     }
 
     return updatedProposal;
+  }
+
+  async acceptOffer(userId: string, proposalId: string) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: { job: true }
+    });
+
+    if (!proposal) {
+      throw new BadRequestException('Proposal not found');
+    }
+
+    if (proposal.freelancerId !== userId) {
+      throw new ForbiddenException('You can only accept offers sent to you');
+    }
+
+    if (proposal.status !== 'OFFERED') {
+      throw new BadRequestException('Proposal is not in OFFERED status');
+    }
+
+    return this.prisma.$transaction([
+      this.prisma.proposal.update({
+        where: { id: proposalId },
+        data: { status: 'HIRED' }
+      }),
+      this.prisma.job.update({
+        where: { id: proposal.jobId },
+        data: { status: 'IN_PROGRESS' }
+      })
+    ]);
+  }
+
+  async declineOffer(userId: string, proposalId: string) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId }
+    });
+
+    if (!proposal) {
+      throw new BadRequestException('Proposal not found');
+    }
+
+    if (proposal.freelancerId !== userId) {
+      throw new ForbiddenException('You can only decline offers sent to you');
+    }
+
+    if (proposal.status !== 'OFFERED') {
+      throw new BadRequestException('Proposal is not in OFFERED status');
+    }
+
+    return this.prisma.proposal.update({
+      where: { id: proposalId },
+      data: { status: 'WITHDRAWN' }
+    });
+  }
+
+  async counterOffer(userId: string, proposalId: string, dto: { amount: number, timeline: string }) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: { job: true }
+    });
+
+    if (!proposal) {
+      throw new BadRequestException('Proposal not found');
+    }
+
+    if (proposal.freelancerId !== userId) {
+      throw new ForbiddenException('You can only counter offers sent to you');
+    }
+
+    if (proposal.status !== 'OFFERED' && proposal.status !== 'NEGOTIATION') {
+      // Allow countering if it's already in negotiation or offered
+      throw new BadRequestException('Proposal is not in OFFERED or NEGOTIATION status');
+    }
+
+    // Update proposal and notify client (in real app)
+    const updated = await this.prisma.proposal.update({
+      where: { id: proposalId },
+      data: {
+        bidAmount: dto.amount,
+        timeline: dto.timeline,
+        status: 'NEGOTIATION'
+      }
+    });
+
+    // Notify Client
+    try {
+      const notificationUrl = 'http://notification-service:3007';
+      await this.httpService.axiosRef.post(notificationUrl, {
+        userId: proposal.job.client_id,
+        type: 'COUNTER_OFFER',
+        title: 'Counter Offer Received',
+        message: `Freelancer has sent a counter offer for: ${proposal.job.title}`,
+        metadata: {
+          jobId: proposal.jobId,
+          proposalId: proposal.id
+        }
+      });
+    } catch (e) {
+      console.error('Failed to notify client of counter offer', e.message);
+    }
+
+    return updated;
+  }
+
+  async getContracts(userId: string) {
+    return this.prisma.proposal.findMany({
+      where: {
+        freelancerId: userId,
+        status: 'HIRED'
+      },
+      include: {
+        job: true
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+  }
+
+  async getContractDetails(contractId: string, userId: string) {
+    const contract = await this.prisma.proposal.findUnique({
+      where: { id: contractId },
+      include: {
+        job: true,
+        milestones: {
+          include: {
+            submissions: {
+              orderBy: { createdAt: 'desc' }
+            }
+          },
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+
+    if (!contract) throw new NotFoundException('Contract not found');
+    if (contract.freelancerId !== userId && contract.job.client_id !== userId) {
+      throw new ForbiddenException('Not authorized to view this contract');
+    }
+
+    return contract;
+  }
+
+  async requestChanges(milestoneId: string, clientId: string, feedback: string) {
+    const milestone = await this.prisma.milestone.findUnique({
+      where: { id: milestoneId },
+      include: {
+        proposal: {
+          include: { job: true }
+        }
+      }
+    });
+
+    if (!milestone) throw new NotFoundException('Milestone not found');
+    if (milestone.proposal.job.client_id !== clientId) throw new ForbiddenException('Only the client can request changes');
+    if (milestone.status !== 'SUBMITTED') throw new BadRequestException('Can only request changes on submitted work');
+
+    return this.prisma.milestone.update({
+      where: { id: milestoneId },
+      data: {
+        status: 'CHANGES_REQUESTED'
+      }
+    });
+  }
+
+  async addMilestone(proposalId: string, userId: string, dto: { description: string, amount: number, dueDate?: string }) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: { job: true }
+    });
+
+    if (!proposal) throw new NotFoundException('Contract not found');
+
+    // Only allow adding milestone if you are involved (freelancer or client)
+    if (proposal.freelancerId !== userId && proposal.job.client_id !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.prisma.milestone.create({
+      data: {
+        proposalId,
+        description: dto.description,
+        amount: dto.amount,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        status: 'PENDING'
+      }
+    });
+  }
+
+  async addAttachment(proposalId: string, userId: string, fileName: string) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: { job: true }
+    });
+
+    if (!proposal) throw new NotFoundException('Contract not found');
+
+    // Auth check: Is user either freelancer or client for this contract?
+    if (proposal.freelancerId !== userId && proposal.job.client_id !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.prisma.proposal.update({
+      where: { id: proposalId },
+      data: {
+        attachments: {
+          push: fileName
+        }
+      }
+    });
+  }
+
+  async submitMilestone(milestoneId: string, freelancerId: string, dto: { content: string, attachments?: string[] }) {
+    const milestone = await this.prisma.milestone.findUnique({
+      where: { id: milestoneId },
+      include: { proposal: true }
+    });
+
+    if (!milestone) throw new NotFoundException('Milestone not found');
+    if (milestone.proposal.freelancerId !== freelancerId) throw new ForbiddenException('Only the freelancer can submit work');
+
+    return this.prisma.$transaction(async (prisma) => {
+      const submission = await prisma.submission.create({
+        data: {
+          milestoneId,
+          freelancerId,
+          content: dto.content,
+          attachments: dto.attachments || [],
+        }
+      });
+
+      await prisma.milestone.update({
+        where: { id: milestoneId },
+        data: { status: 'SUBMITTED' }
+      });
+
+      return submission;
+    });
+  }
+
+  async approveMilestone(milestoneId: string, clientId: string) {
+    const milestone = await this.prisma.milestone.findUnique({
+      where: { id: milestoneId },
+      include: {
+        proposal: {
+          include: { job: true }
+        }
+      }
+    });
+
+    if (!milestone) throw new NotFoundException('Milestone not found');
+    if (milestone.proposal.job.client_id !== clientId) throw new ForbiddenException('Only the client can approve work');
+    if (milestone.status !== 'SUBMITTED') throw new BadRequestException('Milestone is not in SUBMITTED state');
+
+    // Transfer funds
+    try {
+      const paymentUrl = process.env.PAYMENT_SERVICE_URL || 'http://payment-service:3005';
+      const response = await this.httpService.axiosRef.post(`${paymentUrl}/payments/transfer`, {
+        fromUserId: milestone.proposal.job.client_id,
+        toUserId: milestone.proposal.freelancerId,
+        amount: Number(milestone.amount),
+        description: `Payment for Milestone: ${milestone.description}`,
+        referenceId: milestone.proposalId,
+      });
+
+      return this.prisma.milestone.update({
+        where: { id: milestoneId },
+        data: { status: 'PAID' }
+      });
+    } catch (error) {
+      console.error('Payment transfer failed', error.response?.data || error.message);
+
+      await this.prisma.milestone.update({
+        where: { id: milestoneId },
+        data: { status: 'COMPLETED' }
+      });
+      throw new BadRequestException('Work approved but payment transfer failed');
+    }
   }
 }

@@ -39,6 +39,11 @@ export class ChatsController {
     return this.chatsService.findByUsers(user1, user2);
   }
 
+  @Get('contract/:contractId')
+  findByContract(@Param('contractId') contractId: string) {
+    return this.chatsService.findByContract(contractId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.chatsService.findOne(id);

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Request, UseGuards, Get, Param } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get, Request, Patch } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
@@ -37,5 +37,69 @@ export class ProposalsController {
     @Post('/:id/offer')
     sendOffer(@AuthenticatedUser() user: any, @Param('id') id: string) {
         return this.jobsService.sendOffer(user.sub, id);
+    }
+
+    @Post(':id/offer/accept')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async acceptOffer(@Request() req, @Param('id') id: string) {
+        const userId = req.user.sub;
+        return this.jobsService.acceptOffer(userId, id);
+    }
+
+    @Post(':id/offer/decline')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async declineOffer(@Request() req, @Param('id') id: string) {
+        const userId = req.user.sub;
+        return this.jobsService.declineOffer(userId, id);
+    }
+
+    @Post(':id/offer/counter')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async counterOffer(@Request() req, @Param('id') id: string, @Body() body: { amount: number, timeline: string }) {
+        const userId = req.user.sub;
+        return this.jobsService.counterOffer(userId, id, body);
+    }
+
+    @Get('my/contracts')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async getContracts(@Request() req) {
+        const userId = req.user.sub;
+        return this.jobsService.getContracts(userId);
+    }
+
+    @Get('contracts/:id')
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async getContractDetails(@Request() req, @Param('id') id: string) {
+        return this.jobsService.getContractDetails(id, req.user.sub);
+    }
+
+    @Post('contracts/:id/milestones')
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async addMilestone(@Request() req, @Param('id') id: string, @Body() body: any) {
+        return this.jobsService.addMilestone(id, req.user.sub, body);
+    }
+
+    @Patch(':id/attachments')
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async addAttachment(@Request() req, @Param('id') id: string, @Body('fileName') fileName: string) {
+        return this.jobsService.addAttachment(id, req.user.sub, fileName);
+    }
+
+    @Post('milestones/:mid/submit')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async submitMilestone(@Request() req, @Param('mid') mid: string, @Body() body: any) {
+        return this.jobsService.submitMilestone(mid, req.user.sub, body);
+    }
+
+    @Post('milestones/:mid/approve')
+    @Roles({ roles: ['realm:CLIENT'] })
+    async approveMilestone(@Request() req, @Param('mid') mid: string) {
+        return this.jobsService.approveMilestone(mid, req.user.sub);
+    }
+
+    @Post('milestones/:mid/request-changes')
+    @Roles({ roles: ['realm:CLIENT'] })
+    async requestChanges(@Request() req, @Param('mid') mid: string, @Body('feedback') feedback: string) {
+        return this.jobsService.requestChanges(mid, req.user.sub, feedback);
     }
 }

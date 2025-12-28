@@ -124,7 +124,7 @@ export class PaymentsService {
     };
   }
 
-  async transfer(fromUserId: string, toUserId: string, amount: number, description: string) {
+  async transfer(fromUserId: string, toUserId: string, amount: number, description: string, referenceId?: string) {
     const fromWallet = await this.getWallet(fromUserId);
     const toWallet = await this.getWallet(toUserId);
 
@@ -146,6 +146,7 @@ export class PaymentsService {
           type: 'PAYMENT',
           status: 'COMPLETED',
           description: `Payment to ${toUserId}: ${description}`,
+          referenceId,
         },
       });
 
@@ -162,10 +163,18 @@ export class PaymentsService {
           type: 'PAYMENT',
           status: 'COMPLETED',
           description: `Payment from ${fromUserId}: ${description}`,
+          referenceId,
         },
       });
 
       return { success: true };
+    });
+  }
+
+  async getTransactionsByReference(referenceId: string) {
+    return this.prisma.transaction.findMany({
+      where: { referenceId },
+      orderBy: { createdAt: 'desc' }
     });
   }
 

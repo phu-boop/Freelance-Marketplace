@@ -59,9 +59,41 @@ model Proposal {
   timeline        String?  // e.g. "3 days", "1 week"
   attachments     String[] // URLs to files
   portfolioItemIds String[] // IDs of items from user-service
-  status          String   @default("PENDING") // PENDING, SHORTLISTED, REJECTED, WITHDRAWN, HIRED
+  status          String   @default("PENDING") // PENDING, SHORTLISTED, REJECTED, WITHDRAWN, OFFERED, HIRED, NEGOTIATION
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  milestones      Milestone[]
+
+  @@schema("jobs")
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  proposalId  String
+  proposal    Proposal @relation(fields: [proposalId], references: [id])
+  description String
+  amount      Decimal
+  dueDate     DateTime?
+  status      String   @default("PENDING") // PENDING, SUBMITTED, COMPLETED, PAID, CHANGES_REQUESTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  submissions Submission[]
+
+  @@schema("jobs")
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id])
+  freelancerId String
+  content     String
+  attachments String[]
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("jobs")
 }

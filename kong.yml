@@ -3,7 +3,7 @@ _transform: true
 
 services:
   - name: user-service
-    url: http://user-service:3000
+    url: http://freelance_user_service:3000
     routes:
 
       # =====================
@@ -41,7 +41,7 @@ services:
 
 
   - name: job-service
-    url: http://job-service:3002
+    url: http://freelance_job_service:3002
     routes:
       - name: job-all-routes
         paths:
@@ -50,7 +50,7 @@ services:
         strip_path: false
 
   - name: contract-service
-    url: http://contract-service:3004
+    url: http://freelance_contract_service:3004
     routes:
       - name: contract-routes
         paths:
@@ -58,7 +58,7 @@ services:
         strip_path: true
 
   - name: payment-service
-    url: http://payment-service:3005
+    url: http://freelance_payment_service:3005
     routes:
       - name: payment-routes
         paths:
@@ -66,7 +66,7 @@ services:
         strip_path: true
 
   - name: chat-service
-    url: http://chat-service:3006
+    url: http://freelance_chat_service:3006
     routes:
       - name: chat-routes
         paths:
@@ -74,7 +74,7 @@ services:
         strip_path: true
 
   - name: notification-service
-    url: http://notification-service:3007
+    url: http://freelance_notification_service:3007
     routes:
       - name: notification-routes
         paths:
@@ -82,7 +82,7 @@ services:
         strip_path: true
 
   - name: review-service
-    url: http://review-service:3008
+    url: http://freelance_review_service:3008
     routes:
       - name: review-read
         paths:
@@ -101,7 +101,7 @@ services:
         strip_path: true
 
   - name: admin-service
-    url: http://admin-service:3009
+    url: http://freelance_admin_service:3009
     routes:
       - name: admin-routes
         paths:
@@ -109,7 +109,7 @@ services:
         strip_path: true
 
   - name: search-service
-    url: http://search-service:3010/search
+    url: http://freelance_search_service:3010/search
     routes:
       - name: search-read
         paths:
@@ -136,7 +136,7 @@ services:
         strip_path: true
 
   - name: storage-service
-    url: http://storage-service:3011/storage
+    url: http://freelance_storage_service:3011/storage
     routes:
       - name: storage-read
         paths:
@@ -174,7 +174,7 @@ services:
         strip_path: true
 
   - name: email-service
-    url: http://email-service:3012
+    url: http://freelance_email_service:3012
     routes:
       - name: email-routes
         paths:
