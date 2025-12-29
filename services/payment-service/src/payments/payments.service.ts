@@ -12,19 +12,57 @@ export class PaymentsService {
   }
 
   async getWallet(userId: string) {
-    const wallet = await this.prisma.wallet.findUnique({
+    let wallet = await this.prisma.wallet.findUnique({
       where: { userId },
       include: { transactions: { orderBy: { createdAt: 'desc' } } },
     });
+
     if (!wallet) {
       // Auto-create if not exists for simplicity in MVP
       return this.createWallet(userId);
     }
+
+    // Lazy clearing: Move cleared pending transactions to available balance
+    const now = new Date();
+    const pendingCleared = wallet.transactions.filter(
+      (tx: any) => tx.status === 'PENDING' && tx.clearedAt && new Date(tx.clearedAt) <= now
+    );
+
+    if (pendingCleared.length > 0) {
+      const walletId = wallet.id;
+      await this.prisma.$transaction(async (prisma) => {
+        for (const tx of pendingCleared) {
+          // Decrement pending, increment available
+          await prisma.wallet.update({
+            where: { id: walletId },
+            data: {
+              pendingBalance: { decrement: tx.amount },
+              balance: { increment: tx.amount },
+            } as any,
+          });
+
+          // Mark transaction as COMPLETED
+          await prisma.transaction.update({
+            where: { id: tx.id },
+            data: { status: 'COMPLETED' },
+          });
+        }
+      });
+
+      // Refetch wallet after updates
+      const updatedWallet = await this.prisma.wallet.findUnique({
+        where: { userId },
+        include: { transactions: { orderBy: { createdAt: 'desc' } } },
+      });
+      return updatedWallet!;
+    }
+
     return wallet;
   }
 
   async deposit(userId: string, amount: number, referenceId: string) {
     const wallet = await this.getWallet(userId);
+    if (!wallet) throw new NotFoundException('Wallet not found');
 
     return this.prisma.$transaction(async (prisma) => {
       const updatedWallet = await prisma.wallet.update({
@@ -49,6 +87,7 @@ export class PaymentsService {
 
   async withdraw(userId: string, amount: number) {
     const wallet = await this.getWallet(userId);
+    if (!wallet) throw new NotFoundException('Wallet not found');
 
     if (Number(wallet.balance) < amount) {
       throw new BadRequestException('Insufficient funds');
@@ -112,6 +151,7 @@ export class PaymentsService {
     });
 
     if (!transaction) throw new NotFoundException('Transaction not found');
+    if (!transaction.wallet) throw new NotFoundException('Wallet for transaction not found');
 
     return {
       invoiceNumber: `INV-${transaction.id.slice(0, 8).toUpperCase()}`,
@@ -127,6 +167,10 @@ export class PaymentsService {
   async transfer(fromUserId: string, toUserId: string, amount: number, description: string, referenceId?: string) {
     const fromWallet = await this.getWallet(fromUserId);
     const toWallet = await this.getWallet(toUserId);
+
+    if (!fromWallet || !toWallet) {
+      throw new NotFoundException('Wallet not found for user');
+    }
 
     if (Number(fromWallet.balance) < amount) {
       throw new BadRequestException('Insufficient funds in source wallet');
@@ -150,10 +194,13 @@ export class PaymentsService {
         },
       });
 
-      // Add to destination
+      // Add to destination (PENDING)
+      const clearingDate = new Date();
+      clearingDate.setDate(clearingDate.getDate() + 5); // 5-day clearing period
+
       await prisma.wallet.update({
         where: { id: toWallet.id },
-        data: { balance: { increment: amount } },
+        data: { pendingBalance: { increment: amount } } as any,
       });
 
       await prisma.transaction.create({
@@ -161,10 +208,11 @@ export class PaymentsService {
           walletId: toWallet.id,
           amount: amount,
           type: 'PAYMENT',
-          status: 'COMPLETED',
+          status: 'PENDING',
+          clearedAt: clearingDate,
           description: `Payment from ${fromUserId}: ${description}`,
           referenceId,
-        },
+        } as any,
       });
 
       return { success: true };

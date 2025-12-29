@@ -118,9 +118,9 @@ export class ContractsService {
 
     // Transfer funds from Client to Freelancer
     try {
-      const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://localhost:3005');
+      const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://payment-service:3005');
       await firstValueFrom(
-        this.httpService.post(`${paymentServiceUrl}/payments/transfer`, {
+        this.httpService.post(`${paymentServiceUrl}/transfer`, {
           fromUserId: contract.client_id,
           toUserId: contract.freelancer_id,
           amount: Number(milestone.amount),
@@ -207,9 +207,9 @@ export class ContractsService {
 
     // Transfer funds
     try {
-      const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://localhost:3005');
+      const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://payment-service:3005');
       await firstValueFrom(
-        this.httpService.post(`${paymentServiceUrl}/payments/transfer`, {
+        this.httpService.post(`${paymentServiceUrl}/transfer`, {
           fromUserId: log.contract.client_id,
           toUserId: log.contract.freelancer_id,
           amount,

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -9,7 +10,8 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 export class ReviewsService {
     constructor(
         private prisma: PrismaService,
-        private httpService: HttpService
+        private httpService: HttpService,
+        private configService: ConfigService
     ) { }
 
     async create(createReviewDto: CreateReviewDto) {
@@ -19,8 +21,9 @@ export class ReviewsService {
 
         // Trigger user stats update
         try {
+            const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000');
             await firstValueFrom(
-                this.httpService.post(`http://localhost:3001/users/${createReviewDto.reviewee_id}/stats`, {
+                this.httpService.post(`${userServiceUrl}/${createReviewDto.reviewee_id}/stats`, {
                     rating: createReviewDto.rating
                 })
             );

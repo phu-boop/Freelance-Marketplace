@@ -1,6 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl"]
 }
 
 datasource db {
@@ -132,6 +133,7 @@ model Proposal {
   extensionRequestStatus String? // PENDING, APPROVED, REJECTED
 
   milestones      Milestone[]
+  timesheets      Timesheet[]
 
   @@schema("jobs")
 }
@@ -148,6 +150,35 @@ model Milestone {
   updatedAt   DateTime @updatedAt
 
   submissions Submission[]
+
+  @@schema("jobs")
+}
+
+model Timesheet {
+  id          String      @id @default(uuid())
+  proposalId  String
+  proposal    Proposal    @relation(fields: [proposalId], references: [id])
+  startDate   DateTime    // Start of the week (Monday)
+  endDate     DateTime    // End of the week (Sunday)
+  status      String      @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
+  totalHours  Decimal     @default(0.0)
+  entries     TimeEntry[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([proposalId, startDate])
+  @@schema("jobs")
+}
+
+model TimeEntry {
+  id          String    @id @default(uuid())
+  timesheetId String
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id])
+  date        DateTime
+  hours       Decimal
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@schema("jobs")
 }

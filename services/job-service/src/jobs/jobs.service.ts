@@ -1065,4 +1065,29 @@ export class JobsService {
 
     return updatedContract;
   }
+  async getProposalById(id: string, userId: string) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id },
+      include: {
+        job: {
+          include: {
+            skills: {
+              include: { skill: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!proposal) {
+      throw new NotFoundException(`Proposal with ID ${id} not found`);
+    }
+
+    // Authorization check: Freelancer (owner) or Client (job owner)
+    if (proposal.freelancerId !== userId && proposal.job.client_id !== userId) {
+      throw new ForbiddenException('You are not authorized to view this proposal');
+    }
+
+    return proposal;
+  }
 }

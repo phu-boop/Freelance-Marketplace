@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import api from '@/lib/api';
 import { Briefcase, Calendar, DollarSign, CheckCircle, Plus, Clock, FileText, ChevronLeft, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
@@ -8,6 +9,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { formatDistance } from 'date-fns';
 import ContractChat from '@/components/contracts/ContractChat';
 import { TransactionHistory } from '@/components/contracts/TransactionHistory';
+import TimesheetView from '@/components/contracts/TimesheetView';
 
 export default function ContractDetailsPage() {
     const params = useParams();
@@ -18,7 +20,7 @@ export default function ContractDetailsPage() {
     const [transactionsLoading, setTransactionsLoading] = React.useState(false);
 
     // UI State
-    const [activeTab, setActiveTab] = React.useState<'milestones' | 'files' | 'messages' | 'payments'>('milestones');
+    const [activeTab, setActiveTab] = React.useState<'milestones' | 'files' | 'messages' | 'payments' | 'timesheet'>('milestones');
     const [isAddMilestoneOpen, setIsAddMilestoneOpen] = React.useState(false);
     const [isSubmitWorkOpen, setIsSubmitWorkOpen] = React.useState(false);
     const [isApprovalOpen, setIsApprovalOpen] = React.useState(false);
@@ -417,6 +419,13 @@ export default function ContractDetailsPage() {
                         {activeTab === 'milestones' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
                     </button>
                     <button
+                        onClick={() => setActiveTab('timesheet')}
+                        className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'timesheet' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Timesheet
+                        {activeTab === 'timesheet' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+                    </button>
+                    <button
                         onClick={() => setActiveTab('files')}
                         className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'files' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
                     >
@@ -443,6 +452,13 @@ export default function ContractDetailsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-6">
+                        {activeTab === 'timesheet' && (
+                            <TimesheetView
+                                contractId={params.id as string}
+                                currentUser={currentUser}
+                                isClient={contract?.job?.client_id === currentUser?.id}
+                            />
+                        )}
                         {activeTab === 'milestones' ? (
                             <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
                                 <div className="flex justify-between items-center mb-6">

@@ -1,6 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl"]
 }
 
 datasource db {
@@ -12,6 +13,7 @@ model Wallet {
   id        String   @id @default(uuid())
   userId    String   @unique
   balance   Decimal  @default(0.00)
+  pendingBalance Decimal @default(0.00)
   currency  String   @default("USD")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -34,6 +36,7 @@ model Transaction {
   taxAmount   Decimal  @default(0.0)
   type        String   // DEPOSIT, WITHDRAWAL, PAYMENT, FEE, CONNECTS_PURCHASE
   status      String   // PENDING, COMPLETED, FAILED
+  clearedAt   DateTime?
   referenceId String?  // e.g., Stripe Payment ID
   description String?
   createdAt   DateTime @default(now())

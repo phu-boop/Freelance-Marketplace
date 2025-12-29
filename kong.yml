@@ -47,6 +47,7 @@ services:
         paths:
           - /api/jobs
           - /api/proposals
+          - /api/reports
         strip_path: false
 
   - name: contract-service

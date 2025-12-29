@@ -22,6 +22,12 @@ export class ProposalsController {
         return this.jobsService.getMyProposals(userId);
     }
 
+    @Get(':id')
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async getById(@Request() req, @Param('id') id: string) {
+        return this.jobsService.getProposalById(id, req.user.sub);
+    }
+
     @Post(':id/withdraw')
     @Roles({ roles: ['realm:FREELANCER'] })
     async withdraw(@Request() req, @Param('id') id: string) {

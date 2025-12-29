@@ -1,9 +1,16 @@
-import { Controller, Get, Post, Body, Param, Delete, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Patch, Request } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
+import { Roles } from 'nest-keycloak-connect';
 
-@Controller('payments')
+@Controller('')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) { }
+
+  @Get('wallet')
+  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  getWalletMe(@Request() req) {
+    return this.paymentsService.getWallet(req.user.sub); // Uses token subject
+  }
 
   @Get('wallet/:userId')
   getWallet(@Param('userId') userId: string) {
