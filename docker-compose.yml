@@ -114,6 +114,10 @@ services:
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
     depends_on:
       - postgres
+    volumes:
+      - ./services/user-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -138,6 +142,10 @@ services:
       - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
     depends_on:
       - postgres
+    volumes:
+      - ./services/job-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -161,6 +169,10 @@ services:
       - USER_SERVICE_URL=http://user-service:3000
     depends_on:
       - postgres
+    volumes:
+      - ./services/proposal-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -179,6 +191,10 @@ services:
       - PAYMENT_SERVICE_URL=http://payment-service:3005
     depends_on:
       - postgres
+    volumes:
+      - ./services/contract-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -196,6 +212,10 @@ services:
       - PORT=3006
     depends_on:
       - mongo
+    volumes:
+      - ./services/chat-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -213,6 +233,10 @@ services:
       - PORT=3007
     depends_on:
       - mongo
+    volumes:
+      - ./services/notification-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -231,6 +255,10 @@ services:
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000
     depends_on:
       - postgres
+    volumes:
+      - ./services/review-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -248,6 +276,10 @@ services:
       - PORT=3009
     depends_on:
       - postgres
+    volumes:
+      - ./services/admin-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -265,6 +297,10 @@ services:
       - PORT=3010
     depends_on:
       - elasticsearch
+    volumes:
+      - ./services/search-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -317,6 +353,9 @@ services:
       - PORT=3014
     depends_on:
       - clickhouse
+    volumes:
+      - ./services/analytics-service:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload
     restart: always
     networks:
       - freelance_network
@@ -351,6 +390,10 @@ services:
       - PORT=3005
     depends_on:
       - postgres
+    volumes:
+      - ./services/payment-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -397,6 +440,10 @@ services:
       - EMAIL_PASS=password
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
+    volumes:
+      - ./services/email-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -417,6 +464,10 @@ services:
       - MINIO_SECRET_KEY=password
     depends_on:
       - minio
+    volumes:
+      - ./services/storage-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -434,6 +485,10 @@ services:
       - PORT=3013
     depends_on:
       - postgres
+    volumes:
+      - ./services/common-service:/app
+      - /app/node_modules
+    command: npm run start:dev
     restart: always
     networks:
       - freelance_network
@@ -456,6 +511,11 @@ services:
       - kong
       - user-service
       - job-service
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
     restart: always
     networks:
       - freelance_network

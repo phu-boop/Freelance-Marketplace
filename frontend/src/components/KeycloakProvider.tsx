@@ -71,6 +71,8 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                 const roles = payload.realm_access?.roles || [];
                 if (roles.includes('ADMIN')) {
                     window.location.href = '/admin';
+                } else if (roles.includes('CLIENT')) {
+                    window.location.href = '/client/dashboard';
                 } else {
                     window.location.href = '/dashboard';
                 }

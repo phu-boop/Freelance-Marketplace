@@ -23,17 +23,44 @@ let PaymentsService = class PaymentsService {
         });
     }
     async getWallet(userId) {
-        const wallet = await this.prisma.wallet.findUnique({
+        let wallet = await this.prisma.wallet.findUnique({
             where: { userId },
             include: { transactions: { orderBy: { createdAt: 'desc' } } },
         });
         if (!wallet) {
             return this.createWallet(userId);
         }
+        const now = new Date();
+        const pendingCleared = wallet.transactions.filter((tx) => tx.status === 'PENDING' && tx.clearedAt && new Date(tx.clearedAt) <= now);
+        if (pendingCleared.length > 0) {
+            const walletId = wallet.id;
+            await this.prisma.$transaction(async (prisma) => {
+                for (const tx of pendingCleared) {
+                    await prisma.wallet.update({
+                        where: { id: walletId },
+                        data: {
+                            pendingBalance: { decrement: tx.amount },
+                            balance: { increment: tx.amount },
+                        },
+                    });
+                    await prisma.transaction.update({
+                        where: { id: tx.id },
+                        data: { status: 'COMPLETED' },
+                    });
+                }
+            });
+            const updatedWallet = await this.prisma.wallet.findUnique({
+                where: { userId },
+                include: { transactions: { orderBy: { createdAt: 'desc' } } },
+            });
+            return updatedWallet;
+        }
         return wallet;
     }
     async deposit(userId, amount, referenceId) {
         const wallet = await this.getWallet(userId);
+        if (!wallet)
+            throw new common_1.NotFoundException('Wallet not found');
         return this.prisma.$transaction(async (prisma) => {
             const updatedWallet = await prisma.wallet.update({
                 where: { id: wallet.id },
@@ -54,6 +81,8 @@ let PaymentsService = class PaymentsService {
     }
     async withdraw(userId, amount) {
         const wallet = await this.getWallet(userId);
+        if (!wallet)
+            throw new common_1.NotFoundException('Wallet not found');
         if (Number(wallet.balance) < amount) {
             throw new common_1.BadRequestException('Insufficient funds');
         }
@@ -73,6 +102,115 @@ let PaymentsService = class PaymentsService {
             });
             return updatedWallet;
         });
+    }
+    async addWithdrawalMethod(userId, data) {
+        return this.prisma.withdrawalMethod.create({
+            data: { ...data, userId },
+        });
+    }
+    async getWithdrawalMethods(userId) {
+        return this.prisma.withdrawalMethod.findMany({
+            where: { userId },
+            orderBy: { isDefault: 'desc' },
+        });
+    }
+    async deleteWithdrawalMethod(userId, id) {
+        return this.prisma.withdrawalMethod.deleteMany({
+            where: { id, userId },
+        });
+    }
+    async setDefaultWithdrawalMethod(userId, id) {
+        await this.prisma.withdrawalMethod.updateMany({
+            where: { userId },
+            data: { isDefault: false },
+        });
+        return this.prisma.withdrawalMethod.update({
+            where: { id },
+            data: { isDefault: true },
+        });
+    }
+    async getInvoiceData(transactionId) {
+        const transaction = await this.prisma.transaction.findUnique({
+            where: { id: transactionId },
+            include: { wallet: true },
+        });
+        if (!transaction)
+            throw new common_1.NotFoundException('Transaction not found');
+        if (!transaction.wallet)
+            throw new common_1.NotFoundException('Wallet for transaction not found');
+        return {
+            invoiceNumber: `INV-${transaction.id.slice(0, 8).toUpperCase()}`,
+            date: transaction.createdAt,
+            amount: transaction.amount,
+            type: transaction.type,
+            description: transaction.description,
+            status: transaction.status,
+            userId: transaction.wallet.userId,
+        };
+    }
+    async transfer(fromUserId, toUserId, amount, description, referenceId) {
+        const fromWallet = await this.getWallet(fromUserId);
+        const toWallet = await this.getWallet(toUserId);
+        if (!fromWallet || !toWallet) {
+            throw new common_1.NotFoundException('Wallet not found for user');
+        }
+        if (Number(fromWallet.balance) < amount) {
+            throw new common_1.BadRequestException('Insufficient funds in source wallet');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            await prisma.wallet.update({
+                where: { id: fromWallet.id },
+                data: { balance: { decrement: amount } },
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: fromWallet.id,
+                    amount: amount,
+                    type: 'PAYMENT',
+                    status: 'COMPLETED',
+                    description: `Payment to ${toUserId}: ${description}`,
+                    referenceId,
+                },
+            });
+            const clearingDate = new Date();
+            clearingDate.setDate(clearingDate.getDate() + 5);
+            await prisma.wallet.update({
+                where: { id: toWallet.id },
+                data: { pendingBalance: { increment: amount } },
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: toWallet.id,
+                    amount: amount,
+                    type: 'PAYMENT',
+                    status: 'PENDING',
+                    clearedAt: clearingDate,
+                    description: `Payment from ${fromUserId}: ${description}`,
+                    referenceId,
+                },
+            });
+            return { success: true };
+        });
+    }
+    async getTransactionsByReference(referenceId) {
+        return this.prisma.transaction.findMany({
+            where: { referenceId },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+    async getMetrics() {
+        const transactions = await this.prisma.transaction.findMany({
+            where: { status: 'COMPLETED' },
+        });
+        const totalVolume = transactions.reduce((acc, tx) => acc + Number(tx.amount), 0);
+        const totalPayments = transactions.filter(tx => tx.type === 'PAYMENT').length;
+        const totalWithdrawals = transactions.filter(tx => tx.type === 'WITHDRAWAL').length;
+        return {
+            totalVolume,
+            totalPayments,
+            totalWithdrawals,
+            transactionCount: transactions.length,
+        };
     }
 };
 exports.PaymentsService = PaymentsService;

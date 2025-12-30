@@ -14,7 +14,7 @@ import { AdminsService } from './admins.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 
-@Controller('admins')
+@Controller('admin')
 export class AdminsController {
     constructor(private readonly adminsService: AdminsService) { }
 

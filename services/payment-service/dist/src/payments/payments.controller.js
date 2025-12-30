@@ -15,10 +15,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PaymentsController = void 0;
 const common_1 = require("@nestjs/common");
 const payments_service_1 = require("./payments.service");
+const nest_keycloak_connect_1 = require("nest-keycloak-connect");
 let PaymentsController = class PaymentsController {
     paymentsService;
     constructor(paymentsService) {
         this.paymentsService = paymentsService;
+    }
+    getWalletMe(req) {
+        return this.paymentsService.getWallet(req.user.sub);
     }
     getWallet(userId) {
         return this.paymentsService.getWallet(userId);
@@ -29,8 +33,40 @@ let PaymentsController = class PaymentsController {
     withdraw(body) {
         return this.paymentsService.withdraw(body.userId, body.amount);
     }
+    getWithdrawalMethods(userId) {
+        return this.paymentsService.getWithdrawalMethods(userId);
+    }
+    addWithdrawalMethod(body) {
+        return this.paymentsService.addWithdrawalMethod(body.userId, body.data);
+    }
+    deleteWithdrawalMethod(userId, id) {
+        return this.paymentsService.deleteWithdrawalMethod(userId, id);
+    }
+    setDefaultWithdrawalMethod(userId, id) {
+        return this.paymentsService.setDefaultWithdrawalMethod(userId, id);
+    }
+    getInvoice(id) {
+        return this.paymentsService.getInvoiceData(id);
+    }
+    transfer(body) {
+        return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description, body.referenceId);
+    }
+    getTransactionsByReference(id) {
+        return this.paymentsService.getTransactionsByReference(id);
+    }
+    getMetrics() {
+        return this.paymentsService.getMetrics();
+    }
 };
 exports.PaymentsController = PaymentsController;
+__decorate([
+    (0, common_1.Get)('wallet'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getWalletMe", null);
 __decorate([
     (0, common_1.Get)('wallet/:userId'),
     __param(0, (0, common_1.Param)('userId')),
@@ -52,8 +88,65 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "withdraw", null);
+__decorate([
+    (0, common_1.Get)('withdrawal-methods/:userId'),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getWithdrawalMethods", null);
+__decorate([
+    (0, common_1.Post)('withdrawal-methods'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "addWithdrawalMethod", null);
+__decorate([
+    (0, common_1.Delete)('withdrawal-methods/:userId/:id'),
+    __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "deleteWithdrawalMethod", null);
+__decorate([
+    (0, common_1.Patch)('withdrawal-methods/:userId/:id/default'),
+    __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "setDefaultWithdrawalMethod", null);
+__decorate([
+    (0, common_1.Get)('transactions/:id/invoice'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getInvoice", null);
+__decorate([
+    (0, common_1.Post)('transfer'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "transfer", null);
+__decorate([
+    (0, common_1.Get)('transactions/reference/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getTransactionsByReference", null);
+__decorate([
+    (0, common_1.Get)('metrics'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getMetrics", null);
 exports.PaymentsController = PaymentsController = __decorate([
-    (0, common_1.Controller)('payments'),
+    (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [payments_service_1.PaymentsService])
 ], PaymentsController);
 //# sourceMappingURL=payments.controller.js.map
