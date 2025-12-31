@@ -10,8 +10,9 @@ export class JobsController {
   constructor(private readonly jobsService: JobsService) { }
 
   @Post()
-  @Roles({ roles: ['realm:CLIENT', 'realm:ADMIN'] })
-  create(@Body() createJobDto: CreateJobDto) {
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:ADMIN', 'ADMIN'] })
+  create(@Body() createJobDto: CreateJobDto, @Request() req) {
+    console.log('DEBUG: Create Job Request User:', JSON.stringify(req.user));
     return this.jobsService.create(createJobDto);
   }
 

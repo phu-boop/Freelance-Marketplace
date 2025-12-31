@@ -32,33 +32,12 @@ export default function LoginPage() {
         setError(null);
 
         try {
-            if (step === 'LOGIN') {
-                const response = await api.post('/auth/login', formData);
-
-                if (response.data.required2FA) {
-                    setTempToken(response.data.tempToken);
-                    setStep('2FA');
-                    setError(null);
-                } else {
-                    setTokens(response.data);
-                }
-            } else {
-                // 2FA Verification
-                const response = await api.post('/auth/login/2fa', {
-                    tempToken,
-                    code: twoFactorCode.replace(/\s/g, '') // remove spaces
-                });
-                setTokens(response.data);
-            }
+            // Standard OIDC Redirect Flow is the "Enterprise" way
+            // We use loginHint to pass the email if the user already typed it
+            redirectLogin({ loginHint: formData.email });
         } catch (err: any) {
             console.error('Login error:', err);
-            setError(err.response?.data?.message || err.message || 'Authentication failed');
-            if (step === '2FA' && err.response?.status === 401 && err.response?.data?.message === 'Invalid or expired session') {
-                // Temp token expired, go back to login
-                setStep('LOGIN');
-                setTempToken(null);
-            }
-        } finally {
+            setError(err.message || 'Failed to initiate login');
             setLoading(false);
         }
     };

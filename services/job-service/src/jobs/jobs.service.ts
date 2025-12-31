@@ -1090,4 +1090,21 @@ export class JobsService {
 
     return proposal;
   }
+
+  async getProposalsByJobId(jobId: string, userId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId }
+    });
+    if (!job) throw new NotFoundException('Job not found');
+
+    // In this specific app, let's allow the job owner to see all proposals.
+    if (job.client_id !== userId) {
+      throw new ForbiddenException('Only the job owner can view proposals');
+    }
+
+    return this.prisma.proposal.findMany({
+      where: { jobId },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
 }

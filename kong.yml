@@ -5,7 +5,6 @@ services:
   - name: user-service
     url: http://freelance_user_service:3000
     routes:
-
       # =====================
       # Auth Routes (PUBLIC)
       # /api/auth/register -> /register
@@ -24,6 +23,7 @@ services:
           - /api/users
         methods:
           - GET
+          - OPTIONS
         strip_path: true
 
       # =====================
@@ -37,8 +37,8 @@ services:
           - PUT
           - PATCH
           - DELETE
+          - OPTIONS
         strip_path: true
-
 
   - name: job-service
     url: http://freelance_job_service:3002
@@ -90,6 +90,7 @@ services:
           - /api/reviews
         methods:
           - GET
+          - OPTIONS
         strip_path: true
       - name: review-write
         paths:
@@ -99,6 +100,7 @@ services:
           - PUT
           - PATCH
           - DELETE
+          - OPTIONS
         strip_path: true
 
   - name: admin-service
@@ -117,6 +119,7 @@ services:
           - /api/search
         methods:
           - GET
+          - OPTIONS
         strip_path: true
       - name: search-write
         paths:
@@ -126,6 +129,7 @@ services:
           - PUT
           - PATCH
           - DELETE
+          - OPTIONS
         strip_path: true
 
   - name: analytics-service
@@ -144,6 +148,7 @@ services:
           - /api/storage
         methods:
           - GET
+          - OPTIONS
         strip_path: true
       - name: storage-write
         paths:
@@ -153,6 +158,7 @@ services:
           - PUT
           - PATCH
           - DELETE
+          - OPTIONS
         strip_path: true
 
   - name: common-service
@@ -163,6 +169,7 @@ services:
           - /api/common
         methods:
           - GET
+          - OPTIONS
         strip_path: true
       - name: common-write
         paths:
@@ -172,6 +179,7 @@ services:
           - PUT
           - PATCH
           - DELETE
+          - OPTIONS
         strip_path: true
 
   - name: email-service
@@ -200,6 +208,7 @@ plugins:
       methods:
         - GET
         - POST
+        - PUT
         - PATCH
         - DELETE
         - OPTIONS

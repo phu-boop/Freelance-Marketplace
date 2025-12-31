@@ -1,13 +1,29 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Request } from '@nestjs/common';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
+import { Roles } from 'nest-keycloak-connect';
 
 @Controller('contracts')
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) { }
 
+  @Get('my')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
+  getMyContracts(@Request() req) {
+    const userId = req.user.sub;
+    // We can infer role or try both. For simplicity, let's try both or rely on specific role logic if available in token.
+    // Ideally we inspect roles. But since ID is unique, we can check both findByClient and findByFreelancer?
+    // Or better:
+    const roles = req.user.realm_access?.roles || [];
+    if (roles.includes('CLIENT')) {
+      return this.contractsService.findByClient(userId);
+    }
+    return this.contractsService.findByFreelancer(userId);
+  }
+
   @Post()
+  @Roles({ roles: ['realm:CLIENT', 'realm:ADMIN'] })
   create(@Body() createContractDto: CreateContractDto) {
     return this.contractsService.create(createContractDto);
   }

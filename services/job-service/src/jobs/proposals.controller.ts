@@ -7,6 +7,12 @@ import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
 export class ProposalsController {
     constructor(private readonly jobsService: JobsService) { }
 
+    @Get()
+    @Roles({ roles: ['realm:CLIENT'] })
+    async findAllByJob(@Request() req, @Query('jobId') jobId: string) {
+        return this.jobsService.getProposalsByJobId(jobId, req.user.sub);
+    }
+
     @Post()
     @Roles({ roles: ['realm:FREELANCER'] })
     async create(@Request() req, @Body() dto: CreateProposalDto) {

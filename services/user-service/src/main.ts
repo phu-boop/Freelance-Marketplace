@@ -11,11 +11,14 @@ async function bootstrap() {
 
   // Security
   app.use(helmet());
+  // CORS is handled by Kong Gateway
+  /*
   app.enableCors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
+  */
 
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,

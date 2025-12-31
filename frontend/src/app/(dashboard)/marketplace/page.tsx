@@ -52,7 +52,7 @@ export default function JobsPage() {
             if (filters.minSalary > 0) params.append('minSalary', filters.minSalary.toString());
 
             const response = await api.get(`/search/jobs?${params.toString()}`);
-            setJobs(response.data);
+            setJobs(response.data.results || []);
             setError(null);
         } catch (err) {
             console.error('Failed to fetch jobs', err);

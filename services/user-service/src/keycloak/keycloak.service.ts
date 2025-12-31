@@ -28,10 +28,10 @@ export class KeycloakService {
         const url = `${this.keycloakUrl}/realms/${this.realm}/protocol/openid-connect/token`;
         const data = qs.stringify({
             grant_type: 'password',
-            client_id: 'freelance-client', // Note: This should match the client in run_all.sh
+            client_id: this.configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-frontend'), // Use public client for login
             username: credentials.email,
             password: credentials.password,
-            client_secret: this.clientSecret,
+            // client_secret not required for public client
             scope: 'openid profile email',
         });
 

@@ -7,48 +7,91 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-const categories = [
-    { name: 'Development & IT', slug: 'development-it' },
-    { name: 'Design & Creative', slug: 'design-creative' },
-    { name: 'Sales & Marketing', slug: 'sales-marketing' },
-    { name: 'Writing & Translation', slug: 'writing-translation' },
-    { name: 'Admin & Customer Support', slug: 'admin-support' },
-    { name: 'Finance & Accounting', slug: 'finance-accounting' },
-];
-
-const skills = [
-    { name: 'React' },
-    { name: 'Node.js' },
-    { name: 'TypeScript' },
-    { name: 'Python' },
-    { name: 'Next.js' },
-    { name: 'Tailwind CSS' },
-    { name: 'Figma' },
-    { name: 'Adobe Photoshop' },
-    { name: 'SEO' },
-    { name: 'Content Writing' },
-];
+function slugify(text: string) {
+    return text.toString().toLowerCase()
+        .replace(/\s+/g, '-')           // Replace spaces with -
+        .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+        .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+        .replace(/^-+/, '')             // Trim - from start of text
+        .replace(/-+$/, '');            // Trim - from end of text
+}
 
 async function main() {
     console.log('Start seeding job service data...');
 
-    for (const category of categories) {
+    const categories = [
+        { name: 'Web Development', parentId: null },
+        { name: 'Mobile Development', parentId: null },
+        { name: 'Design & Creative', parentId: null },
+        { name: 'Writing', parentId: null },
+        { name: 'Admin Support', parentId: null },
+        { name: 'Customer Service', parentId: null },
+        { name: 'Marketing', parentId: null },
+        { name: 'Accounting', parentId: null },
+    ];
+
+    for (const cat of categories) {
         await prisma.category.upsert({
-            where: { slug: category.slug },
+            where: { name: cat.name },
             update: {},
-            create: category,
+            create: {
+                name: cat.name,
+                slug: slugify(cat.name),
+                parentId: cat.parentId
+            }
         });
     }
 
-    for (const skill of skills) {
-        await prisma.skill.upsert({
-            where: { name: skill.name },
-            update: {},
-            create: skill,
-        });
+    // Add subcategories
+    const webParent = await prisma.category.findUnique({ where: { name: 'Web Development' } });
+    if (webParent) {
+        const subCategories = ['Frontend', 'Backend', 'Full Stack', 'CMS'];
+        for (const sub of subCategories) {
+            await prisma.category.upsert({
+                where: { name: sub },
+                update: {},
+                create: {
+                    name: sub,
+                    slug: slugify(sub),
+                    parentId: webParent.id
+                }
+            });
+        }
     }
 
-    console.log('Seeding finished.');
+    const mobileParent = await prisma.category.findUnique({ where: { name: 'Mobile Development' } });
+    if (mobileParent) {
+        const subCategories = ['iOS', 'Android', 'Cross-platform'];
+        for (const sub of subCategories) {
+            await prisma.category.upsert({
+                where: { name: sub },
+                update: {},
+                create: {
+                    name: sub,
+                    slug: slugify(sub),
+                    parentId: mobileParent.id
+                }
+            });
+        }
+    }
+
+    const designParent = await prisma.category.findUnique({ where: { name: 'Design & Creative' } });
+    if (designParent) {
+        const subCategories = ['Logo Design', 'UI/UX', 'Illustration', 'Video Editing'];
+        for (const sub of subCategories) {
+            await prisma.category.upsert({
+                where: { name: sub },
+                update: {},
+                create: {
+                    name: sub,
+                    slug: slugify(sub),
+                    parentId: designParent.id
+                }
+            });
+        }
+    }
+
+    console.log('Categories seeded!');
 }
 
 main()
