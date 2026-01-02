@@ -279,6 +279,15 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=admin&options=-c%20search_path%3Dadmin
       - PORT=3009
+      - JOB_SERVICE_URL=http://job-service:3002
+      - USER_SERVICE_URL=http://user-service:3000
+      - PAYMENT_SERVICE_URL=http://payment-service:3005
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - postgres
     volumes:
@@ -499,31 +508,31 @@ services:
       - freelance_network
 
   # Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: freelance_frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
-      - NEXT_PUBLIC_KEYCLOAK_REALM=freelance-marketplace
-      - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=freelance-frontend
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
-    depends_on:
-      - keycloak
-      - kong
-      - user-service
-      - job-service
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    command: npm run dev
-    restart: always
-    networks:
-      - freelance_network
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: freelance_frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+  #     - NEXT_PUBLIC_KEYCLOAK_REALM=freelance-marketplace
+  #     - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=freelance-frontend
+  #     - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+  #   depends_on:
+  #     - keycloak
+  #     - kong
+  #     - user-service
+  #     - job-service
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #     - /app/.next
+  #   command: npm run dev
+  #   restart: always
+  #   networks:
+  #     - freelance_network
 
 networks:
   freelance_network:

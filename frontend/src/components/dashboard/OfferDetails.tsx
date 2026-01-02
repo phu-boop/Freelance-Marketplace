@@ -11,8 +11,8 @@ interface OfferDetailsProps {
 
 export function OfferDetails({ offer, onClose, onUpdate }: OfferDetailsProps) {
     const [isCountering, setIsCountering] = React.useState(false);
-    const [counterBid, setCounterBid] = React.useState(offer.bidAmount);
-    const [counterTimeline, setCounterTimeline] = React.useState(offer.timeline);
+    const [counterBid, setCounterBid] = React.useState(offer?.bidAmount || '');
+    const [counterTimeline, setCounterTimeline] = React.useState(offer?.timeline || '');
     const [actionLoading, setActionLoading] = React.useState(false);
 
     if (!offer) return null;

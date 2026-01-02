@@ -15,7 +15,7 @@ import {
 import { useKeycloak } from '@/components/KeycloakProvider';
 
 export default function LandingPage() {
-  const { authenticated, username, login, logout, register } = useKeycloak();
+  const { authenticated, username, roles, login, logout, register } = useKeycloak();
 
   const features = [
     {
@@ -63,7 +63,13 @@ export default function LandingPage() {
             <div className="flex items-center gap-4">
               {authenticated ? (
                 <div className="flex items-center gap-4">
-                  <span className="text-sm text-slate-400">Hi, {username}</span>
+                  <span className="text-sm font-medium text-slate-400">Hi, {username}</span>
+                  <Link
+                    href={roles.includes('ADMIN') ? '/admin' : roles.includes('CLIENT') ? '/client/dashboard' : '/dashboard'}
+                    className="text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Dashboard
+                  </Link>
                   <button
                     onClick={logout}
                     className="px-4 py-2 text-sm font-medium bg-slate-800 hover:bg-slate-700 rounded-full transition-all"
@@ -116,10 +122,10 @@ export default function LandingPage() {
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               {authenticated ? (
                 <Link
-                  href="/jobs"
+                  href={roles.includes('ADMIN') ? '/admin' : roles.includes('CLIENT') ? '/client/dashboard' : '/dashboard'}
                   className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full font-semibold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20"
                 >
-                  Dashboard <ArrowRight className="w-5 h-5" />
+                  Go to Dashboard <ArrowRight className="w-5 h-5" />
                 </Link>
               ) : (
                 <Link

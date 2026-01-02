@@ -44,60 +44,74 @@ export class AdminsService {
     }
 
     // Job Moderation Proxy
-    async approveJob(jobId: string) {
+    async approveJob(jobId: string, token?: string) {
         const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
         const res = await firstValueFrom(
-            this.httpService.post(`${jobServiceUrl}/jobs/${jobId}/approve`)
+            this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/approve`, {}, {
+                headers: token ? { Authorization: token } : undefined
+            })
         );
         return res.data;
     }
 
-    async rejectJob(jobId: string) {
+    async rejectJob(jobId: string, token?: string) {
         const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
         const res = await firstValueFrom(
-            this.httpService.post(`${jobServiceUrl}/jobs/${jobId}/reject`)
+            this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/reject`, {}, {
+                headers: token ? { Authorization: token } : undefined
+            })
         );
         return res.data;
     }
 
     // User Moderation Proxy
-    async suspendUser(userId: string) {
+    async suspendUser(userId: string, token?: string) {
         const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
         const res = await firstValueFrom(
-            this.httpService.post(`${userServiceUrl}/users/${userId}/suspend`)
+            this.httpService.post(`${userServiceUrl}/${userId}/suspend`, {}, {
+                headers: token ? { Authorization: token } : undefined
+            })
         );
         return res.data;
     }
 
-    async banUser(userId: string) {
+    async banUser(userId: string, token?: string) {
         const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
         const res = await firstValueFrom(
-            this.httpService.post(`${userServiceUrl}/users/${userId}/ban`)
+            this.httpService.post(`${userServiceUrl}/${userId}/ban`, {}, {
+                headers: token ? { Authorization: token } : undefined
+            })
         );
         return res.data;
     }
 
-    async activateUser(userId: string) {
+    async activateUser(userId: string, token?: string) {
         const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
         const res = await firstValueFrom(
-            this.httpService.post(`${userServiceUrl}/users/${userId}/activate`)
+            this.httpService.post(`${userServiceUrl}/${userId}/activate`, {}, {
+                headers: token ? { Authorization: token } : undefined
+            })
         );
         return res.data;
     }
 
     // Job Moderation
-    async lockJob(jobId: string) {
+    async lockJob(jobId: string, token?: string) {
         const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
         const res = await firstValueFrom(
-            this.httpService.post(`${jobServiceUrl}/jobs/${jobId}/lock`)
+            this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/lock`, {}, {
+                headers: token ? { Authorization: token } : undefined
+            })
         );
         return res.data;
     }
 
-    async unlockJob(jobId: string) {
+    async unlockJob(jobId: string, token?: string) {
         const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
         const res = await firstValueFrom(
-            this.httpService.post(`${jobServiceUrl}/jobs/${jobId}/unlock`)
+            this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/unlock`, {}, {
+                headers: token ? { Authorization: token } : undefined
+            })
         );
         return res.data;
     }
@@ -142,16 +156,18 @@ export class AdminsService {
     }
 
     // System Metrics
-    async getSystemMetrics() {
+    async getSystemMetrics(token?: string) {
         try {
             const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
             const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
             const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://localhost:3005');
 
+            const config = token ? { headers: { Authorization: token } } : undefined;
+
             const [usersRes, jobsRes, paymentsRes] = await Promise.all([
-                firstValueFrom(this.httpService.get(`${userServiceUrl}/users`)),
-                firstValueFrom(this.httpService.get(`${jobServiceUrl}/jobs`)),
-                firstValueFrom(this.httpService.get(`${paymentServiceUrl}/payments/metrics`))
+                firstValueFrom(this.httpService.get(`${userServiceUrl}/`, config)),
+                firstValueFrom(this.httpService.get(`${jobServiceUrl}/api/jobs`, config)),
+                firstValueFrom(this.httpService.get(`${paymentServiceUrl}/metrics`, config))
             ]);
 
             const users = usersRes.data;
@@ -159,13 +175,13 @@ export class AdminsService {
             const payments = paymentsRes.data;
 
             return {
-                totalUsers: users.length,
-                totalJobs: jobs.length,
-                pendingJobs: jobs.filter(j => j.status === 'PENDING_APPROVAL').length,
-                activeJobs: jobs.filter(j => j.status === 'OPEN').length,
-                suspendedUsers: users.filter(u => u.status === 'SUSPENDED').length,
-                totalVolume: payments.totalVolume,
-                totalPayments: payments.totalPayments
+                totalUsers: Array.isArray(users) ? users.length : 0,
+                totalJobs: Array.isArray(jobs) ? jobs.length : 0,
+                pendingJobs: Array.isArray(jobs) ? jobs.filter(j => j.status === 'PENDING_APPROVAL').length : 0,
+                activeJobs: Array.isArray(jobs) ? jobs.filter(j => j.status === 'OPEN').length : 0,
+                suspendedUsers: Array.isArray(users) ? users.filter(u => u.status === 'SUSPENDED').length : 0,
+                totalVolume: payments?.totalVolume || 0,
+                totalPayments: payments?.totalPayments || 0
             };
         } catch (error) {
             console.error('Failed to fetch system metrics:', error.message);
@@ -206,19 +222,20 @@ export class AdminsService {
     }
 
     // Data Export
-    async exportData(type: 'users' | 'jobs' | 'transactions') {
+    async exportData(type: 'users' | 'jobs' | 'transactions', token?: string) {
         let data: any[] = [];
         let fields: string[] = [];
+        const config = token ? { headers: { Authorization: token } } : undefined;
 
         try {
             if (type === 'users') {
                 const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
-                const res = await firstValueFrom(this.httpService.get(`${userServiceUrl}/users`));
+                const res = await firstValueFrom(this.httpService.get(`${userServiceUrl}/`, config));
                 data = res.data;
                 fields = ['id', 'email', 'firstName', 'lastName', 'role', 'status', 'createdAt'];
             } else if (type === 'jobs') {
                 const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
-                const res = await firstValueFrom(this.httpService.get(`${jobServiceUrl}/jobs`));
+                const res = await firstValueFrom(this.httpService.get(`${jobServiceUrl}/api/jobs`, config));
                 data = res.data;
                 fields = ['id', 'title', 'budget', 'status', 'clientId', 'createdAt'];
             } else if (type === 'transactions') {
@@ -228,7 +245,7 @@ export class AdminsService {
                 return 'id,amount,type,status,createdAt\n';
             }
 
-            if (data.length === 0) return '';
+            if (!Array.isArray(data) || data.length === 0) return '';
 
             const header = fields.join(',');
             const rows = data.map(row => {

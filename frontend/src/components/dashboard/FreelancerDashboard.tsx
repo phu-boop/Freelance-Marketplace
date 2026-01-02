@@ -275,26 +275,28 @@ export function FreelancerDashboard({ user }: { user: any }) {
             </div>
 
             {/* Modals */}
-            <OfferDetails
-                offer={selectedOffer}
-                onClose={() => setSelectedOffer(null)}
-                onUpdate={() => {
-                    // Refetch data
-                    const fetchUserData = async () => {
-                        try {
-                            const [proposalsRes, notificationsRes] = await Promise.all([
-                                api.get('/proposals/my'),
-                                api.get('/notifications?userId=' + user?.id)
-                            ]);
-                            setProposals(proposalsRes.data);
-                            setNotifications(notificationsRes.data);
-                        } catch (error) {
-                            console.error('Failed to refresh data', error);
-                        }
-                    };
-                    fetchUserData();
-                }}
-            />
+            {selectedOffer && (
+                <OfferDetails
+                    offer={selectedOffer}
+                    onClose={() => setSelectedOffer(null)}
+                    onUpdate={() => {
+                        // Refetch data
+                        const fetchUserData = async () => {
+                            try {
+                                const [proposalsRes, notificationsRes] = await Promise.all([
+                                    api.get('/proposals/my'),
+                                    api.get('/notifications?userId=' + user?.id)
+                                ]);
+                                setProposals(proposalsRes.data);
+                                setNotifications(notificationsRes.data);
+                            } catch (error) {
+                                console.error('Failed to refresh data', error);
+                            }
+                        };
+                        fetchUserData();
+                    }}
+                />
+            )}
         </div>
     );
 }
