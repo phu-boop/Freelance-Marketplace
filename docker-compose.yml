@@ -141,8 +141,10 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
-      - USER_SERVICE_INTERNAL_URL=http://user-service:3000
+      - USER_SERVICE_INTERNAL_URL=http://user-service:3000/api/users
       - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
+      - ANALYTICS_SERVICE_URL=http://analytics-service:3014
+      - GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -170,8 +172,8 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
-      - JOB_SERVICE_URL=http://job-service:3002
-      - USER_SERVICE_URL=http://user-service:3000
+      - JOB_SERVICE_URL=http://job-service:3002/api/jobs
+      - USER_SERVICE_URL=http://user-service:3000/api/users
     depends_on:
       - postgres
     volumes:
@@ -257,7 +259,13 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=reviews&options=-c%20search_path%3Dreviews
       - PORT=3008
-      - USER_SERVICE_INTERNAL_URL=http://user-service:3000
+      - USER_SERVICE_INTERNAL_URL=http://user-service:3000/api/users
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - postgres
     volumes:
@@ -309,10 +317,38 @@ services:
     environment:
       - ELASTICSEARCH_NODE=http://elasticsearch:9200
       - PORT=3010
+      - USER_SERVICE_INTERNAL_URL=http://user-service:3000
     depends_on:
       - elasticsearch
     volumes:
       - ./services/search-service:/app
+      - /app/node_modules
+    command: npm run start:dev
+    restart: always
+    networks:
+      - freelance_network
+
+  # Community Service
+  community-service:
+    build:
+      context: ./services/community-service
+      dockerfile: Dockerfile
+    container_name: freelance_community_service
+    ports:
+      - "3015:3015"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=community&options=-c%20search_path%3Dcommunity
+      - PORT=3015
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      - postgres
+    volumes:
+      - ./services/community-service:/app
       - /app/node_modules
     command: npm run start:dev
     restart: always
@@ -402,6 +438,13 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=payments&options=-c%20search_path%3Dpayments
       - PORT=3005
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - ADMIN_SERVICE_URL=http://admin-service:3009
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - postgres
     volumes:

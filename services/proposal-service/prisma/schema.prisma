@@ -28,5 +28,6 @@ model Proposal {
   counterOfferAmount Decimal?
   counterOfferTerms  String?
 
+  @@unique([job_id, freelancer_id])
   @@schema("proposals")
 }

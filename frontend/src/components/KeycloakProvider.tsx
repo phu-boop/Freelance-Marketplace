@@ -36,7 +36,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                     token: localStorage.getItem('kc_token') || undefined,
                     refreshToken: localStorage.getItem('kc_refreshToken') || undefined,
                 })
-                .then((auth) => {
+                .then(async (auth) => {
                     setAuthenticated(auth);
                     if (auth && keycloak) {
                         setToken(keycloak.token || null);
@@ -48,12 +48,25 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                         if (keycloak.token) localStorage.setItem('kc_token', keycloak.token);
                         if (keycloak.refreshToken) localStorage.setItem('kc_refreshToken', keycloak.refreshToken);
 
-                        // Redirect if on login page and authenticated
-                        if (window.location.pathname === '/login') {
-                            const userRoles = keycloak.realmAccess?.roles || [];
-                            if (userRoles.includes('ADMIN')) {
+                        // Handle Social Onboarding if pending
+                        const pendingRole = localStorage.getItem('pending_role');
+                        if (pendingRole) {
+                            try {
+                                await api.post('/users/me/social-onboarding', { role: pendingRole });
+                                localStorage.removeItem('pending_role');
+                                // Refresh roles from DB/Keycloak if possible, 
+                                // or just use the pendingRole for immediate redirect
+                            } catch (error) {
+                                console.error('Social onboarding failed:', error);
+                            }
+                        }
+
+                        // Redirect if on login or register page and authenticated
+                        if (window.location.pathname === '/login' || window.location.pathname === '/register') {
+                            const latestRole = pendingRole || (keycloak.realmAccess?.roles || [])[0];
+                            if (latestRole === 'ADMIN' || keycloak.realmAccess?.roles?.includes('ADMIN')) {
                                 window.location.href = '/admin';
-                            } else if (userRoles.includes('CLIENT')) {
+                            } else if (latestRole === 'CLIENT' || keycloak.realmAccess?.roles?.includes('CLIENT')) {
                                 window.location.href = '/client/dashboard';
                             } else {
                                 window.location.href = '/dashboard';

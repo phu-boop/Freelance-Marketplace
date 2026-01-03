@@ -34,9 +34,13 @@ export class JobsService {
       finalSkillIds = [...new Set([...finalSkillIds, ...skillInstances.map(s => s.id)])];
     }
 
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30); // Default 30 days
+
     const job = await this.prisma.job.create({
       data: {
         ...jobData,
+        expiresAt,
         skills: {
           create: finalSkillIds.map(skillId => ({
             skill: { connect: { id: skillId } }
@@ -75,7 +79,8 @@ export class JobsService {
         categoryId: job.categoryId,
         skills: job.skills?.map((s: any) => s.skill.name) || [],
         createdAt: job.createdAt,
-        status: job.status
+        status: job.status,
+        isPromoted: job.isPromoted || false
       };
 
       const response = await fetch(`${searchUrl}/search/jobs/index`, {
@@ -123,9 +128,14 @@ export class JobsService {
     };
   }
 
-  findByClient(clientId: string) {
+  findByClient(clientId: string, status?: string) {
+    const where: any = { client_id: clientId };
+    if (status) {
+      where.status = status;
+    }
+
     return this.prisma.job.findMany({
-      where: { client_id: clientId },
+      where,
       include: {
         category: true,
         skills: {
@@ -133,11 +143,30 @@ export class JobsService {
             skill: true
           }
         }
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
   }
 
-  async findOne(id: string) {
+  async trackEvent(eventType: string, userId: string, jobId?: string, metadata: any = {}) {
+    try {
+      const analyticsUrl = process.env.ANALYTICS_SERVICE_URL || 'http://analytics-service:3014';
+      await fetch(`${analyticsUrl}/analytics/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: eventType,
+          user_id: userId,
+          job_id: jobId || '',
+          metadata: JSON.stringify(metadata)
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to track event:', error);
+    }
+  }
+
+  async findOne(id: string, viewerId?: string) {
     const job = await this.prisma.job.findUnique({
       where: { id },
       include: {
@@ -151,6 +180,9 @@ export class JobsService {
     });
 
     if (!job) return null;
+
+    // Track view asynchronously
+    this.trackEvent('job_view', viewerId || 'anonymous', id);
 
     try {
       const userServiceUrl = process.env.USER_SERVICE_INTERNAL_URL || 'http://user-service:3000';
@@ -264,20 +296,28 @@ export class JobsService {
     });
   }
 
-  async duplicateJob(id: string) {
+  async duplicateJob(id: string, userId: string) {
     const job = await this.prisma.job.findUnique({
       where: { id },
       include: { skills: true }
     });
-    if (!job) throw new Error('Job not found');
+    if (!job) throw new NotFoundException('Job not found');
 
-    const { id: _, createdAt: __, updatedAt: ___, status: ____, ...jobData } = job;
+    if (job.client_id !== userId) {
+      throw new ForbiddenException('You can only duplicate your own jobs');
+    }
+
+    const { id: _, createdAt: __, updatedAt: ___, status: ____, expiresAt: _____, ...jobData } = job;
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     return this.prisma.job.create({
       data: {
         ...jobData,
         title: `${job.title} (Copy)`,
-        status: 'PENDING',
+        status: 'PENDING_APPROVAL',
+        expiresAt,
         skills: {
           create: job.skills.map(s => ({
             skill: { connect: { id: s.skillId } }
@@ -1106,5 +1146,267 @@ export class JobsService {
       where: { jobId },
       orderBy: { createdAt: 'desc' }
     });
+  }
+
+  async negotiateProposal(userId: string, proposalId: string, dto: { amount?: number, timeline?: string }) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: { job: true }
+    });
+
+    if (!proposal) throw new NotFoundException('Proposal not found');
+
+    // Only freelancer or client can negotiate
+    if (proposal.freelancerId !== userId && proposal.job.client_id !== userId) {
+      throw new ForbiddenException('You are not authorized to negotiate this proposal');
+    }
+
+    const updated = await this.prisma.proposal.update({
+      where: { id: proposalId },
+      data: {
+        bidAmount: dto.amount ?? proposal.bidAmount,
+        timeline: dto.timeline ?? proposal.timeline,
+        status: 'NEGOTIATION'
+      }
+    });
+
+    // Notify the other party
+    const targetUserId = userId === proposal.freelancerId ? proposal.job.client_id : proposal.freelancerId;
+    await this.sendNotification(
+      targetUserId,
+      'NEGOTIATION_UPDATE',
+      'Proposal Negotiation',
+      `Proposal terms for '${proposal.job.title}' have been updated.`,
+      { proposalId }
+    );
+
+    return updated;
+  }
+
+  // Service Packages
+  async createServicePackage(userId: string, dto: any) {
+    return this.prisma.servicePackage.create({
+      data: {
+        ...dto,
+        freelancerId: userId,
+      }
+    });
+  }
+
+  async findServicePackages(freelancerId?: string) {
+    const where = freelancerId ? { freelancerId } : {};
+    return this.prisma.servicePackage.findMany({
+      where,
+      include: { category: true }
+    });
+  }
+
+  async findOneServicePackage(id: string) {
+    const pkg = await this.prisma.servicePackage.findUnique({
+      where: { id },
+      include: { category: true }
+    });
+    if (!pkg) throw new NotFoundException('Service Package not found');
+    return pkg;
+  }
+
+  async updateServicePackage(id: string, userId: string, dto: any) {
+    const pkg = await this.findOneServicePackage(id);
+    if (pkg.freelancerId !== userId) {
+      throw new ForbiddenException('You can only update your own service packages');
+    }
+    return this.prisma.servicePackage.update({
+      where: { id },
+      data: dto
+    });
+  }
+
+  async deleteServicePackage(id: string, userId: string) {
+    return this.prisma.servicePackage.delete({
+      where: { id }
+    });
+  }
+
+  // Interviews
+  async scheduleInterview(clientId: string, dto: any) {
+    const job = await this.prisma.job.findUnique({ where: { id: dto.jobId } });
+    if (!job || job.client_id !== clientId) {
+      throw new ForbiddenException('Only the job owner can schedule interviews');
+    }
+
+    return this.prisma.interview.create({
+      data: {
+        ...dto,
+        scheduledAt: new Date(dto.scheduledAt),
+      }
+    });
+  }
+
+  async getInterviews(userId: string, role: string) {
+    if (role === 'CLIENT') {
+      return this.prisma.interview.findMany({
+        where: { job: { client_id: userId } },
+        include: { job: true }
+      });
+    } else {
+      return this.prisma.interview.findMany({
+        where: { freelancerId: userId },
+        include: { job: true }
+      });
+    }
+  }
+
+  async updateInterview(id: string, userId: string, dto: any) {
+    const interview = await this.prisma.interview.findUnique({
+      where: { id },
+      include: { job: true }
+    });
+    if (!interview) throw new NotFoundException('Interview not found');
+
+    // Either party can update (cancel/reschedule)
+    if (interview.job.client_id !== userId && interview.freelancerId !== userId) {
+      throw new ForbiddenException('You are not authorized to update this interview');
+    }
+
+    return this.prisma.interview.update({
+      where: { id },
+      data: {
+        ...dto,
+        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : interview.scheduledAt
+      }
+    });
+  }
+
+  async startMeeting(id: string, userId: string) {
+    const interview = await this.prisma.interview.findUnique({
+      where: { id },
+      include: { job: true }
+    });
+    if (!interview) throw new NotFoundException('Interview not found');
+
+    if (interview.job.client_id !== userId && interview.freelancerId !== userId) {
+      throw new ForbiddenException('Only participants can start the meeting');
+    }
+
+    const meetingUrl = `https://meet.jit.si/freelance-marketplace-${id}`;
+
+    const updated = await this.prisma.interview.update({
+      where: { id },
+      data: { meetingUrl, status: 'IN_PROGRESS' }
+    });
+
+    // Notify other party
+    const targetUserId = userId === interview.freelancerId ? interview.job.client_id : interview.freelancerId;
+    await this.sendNotification(
+      targetUserId,
+      'MEETING_STARTED',
+      'Interview Started',
+      `The video call for your interview has started.`,
+      { interviewId: id, meetingUrl }
+    );
+
+    return updated;
+  }
+
+  async extendJobDuration(id: string, userId: string, days: number = 30) {
+    const job = await this.prisma.job.findUnique({
+      where: { id }
+    });
+
+    if (!job) throw new NotFoundException('Job not found');
+
+    if (job.client_id !== userId) {
+      throw new ForbiddenException('You can only extend your own jobs');
+    }
+
+    const currentExpiry = job.expiresAt ? new Date(job.expiresAt) : new Date();
+    const newExpiry = new Date(currentExpiry);
+    newExpiry.setDate(newExpiry.getDate() + days);
+
+    return this.prisma.job.update({
+      where: { id },
+      data: { expiresAt: newExpiry }
+    });
+  }
+
+  async promoteJob(id: string, userId: string) {
+    const PROMOTION_COST = 10;
+
+    const job = await this.prisma.job.findUnique({
+      where: { id },
+      include: { category: true, skills: { include: { skill: true } } }
+    });
+
+    if (!job) throw new NotFoundException('Job not found');
+
+    if (job.client_id !== userId) {
+      throw new ForbiddenException('You can only promote your own jobs');
+    }
+
+    if (job.isPromoted) {
+      throw new BadRequestException('Job is already promoted');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.availableConnects < PROMOTION_COST) {
+      throw new BadRequestException(`Insufficient connects. Promotion costs ${PROMOTION_COST} connects.`);
+    }
+
+    const promotionExpiresAt = new Date();
+    promotionExpiresAt.setDate(promotionExpiresAt.getDate() + 7); // Default 7 days promotion
+
+    const updatedJob = await this.prisma.$transaction(async (tx) => {
+      // Deduct connects
+      await tx.user.update({
+        where: { id: userId },
+        data: { availableConnects: { decrement: PROMOTION_COST } }
+      });
+
+      // Update job
+      return tx.job.update({
+        where: { id },
+        data: {
+          isPromoted: true,
+          promotionExpiresAt
+        },
+        include: { category: true, skills: { include: { skill: true } } }
+      });
+    });
+
+    // Sync to search service
+    await this.syncToSearch(updatedJob);
+
+    // Track promotion
+    await this.trackEvent('job_promoted', userId, id);
+
+    return updatedJob;
+  }
+
+  async getJobAnalytics(id: string, userId: string) {
+    const job = await this.prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.client_id !== userId) throw new ForbiddenException('Only the job owner can view analytics');
+
+    try {
+      const analyticsUrl = process.env.ANALYTICS_SERVICE_URL || 'http://analytics-service:3014';
+      const response = await fetch(`${analyticsUrl}/analytics/jobs/${id}`);
+      if (!response.ok) throw new Error('Failed to fetch from analytics service');
+
+      const stats = await response.json();
+
+      // Combine with proposal data from Postgres
+      const proposalCount = await this.prisma.proposal.count({ where: { jobId: id } });
+      const interviewCount = await this.prisma.interview.count({ where: { jobId: id } });
+
+      return {
+        ...stats,
+        total_proposals: proposalCount,
+        total_interviews: interviewCount,
+        hiring_rate: proposalCount > 0 ? (interviewCount / proposalCount) * 100 : 0
+      };
+    } catch (error) {
+      console.error(`Failed to get analytics for job ${id}:`, error);
+      throw new BadRequestException('Analytics service unavailable');
+    }
   }
 }

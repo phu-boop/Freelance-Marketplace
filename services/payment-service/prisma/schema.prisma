@@ -1,7 +1,6 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
-  binaryTargets   = ["native", "linux-musl"]
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl"]
 }
 
 datasource db {
@@ -10,59 +9,56 @@ datasource db {
 }
 
 model Wallet {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  balance   Decimal  @default(0.00)
-  pendingBalance Decimal @default(0.00)
-  currency  String   @default("USD")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Auto-withdrawal
-  autoWithdrawalEnabled   Boolean @default(false)
+  id                      String        @id @default(uuid())
+  userId                  String        @unique
+  balance                 Decimal       @default(0.00)
+  currency                String        @default("USD")
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  autoWithdrawalEnabled   Boolean       @default(false)
+  autoWithdrawalSchedule  String?
   autoWithdrawalThreshold Decimal?
-  autoWithdrawalSchedule  String? // DAILY, WEEKLY, MONTHLY
-
-  transactions Transaction[]
+  pendingBalance          Decimal       @default(0.00)
+  autoWithdrawalMethodId  String?
+  transactions            Transaction[]
 
   @@schema("payments")
 }
 
 model Transaction {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   walletId    String
   amount      Decimal
-  feeAmount   Decimal  @default(0.0)
-  taxAmount   Decimal  @default(0.0)
-  type        String   // DEPOSIT, WITHDRAWAL, PAYMENT, FEE, CONNECTS_PURCHASE
-  status      String   // PENDING, COMPLETED, FAILED
-  clearedAt   DateTime?
-  referenceId String?  // e.g., Stripe Payment ID
+  type        String
+  status      String
+  referenceId String?
   description String?
-  createdAt   DateTime @default(now())
-  
-  wallet      Wallet   @relation(fields: [walletId], references: [id])
-  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+  createdAt   DateTime  @default(now())
+  clearedAt   DateTime?
+  feeAmount   Decimal   @default(0.0)
   invoiceId   String?
+  taxAmount   Decimal   @default(0.0)
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id])
+  wallet      Wallet    @relation(fields: [walletId], references: [id])
 
   @@schema("payments")
 }
 
 model Invoice {
-  id            String   @id @default(uuid())
-  invoiceNumber String   @unique
-  senderId      String   // User ID (Freelancer or Platform)
-  receiverId    String   // User ID (Client)
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  senderId      String
+  receiverId    String
   amount        Decimal
-  taxAmount     Decimal  @default(0.0)
-  currency      String   @default("USD")
-  status        String   @default("UNPAID") // UNPAID, PAID, VOID, OVERDUE
+  taxAmount     Decimal       @default(0.0)
+  feeAmount     Decimal       @default(0.0)
+  currency      String        @default("USD")
+  status        String        @default("UNPAID")
   dueDate       DateTime?
   paidAt        DateTime?
-  items         Json     // Array of { description, quantity, unitPrice, total }
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  items         Json
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   transactions  Transaction[]
 
   @@schema("payments")
@@ -71,9 +67,9 @@ model Invoice {
 model ConnectsHistory {
   id        String   @id @default(uuid())
   userId    String
-  amount    Int      // Positive for purchase/refund, negative for usage
-  type      String   // PURCHASE, USAGE, REFUND, BONUS
-  reason    String?  // e.g., "Applied to Job ID: 123"
+  amount    Int
+  type      String
+  reason    String?
   createdAt DateTime @default(now())
 
   @@schema("payments")
@@ -81,9 +77,9 @@ model ConnectsHistory {
 
 model TaxSetting {
   id          String   @id @default(uuid())
-  countryCode String   @unique // e.g., "VN", "US"
-  taxRate     Decimal  // e.g., 0.10 for 10%
-  name        String   // e.g., "VAT", "GST"
+  countryCode String   @unique
+  taxRate     Decimal
+  name        String
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -94,8 +90,8 @@ model TaxSetting {
 model WithdrawalMethod {
   id            String   @id @default(uuid())
   userId        String
-  type          String   // BANK_ACCOUNT, PAYPAL
-  provider      String?  // e.g., "Vietcombank"
+  type          String
+  provider      String?
   accountNumber String
   accountName   String
   isDefault     Boolean  @default(false)

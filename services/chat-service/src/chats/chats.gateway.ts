@@ -78,4 +78,38 @@ export class ChatGateway
 
         return message;
     }
+
+    @SubscribeMessage('initiateCall')
+    handleInitiateCall(
+        @MessageBody() data: { senderId: string; receiverId: string; callerName: string; interviewId?: string },
+        @ConnectedSocket() client: Socket,
+    ) {
+        const room = [data.senderId, data.receiverId].sort().join('_');
+        const meetingUrl = `https://meet.jit.si/freelance-marketplace-${data.interviewId || room}`;
+
+        this.server.to(room).emit('incomingCall', {
+            senderId: data.senderId,
+            callerName: data.callerName,
+            meetingUrl,
+            interviewId: data.interviewId,
+        });
+
+        console.log(`Call initiated from ${data.senderId} to ${data.receiverId}`);
+    }
+
+    @SubscribeMessage('acceptCall')
+    handleAcceptCall(
+        @MessageBody() data: { senderId: string; receiverId: string; meetingUrl: string },
+    ) {
+        const room = [data.senderId, data.receiverId].sort().join('_');
+        this.server.to(room).emit('callAccepted', { meetingUrl: data.meetingUrl });
+    }
+
+    @SubscribeMessage('rejectCall')
+    handleRejectCall(
+        @MessageBody() data: { senderId: string; receiverId: string },
+    ) {
+        const room = [data.senderId, data.receiverId].sort().join('_');
+        this.server.to(room).emit('callRejected');
+    }
 }

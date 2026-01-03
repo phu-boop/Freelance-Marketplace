@@ -12,7 +12,7 @@ services:
       - name: auth-public
         paths:
           - /api/auth
-        strip_path: true
+        strip_path: false
 
       # =====================
       # User Read Routes (PUBLIC)
@@ -24,7 +24,7 @@ services:
         methods:
           - GET
           - OPTIONS
-        strip_path: true
+        strip_path: false
 
       # =====================
       # User Protected Routes (JWT)
@@ -38,7 +38,7 @@ services:
           - PATCH
           - DELETE
           - OPTIONS
-        strip_path: true
+        strip_path: false
 
   - name: job-service
     url: http://freelance_job_service:3002
@@ -91,7 +91,7 @@ services:
         methods:
           - GET
           - OPTIONS
-        strip_path: true
+        strip_path: false
       - name: review-write
         paths:
           - /api/reviews
@@ -101,7 +101,7 @@ services:
           - PATCH
           - DELETE
           - OPTIONS
-        strip_path: true
+        strip_path: false
 
   - name: admin-service
     url: http://freelance_admin_service:3009

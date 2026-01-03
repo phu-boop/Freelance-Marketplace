@@ -369,8 +369,29 @@ export default function ProfileSettingsPage() {
 
                     {activeTab === 'general' && (
                         <div className="space-y-8">
-                            <div className="flex flex-col items-center gap-4 border-b border-slate-800 pb-8">
+                            <div className="flex flex-col items-center gap-4 border-b border-slate-800 pb-8 relative">
                                 <AvatarUpload currentAvatar={avatarUrl} onUpload={handleAvatarUpload} />
+                                {userData?.isEmailVerified ? (
+                                    <div className="absolute top-0 right-1/2 translate-x-12 -translate-y-2 bg-blue-600 text-white p-1.5 rounded-full border-4 border-slate-900 shadow-xl" title="Email Verified">
+                                        <BadgeCheck className="w-5 h-5" />
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await api.post('/auth/verify-email/resend');
+                                                setStatus({ type: 'success', message: 'Verification email sent!' });
+                                                setTimeout(() => setStatus(null), 3000);
+                                            } catch (e: any) {
+                                                console.error(e);
+                                                setStatus({ type: 'error', message: 'Failed to send verification email.' });
+                                            }
+                                        }}
+                                        className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                                    >
+                                        Resend Verification Email
+                                    </button>
+                                )}
                                 <div className="text-center">
                                     <h3 className="text-lg font-bold text-white">Profile Photo</h3>
                                     <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">PNG, JPG up to 10MB</p>

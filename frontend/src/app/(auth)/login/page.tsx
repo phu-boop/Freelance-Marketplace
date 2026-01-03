@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, ArrowRight, Github, Chrome, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Github, Chrome, Facebook, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -173,10 +173,10 @@ export default function LoginPage() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 <Button
                                     variant="outline"
-                                    className="w-full border-slate-800 hover:bg-slate-800"
+                                    className="w-full border-slate-800 hover:bg-slate-800 px-0"
                                     onClick={() => redirectLogin({ idpHint: 'google' })}
                                     leftIcon={<Chrome className="w-4 h-4 text-red-500" />}
                                 >
@@ -184,11 +184,19 @@ export default function LoginPage() {
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="w-full border-slate-800 hover:bg-slate-800"
+                                    className="w-full border-slate-800 hover:bg-slate-800 px-0"
                                     onClick={() => redirectLogin({ idpHint: 'github' })}
                                     leftIcon={<Github className="w-4 h-4 text-white" />}
                                 >
                                     Github
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="w-full border-slate-800 hover:bg-slate-800 px-0"
+                                    onClick={() => redirectLogin({ idpHint: 'facebook' })}
+                                    leftIcon={<Facebook className="w-4 h-4 text-blue-500" />}
+                                >
+                                    Facebook
                                 </Button>
                             </div>
 

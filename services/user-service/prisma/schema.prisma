@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
@@ -13,115 +10,104 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String?  // Nullable if using only social login, but usually needed
-  googleId  String?  @unique
-  linkedinId String? @unique
-  firstName String?
-  lastName  String?
-  avatarUrl String?
-  phone     String?
-  address   String?
-  country   String?
-  timezone  String?  @default("UTC")
-  language  String?  @default("en")
-  roles     String[] @default(["FREELANCER"]) // FREELANCER, CLIENT, ADMIN
-  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, BANNED
-  banReason String?
-  banExpiresAt DateTime?
-  isAvailable Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Profile fields
-  title       String?  // Professional Title
-  overview    String?  // Detailed Bio
-  hourlyRate  Decimal?
-  skills      String[]
-  primaryCategoryId String?
-  completionPercentage Int @default(0)
-  availableConnects Int @default(50)
-  profile Profile? @relation("UserProfile")
-
-
-  
-  // Client fields
-  companyName       String?
-  companyLogo       String?
-  companySize       String?
-  industry          String?
-  website           String?
-  isPaymentVerified Boolean @default(false)
-  
-  // KYC
-  kycStatus   String   @default("PENDING") // PENDING, VERIFIED, REJECTED
-  idDocument  String?  // URL to ID document
-  isIdentityVerified Boolean @default(false)
-  
-  // Security
-  twoFactorEnabled Boolean @default(false)
-  twoFactorSecret  String?
-  resetPasswordToken String?
+  id                     String                 @id @default(uuid())
+  availableConnects      Int                    @default(50)
+  address                String?
+  avatarUrl              String?
+  badges                 String[]
+  banExpiresAt           DateTime?
+  banReason              String?
+  companyLogo            String?
+  companyName            String?
+  companySize            String?
+  completionPercentage   Int                    @default(0)
+  country                String?
+  createdAt              DateTime               @default(now())
+  email                  String                 @unique
+  emailNotifications     Boolean                @default(true)
+  firstName              String?
+  googleId               String?                @unique
+  hourlyRate             Decimal?
+  idDocument             String?
+  inAppNotifications     Boolean                @default(true)
+  industry               String?
+  isAvailable            Boolean                @default(true)
+  isIdentityVerified     Boolean                @default(false)
+  isPaymentVerified      Boolean                @default(false)
+  isPromoted             Boolean                @default(false)
+  jobSuccessScore        Int                    @default(100)
+  kycStatus              String                 @default("PENDING")
+  language               String?                @default("en")
+  lastName               String?
+  linkedinId             String?                @unique
+  overview               String?
+  password               String?
+  phone                  String?
+  primaryCategoryId      String?
+  promotionExpiresAt     DateTime?
+  pushNotifications      Boolean                @default(true)
+  rating                 Decimal                @default(0.0)
   resetPasswordExpiresAt DateTime?
-
-  // Notifications
-  emailNotifications Boolean @default(true)
-  pushNotifications  Boolean @default(true)
-  inAppNotifications Boolean @default(true)
-
-  // Reputation
-  rating          Decimal  @default(0.0)
-  reviewCount     Int      @default(0)
-  jobSuccessScore Int      @default(100)
-  trustScore      Int      @default(100)
-  badges          String[]
-  isPromoted      Boolean  @default(false)
-  promotionExpiresAt DateTime?
-
-  // Relations
-  education   Education[]
-  experience  Experience[]
-  portfolio   PortfolioItem[]
-  teams       TeamMember[]
-  ownedTeams  Team[]
-  availability AvailabilityCalendar[]
-  referrals   Referral[] @relation("Referrer")
-  referredBy  Referral[] @relation("Referred")
+  resetPasswordToken     String?
+  reviewCount            Int                    @default(0)
+  roles                  String[]               @default(["FREELANCER"])
+  skills                 String[]
+  status                 String                 @default("ACTIVE")
+  timezone               String?                @default("UTC")
+  title                  String?
+  trustScore             Int                    @default(100)
+  twoFactorEnabled       Boolean                @default(false)
+  twoFactorSecret        String?
+  updatedAt              DateTime               @updatedAt
+  website                String?
+  referralCode           String?                @unique
+  facebookId             String?                @unique
+  githubId               String?                @unique
+  isEmailVerified        Boolean                @default(false)
+  taxId                  String?
+  billingAddress         String?
+  availability           AvailabilityCalendar[]
+  education              Education[]
+  experience             Experience[]
+  portfolio              PortfolioItem[]
+  ownedTeams             Team[]
+  teams                  TeamMember[]
+  profile                Profile?               @relation("UserProfile")
+  referredBy             Referral?              @relation("Referred")
+  referrals              Referral[]             @relation("Referrer")
 
   @@map("users")
   @@schema("users")
 }
 
 model Profile {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  user        User     @relation("UserProfile", fields: [userId], references: [id])
-  headline    String?
-  bio         String?
-  hourlyRate  Decimal?
-  skills      String[]
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  headline          String?
+  bio               String?
+  hourlyRate        Decimal?
+  skills            String[]
   primaryCategoryId String?
-  isComplete  Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isComplete        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation("UserProfile", fields: [userId], references: [id])
 
   @@map("profiles")
   @@schema("users")
 }
 
 model Referral {
-  id          String   @id @default(uuid())
-  referrerId  String
-  referrer    User     @relation("Referrer", fields: [referrerId], references: [id])
-  referredId  String
-  referred    User     @relation("Referred", fields: [referredId], references: [id])
-  status      String   @default("PENDING") // PENDING, COMPLETED
-  rewardAmount Decimal @default(0.0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  referrerId   String
+  referredId   String   @unique
+  status       String   @default("PENDING")
+  rewardAmount Decimal  @default(0.0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  referred     User     @relation("Referred", fields: [referredId], references: [id])
+  referrer     User     @relation("Referrer", fields: [referrerId], references: [id])
 
-  @@unique([referredId])
   @@map("referrals")
   @@schema("users")
 }
@@ -129,19 +115,19 @@ model Referral {
 model AvailabilityCalendar {
   id        String   @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
   date      DateTime
   isBusy    Boolean  @default(true)
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, date])
   @@schema("users")
 }
 
 model Education {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   institution  String
   degree       String
   fieldOfStudy String
@@ -149,50 +135,50 @@ model Education {
   endDate      DateTime?
   description  String?
   userId       String
-  user         User     @relation(fields: [userId], references: [id])
+  user         User      @relation(fields: [userId], references: [id])
 
   @@schema("users")
 }
 
 model Experience {
-  id           String   @id @default(uuid())
-  company      String
-  title        String
-  location     String?
-  startDate    DateTime
-  endDate      DateTime?
-  current      Boolean  @default(false)
-  description  String?
-  userId       String
-  user         User     @relation(fields: [userId], references: [id])
+  id          String    @id @default(uuid())
+  company     String
+  title       String
+  location    String?
+  startDate   DateTime
+  endDate     DateTime?
+  current     Boolean   @default(false)
+  description String?
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
 
   @@schema("users")
 }
 
 model PortfolioItem {
-  id           String   @id @default(uuid())
-  title        String
-  description  String?
-  imageUrl     String
-  projectUrl   String?
-  skills       String[]
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  imageUrl       String
+  projectUrl     String?
+  skills         String[]
   completionDate DateTime?
-  userId       String
-  user         User     @relation(fields: [userId], references: [id])
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
 
   @@schema("users")
 }
 
 model Team {
-  id          String   @id @default(uuid())
+  id          String       @id @default(uuid())
   name        String
   description String?
   logoUrl     String?
   ownerId     String
-  owner       User     @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  owner       User         @relation(fields: [ownerId], references: [id])
   members     TeamMember[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
   @@schema("users")
 }
@@ -200,12 +186,12 @@ model Team {
 model TeamMember {
   id        String   @id @default(uuid())
   teamId    String
-  team      Team     @relation(fields: [teamId], references: [id])
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  role      String   @default("MEMBER") // OWNER, ADMIN, MEMBER
+  role      String   @default("MEMBER")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  team      Team     @relation(fields: [teamId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([teamId, userId])
   @@schema("users")

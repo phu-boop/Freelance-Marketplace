@@ -12,7 +12,9 @@ import {
     AlertCircle,
     CheckCircle2,
     Smartphone,
-    ShieldCheck
+    ShieldCheck,
+    Database,
+    Download
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
@@ -184,6 +186,9 @@ export default function SecuritySettingsPage() {
                         </div>
                     </form>
                 </Card>
+
+                {/* Data & Privacy Section (GDPR) */}
+                <DataPrivacySection userId={userId} onStatusChange={setStatus} />
             </div>
         </div>
     );
@@ -310,6 +315,75 @@ function TwoFactorSection({ userId, onStatusChange }: { userId: string | undefin
                             </div>
                         </div>
                     )}
+                </div>
+            </div>
+        </Card>
+    );
+}
+
+function DataPrivacySection({ userId, onStatusChange }: { userId: string | undefined | null, onStatusChange: (status: any) => void }) {
+    const [exporting, setExporting] = useState(false);
+
+    const handleDownloadData = async () => {
+        if (!userId) return;
+        setExporting(true);
+        try {
+            const res = await api.get(`/users/${userId}/export`);
+            const dataStr = JSON.stringify(res.data, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `freelance-hub-archive-${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            onStatusChange({ type: 'success', message: 'Your account data archive has been generated and downloaded.' });
+        } catch (err) {
+            console.error('Failed to export data', err);
+            onStatusChange({ type: 'error', message: 'Failed to generate data archive. Please try again later.' });
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    return (
+        <Card className="p-8 border-slate-800/50 bg-slate-900/50 backdrop-blur-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-32 bg-amber-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+
+            <div className="flex items-start gap-6 relative z-10">
+                <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center shrink-0">
+                    <Database className="w-6 h-6 text-amber-500" />
+                </div>
+
+                <div className="flex-1 space-y-4">
+                    <div>
+                        <h3 className="text-lg font-bold text-white mb-1">Account Archive</h3>
+                        <p className="text-sm text-slate-400 max-w-xl">
+                            Request a machine-readable archive of your personal data. This includes your profile information,
+                            professional history, and account settings in compliance with GDPR.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <Button
+                            onClick={handleDownloadData}
+                            disabled={exporting}
+                            className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center gap-2"
+                        >
+                            {exporting ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Download className="w-4 h-4" />
+                            )}
+                            {exporting ? 'Generating Archive...' : 'Download My Data'}
+                        </Button>
+                        <p className="text-xs text-slate-500 italic">
+                            Format: JSON
+                        </p>
+                    </div>
                 </div>
             </div>
         </Card>

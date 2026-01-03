@@ -26,8 +26,9 @@ export class JobsController {
   }
 
   @Get('my-jobs')
-  findByClient(@Query('clientId') clientId: string) {
-    return this.jobsService.findByClient(clientId);
+  findByClient(@Request() req, @Query('status') status?: string) {
+    const userId = req.user.sub;
+    return this.jobsService.findByClient(userId, status);
   }
 
   // Saved Jobs
@@ -77,8 +78,16 @@ export class JobsController {
 
   @Public()
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.jobsService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    const userId = req.user?.sub;
+    return this.jobsService.findOne(id, userId);
+  }
+
+  @Get(':id/analytics')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  getAnalytics(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.jobsService.getJobAnalytics(id, userId);
   }
 
   @Patch(':id')
@@ -118,7 +127,22 @@ export class JobsController {
   }
 
   @Post(':id/duplicate')
-  duplicateJob(@Param('id') id: string) {
-    return this.jobsService.duplicateJob(id);
+  duplicateJob(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.jobsService.duplicateJob(id, userId);
+  }
+
+  @Post(':id/extend')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  extendJobDuration(@Param('id') id: string, @Body('days') days: number, @Request() req) {
+    const userId = req.user.sub;
+    return this.jobsService.extendJobDuration(id, userId, days);
+  }
+
+  @Post(':id/promote')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  promoteJob(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.jobsService.promoteJob(id, userId);
   }
 }

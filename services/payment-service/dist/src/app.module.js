@@ -10,6 +10,7 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const throttler_1 = require("@nestjs/throttler");
 const terminus_1 = require("@nestjs/terminus");
+const schedule_1 = require("@nestjs/schedule");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const payments_module_1 = require("./payments/payments.module");
@@ -27,11 +28,14 @@ exports.AppModule = AppModule = __decorate([
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
             }),
-            throttler_1.ThrottlerModule.forRoot([{
+            throttler_1.ThrottlerModule.forRoot([
+                {
                     ttl: 60000,
                     limit: 10,
-                }]),
+                },
+            ]),
             terminus_1.TerminusModule,
+            schedule_1.ScheduleModule.forRoot(),
             payments_module_1.PaymentsModule,
             prisma_module_1.PrismaModule,
             nest_keycloak_connect_1.KeycloakConnectModule.registerAsync({

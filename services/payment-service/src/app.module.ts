@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PaymentsModule } from './payments/payments.module';
@@ -22,19 +23,31 @@ import { APP_GUARD } from '@nestjs/core';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     TerminusModule,
+    ScheduleModule.forRoot(),
     PaymentsModule,
     PrismaModule,
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
-        realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
-        clientId: configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-client'),
+        authServerUrl: configService.get<string>(
+          'KEYCLOAK_URL',
+          'http://keycloak:8080',
+        ),
+        realm: configService.get<string>(
+          'KEYCLOAK_REALM',
+          'freelance-marketplace',
+        ),
+        clientId: configService.get<string>(
+          'KEYCLOAK_CLIENT_ID',
+          'freelance-client',
+        ),
         secret: configService.get<string>('KEYCLOAK_SECRET', ''),
         tokenValidation: TokenValidation.OFFLINE,
       }),
@@ -58,4 +71,4 @@ import { APP_GUARD } from '@nestjs/core';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

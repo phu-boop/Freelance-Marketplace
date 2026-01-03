@@ -32,9 +32,27 @@ model Contract {
   // Relations
   milestones    Milestone[]
   timeLogs      TimeLog[]
+  timeSessions  TimeSession[]
   disputes      Dispute[]
+  checkIns      CheckIn[]
   disputeStatus String?
   disputeReason String?
+
+  @@schema("contracts")
+}
+
+model CheckIn {
+  id          String   @id @default(uuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id])
+  title       String
+  description String?
+  scheduledAt DateTime
+  durationMinutes Int @default(30)
+  status      String   @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
+  meetingLink String?   // Jitsi Meet link
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("contracts")
 }
@@ -63,6 +81,7 @@ model TimeLog {
   description String
   date        DateTime
   status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  rejectionReason String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -106,6 +125,19 @@ model RevisionRequest {
   submission    Submission @relation(fields: [submissionId], references: [id])
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@schema("contracts")
+}
+
+model TimeSession {
+  id          String   @id @default(uuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id])
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("contracts")
 }

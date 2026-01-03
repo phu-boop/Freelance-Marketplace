@@ -121,18 +121,20 @@ export class KeycloakService {
             const keycloakId = location.split('/').pop();
 
             if (userData.role) {
-                await this.assignRole(keycloakId, userData.role, token);
+                await this.assignRole(keycloakId, userData.role);
             }
 
-            /*
-            // Trigger verification email
-            const verifyUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${keycloakId}/execute-actions-email`;
-            await firstValueFrom(
-                this.httpService.put(verifyUrl, ['VERIFY_EMAIL'], {
-                    headers: { Authorization: `Bearer ${token}` },
-                }),
-            );
-            */
+            // Trigger verification email (Non-blocking for dev/test)
+            try {
+                const verifyUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${keycloakId}/execute-actions-email`;
+                await firstValueFrom(
+                    this.httpService.put(verifyUrl, ['VERIFY_EMAIL'], {
+                        headers: { Authorization: `Bearer ${token}` },
+                    }),
+                );
+            } catch (emailError) {
+                this.logger.warn(`Failed to trigger verification email for ${keycloakId}: ${emailError.message}. Continuing...`);
+            }
 
             return keycloakId;
         } catch (error) {
@@ -144,6 +146,22 @@ export class KeycloakService {
                 throw new ConflictException('An account with this email already exists');
             }
             throw new HttpException(errorMsg || 'Failed to create user', status || HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    async sendVerificationEmail(userId: string): Promise<void> {
+        const token = await this.getAdminToken();
+        const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/execute-actions-email`;
+
+        try {
+            await firstValueFrom(
+                this.httpService.put(url, ['VERIFY_EMAIL'], {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            );
+        } catch (error) {
+            this.logger.error(`Failed to send verification email for user ${userId}: ${error.message}`);
+            throw new HttpException('Failed to send verification email', HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -205,7 +223,42 @@ export class KeycloakService {
         }
     }
 
-    private async assignRole(userId: string, roleName: string, token: string) {
+    async getUserById(userId: string): Promise<any> {
+        const token = await this.getAdminToken();
+        const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}`;
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            );
+            return response.data;
+        } catch (error) {
+            this.logger.error(`Failed to get Keycloak user ${userId}: ${error.message}`);
+            return null;
+        }
+    }
+
+    async getFederatedIdentities(userId: string): Promise<any[]> {
+        const token = await this.getAdminToken();
+        const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/federated-identity`;
+
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            );
+            return response.data;
+        } catch (error) {
+            this.logger.error(`Failed to get federated identities for user ${userId}: ${error.message}`);
+            return [];
+        }
+    }
+
+    public async assignRole(userId: string, roleName: string) {
+        const token = await this.getAdminToken();
         // First get the role representation
         const roleUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/roles/${roleName}`;
         try {

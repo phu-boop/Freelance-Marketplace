@@ -37,6 +37,8 @@ interface Review {
     id: string;
     rating: number;
     comment: string;
+    reply?: string;
+    repliedAt?: string;
     createdAt: string;
     reviewer_id: string;
 }
@@ -71,6 +73,9 @@ export default function ProfilePage() {
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio' | 'security'>('about');
+    const [replyingTo, setReplyingTo] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState('');
+    const [replyLoading, setReplyLoading] = useState(false);
 
     // Modal states
     const [eduModal, setEduModal] = useState({ open: false, data: null });
@@ -134,6 +139,22 @@ export default function ProfilePage() {
             fetchProfileData();
         } catch (error) {
             console.error('Failed to verify payment', error);
+        }
+    };
+
+    const handleReply = async (reviewId: string) => {
+        if (!replyText.trim()) return;
+        setReplyLoading(true);
+        try {
+            await api.post(`/reviews/${reviewId}/reply`, { reply: replyText });
+            setReplyText('');
+            setReplyingTo(null);
+            fetchProfileData();
+        } catch (error) {
+            console.error('Failed to submit reply', error);
+            alert('Failed to submit reply. Please try again.');
+        } finally {
+            setReplyLoading(false);
         }
     };
 
@@ -437,14 +458,65 @@ export default function ProfilePage() {
                                         <p className="text-slate-300 text-sm italic">
                                             "{review.comment || 'No comment provided.'}"
                                         </p>
-                                        <div className="pt-4 border-t border-slate-800 flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
-                                                <UserIcon className="w-4 h-4 text-slate-500" />
+                                        <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
+                                                    <UserIcon className="w-4 h-4 text-slate-500" />
+                                                </div>
+                                                <div className="text-xs font-medium text-slate-400">
+                                                    Reviewer ID: {review.reviewer_id.substring(0, 8)}...
+                                                </div>
                                             </div>
-                                            <div className="text-xs font-medium text-slate-400">
-                                                Reviewer ID: {review.reviewer_id.substring(0, 8)}...
-                                            </div>
+                                            {!review.reply && !replyingTo && (
+                                                <button
+                                                    onClick={() => {
+                                                        setReplyingTo(review.id);
+                                                        setReplyText('');
+                                                    }}
+                                                    className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
+                                                >
+                                                    <MessageSquare className="w-3.5 h-3.5" /> Reply
+                                                </button>
+                                            )}
                                         </div>
+
+                                        {review.reply && (
+                                            <div className="mt-4 ml-6 p-4 rounded-xl bg-slate-800/50 border-l-2 border-blue-500/50 space-y-2">
+                                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                    <span>Your Response</span>
+                                                    <span>{new Date(review.repliedAt!).toLocaleDateString()}</span>
+                                                </div>
+                                                <p className="text-sm text-slate-300 italic">
+                                                    "{review.reply}"
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {replyingTo === review.id && (
+                                            <div className="mt-4 space-y-3">
+                                                <textarea
+                                                    value={replyText}
+                                                    onChange={(e) => setReplyText(e.target.value)}
+                                                    placeholder="Type your response..."
+                                                    className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none h-24"
+                                                />
+                                                <div className="flex gap-2 justify-end">
+                                                    <button
+                                                        onClick={() => setReplyingTo(null)}
+                                                        className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleReply(review.id)}
+                                                        disabled={replyLoading || !replyText.trim()}
+                                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
+                                                    >
+                                                        {replyLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Post Reply'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>

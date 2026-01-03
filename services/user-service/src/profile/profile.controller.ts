@@ -3,7 +3,7 @@ import { Controller, Get, Post, Body, Param, Request } from '@nestjs/common';
 import { ProfileService } from './profile.service';
 import { CreateProfileDraftDto } from './dto/create-profile-draft.dto';
 
-@Controller('profile')
+@Controller('api/users/profile')
 export class ProfileController {
     constructor(private readonly profileService: ProfileService) { }
 
