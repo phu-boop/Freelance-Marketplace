@@ -1,6 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl"]
 }
 
 datasource db {
@@ -58,6 +59,11 @@ model User {
   twoFactorSecret  String?
   resetPasswordToken String?
   resetPasswordExpiresAt DateTime?
+  facebookId             String?                @unique
+  githubId               String?                @unique
+  isEmailVerified        Boolean                @default(false)
+  taxId                  String?
+  billingAddress         String?
 
   // Notifications
   emailNotifications Boolean @default(true)
@@ -99,6 +105,7 @@ model Job {
   location        String?
   attachments String[] // URLs to files
   duration    String?
+  expiresAt   DateTime?
   isPromoted  Boolean  @default(false)
   isTrending  Boolean  @default(false)
   promotionExpiresAt DateTime?
@@ -107,6 +114,7 @@ model Job {
   savedBy     SavedJob[]
   invitations JobInvitation[]
   proposals   Proposal[]
+  interviews  Interview[]
 
   @@schema("jobs")
 }
@@ -132,6 +140,7 @@ model Proposal {
   extensionRequestStatus String? // PENDING, APPROVED, REJECTED
 
   milestones      Milestone[]
+  timesheets      Timesheet[]
 
   @@schema("jobs")
 }
@@ -148,6 +157,35 @@ model Milestone {
   updatedAt   DateTime @updatedAt
 
   submissions Submission[]
+
+  @@schema("jobs")
+}
+
+model Timesheet {
+  id          String      @id @default(uuid())
+  proposalId  String
+  proposal    Proposal    @relation(fields: [proposalId], references: [id])
+  startDate   DateTime    // Start of the week (Monday)
+  endDate     DateTime    // End of the week (Sunday)
+  status      String      @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
+  totalHours  Decimal     @default(0.0)
+  entries     TimeEntry[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([proposalId, startDate])
+  @@schema("jobs")
+}
+
+model TimeEntry {
+  id          String    @id @default(uuid())
+  timesheetId String
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id])
+  date        DateTime
+  hours       Decimal
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@schema("jobs")
 }
@@ -261,6 +299,21 @@ model JobAlert {
   locationType    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@schema("jobs")
+}
+
+model Interview {
+  id           String   @id @default(uuid())
+  jobId        String
+  job          Job      @relation(fields: [jobId], references: [id])
+  freelancerId String
+  scheduledAt  DateTime
+  status       String   @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
+  meetingUrl   String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@schema("jobs")
 }

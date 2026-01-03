@@ -18,7 +18,8 @@ import {
     AlertCircle,
     UserCircle,
     Chrome,
-    Github
+    Github,
+    Facebook
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -216,12 +217,12 @@ export default function RegisterPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-3 gap-4">
                                         <Button
                                             type="button"
                                             variant="outline"
                                             onClick={() => handleSocialLogin('google')}
-                                            className="h-14 rounded-2xl border-slate-800 hover:bg-slate-800"
+                                            className="h-14 rounded-2xl border-slate-800 hover:bg-slate-800 px-0"
                                             leftIcon={<Chrome className="w-5 h-5 text-red-500" />}
                                         >
                                             Google
@@ -230,10 +231,19 @@ export default function RegisterPage() {
                                             type="button"
                                             variant="outline"
                                             onClick={() => handleSocialLogin('github')}
-                                            className="h-14 rounded-2xl border-slate-800 hover:bg-slate-800"
+                                            className="h-14 rounded-2xl border-slate-800 hover:bg-slate-800 px-0"
                                             leftIcon={<Github className="w-5 h-5 text-white" />}
                                         >
                                             GitHub
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => handleSocialLogin('facebook')}
+                                            className="h-14 rounded-2xl border-slate-800 hover:bg-slate-800 px-0"
+                                            leftIcon={<Facebook className="w-5 h-5 text-blue-500" />}
+                                        >
+                                            Facebook
                                         </Button>
                                     </div>
                                 </motion.div>

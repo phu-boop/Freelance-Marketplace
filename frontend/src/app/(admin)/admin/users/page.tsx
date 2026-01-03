@@ -32,7 +32,7 @@ export default function UserManagementPage() {
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
-            setUsers(res.data);
+            setUsers(res.data.results || []);
         } catch (error) {
             console.error('Failed to fetch users', error);
         } finally {
@@ -123,10 +123,10 @@ export default function UserManagementPage() {
                                         </td>
                                         <td className="p-4">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${user.status === 'ACTIVE'
-                                                    ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                                                    : user.status === 'SUSPENDED'
-                                                        ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                                                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                                : user.status === 'SUSPENDED'
+                                                    ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
                                                 }`}>
                                                 {user.status === 'ACTIVE' ? <CheckCircle2 className="w-3 h-3" /> : user.status === 'SUSPENDED' ? <AlertTriangle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                                                 {user.status}

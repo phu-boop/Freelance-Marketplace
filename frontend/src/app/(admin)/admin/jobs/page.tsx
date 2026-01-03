@@ -37,7 +37,7 @@ export default function AdminJobsPage() {
     const fetchJobs = async () => {
         try {
             const res = await api.get('/jobs');
-            setJobs(res.data);
+            setJobs(res.data.results || []);
         } catch (error) {
             console.error('Failed to fetch jobs', error);
         } finally {

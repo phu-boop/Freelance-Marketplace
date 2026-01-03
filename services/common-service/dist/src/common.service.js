@@ -5,11 +5,23 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CommonService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const adapter_pg_1 = require("@prisma/adapter-pg");
+const pg_1 = require("pg");
 let CommonService = class CommonService extends client_1.PrismaClient {
+    constructor() {
+        const pool = new pg_1.Pool({ connectionString: process.env.DATABASE_URL });
+        super({
+            adapter: new adapter_pg_1.PrismaPg(pool),
+            log: ['error', 'warn'],
+        });
+    }
     async onModuleInit() {
         await this.$connect();
     }
@@ -28,6 +40,7 @@ let CommonService = class CommonService extends client_1.PrismaClient {
 };
 exports.CommonService = CommonService;
 exports.CommonService = CommonService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [])
 ], CommonService);
 //# sourceMappingURL=common.service.js.map

@@ -8,15 +8,24 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const throttler_1 = require("@nestjs/throttler");
+const terminus_1 = require("@nestjs/terminus");
 const common_controller_1 = require("./common.controller");
 const common_service_1 = require("./common.service");
+const health_controller_1 = require("./health/health.controller");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [],
-        controllers: [common_controller_1.CommonController],
+        imports: [
+            throttler_1.ThrottlerModule.forRoot([{
+                    ttl: 60000,
+                    limit: 10,
+                }]),
+            terminus_1.TerminusModule,
+        ],
+        controllers: [common_controller_1.CommonController, health_controller_1.HealthController],
         providers: [common_service_1.CommonService],
     })
 ], AppModule);

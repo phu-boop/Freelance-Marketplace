@@ -172,10 +172,13 @@ export default function ProposalsPage() {
 
                                 <div className="flex items-center gap-3">
                                     <Link
-                                        href={`/jobs/${proposal.job_id}`}
-                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                                        href={`/proposals/${proposal.id}`}
+                                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${proposal.status === 'OFFERED'
+                                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+                                            : 'bg-slate-800 hover:bg-slate-700 text-white'
+                                            }`}
                                     >
-                                        View Job
+                                        {proposal.status === 'OFFERED' ? 'View Offer' : 'View Details'}
                                         <ChevronRight className="w-4 h-4" />
                                     </Link>
                                 </div>

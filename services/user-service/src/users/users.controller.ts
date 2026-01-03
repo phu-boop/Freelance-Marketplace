@@ -5,7 +5,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from 'nest-keycloak-connect';
 
-@Controller('')
+@Controller('api/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
@@ -13,30 +13,6 @@ export class UsersController {
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
-  }
-
-  @Public()
-  @Post('register')
-  register(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.register(createUserDto);
-  }
-
-  @Public()
-  @Post('login')
-  login(@Body() credentials: { email: string; password: string }) {
-    return this.usersService.login(credentials);
-  }
-
-  @Public()
-  @Post('login/2fa')
-  verifyLoginTwoFactor(@Body() body: { tempToken: string; code: string }) {
-    return this.usersService.verifyLoginTwoFactor(body.tempToken, body.code);
-  }
-
-  @Public()
-  @Post('forgot-password')
-  forgotPassword(@Body() data: { email: string }) {
-    return this.usersService.forgotPassword(data.email);
   }
 
   @Get()
@@ -186,5 +162,25 @@ export class UsersController {
   @Post(':id/activate')
   activateUser(@Param('id') id: string) {
     return this.usersService.activateUser(id);
+  }
+
+  @Post(':id/deduct-connects')
+  deductConnects(@Param('id') id: string, @Body() body: { amount: number }) {
+    return this.usersService.deductConnects(id, body.amount);
+  }
+
+  @Get(':id/availability')
+  getAvailability(@Param('id') id: string) {
+    return this.usersService.getAvailability(id);
+  }
+
+  @Post(':id/availability')
+  updateAvailability(@Param('id') id: string, @Body() body: { items: any[] }) {
+    return this.usersService.updateAvailability(id, body.items);
+  }
+
+  @Get(':id/referrals')
+  getReferrals(@Param('id') id: string) {
+    return this.usersService.getReferrals(id);
   }
 }

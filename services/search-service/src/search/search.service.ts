@@ -1,11 +1,18 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ElasticsearchService } from '@nestjs/elasticsearch';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class SearchService implements OnModuleInit {
     private readonly logger = new Logger(SearchService.name);
 
-    constructor(private readonly elasticsearchService: ElasticsearchService) { }
+    constructor(
+        private readonly elasticsearchService: ElasticsearchService,
+        private readonly httpService: HttpService,
+        private readonly configService: ConfigService
+    ) { }
 
     async onModuleInit() {
         await this.initializeIndices();
@@ -32,7 +39,8 @@ export class SearchService implements OnModuleInit {
                                 title: { type: 'text' },
                                 description: { type: 'text' },
                                 location: { type: 'text' },
-                                category: { type: 'text' }
+                                category: { type: 'text' },
+                                isPromoted: { type: 'boolean' }
                             }
                         };
                     }
@@ -155,6 +163,9 @@ export class SearchService implements OnModuleInit {
         filter.push({ term: { status: 'OPEN' } });
 
         const sort: any[] = [];
+        // Prioritize promoted jobs
+        sort.push({ isPromoted: { order: 'desc' } });
+
         if (filters?.sortBy) {
             sort.push({ [filters.sortBy]: { order: filters.sortOrder || 'desc' } });
         } else {
@@ -234,6 +245,102 @@ export class SearchService implements OnModuleInit {
                 return { total: 0, page, limit, results: [] };
             }
             throw error;
+        }
+    }
+
+    async getRecommendedJobs(userId: string, limit: number = 5) {
+        try {
+            // 1. Fetch user profile from user-service
+            const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000');
+            const { data: user } = await firstValueFrom(
+                this.httpService.get(`${userServiceUrl}/api/users/${userId}`)
+            );
+
+            if (!user) {
+                this.logger.warn(`User ${userId} not found for recommendations`);
+                return { total: 0, results: [] };
+            }
+
+            const { skills, primaryCategoryId, experienceLevel, title } = user;
+
+            // 2. Build recommendations query
+            const should: any[] = [];
+
+            // Boost promoted jobs
+            should.push({
+                term: { isPromoted: { value: true, boost: 3.0 } }
+            });
+
+            if (skills && skills.length > 0) {
+                // Try matching skills exactly (keywords)
+                should.push({
+                    terms: { skills: skills, boost: 2.0 }
+                });
+            }
+
+            if (primaryCategoryId) {
+                should.push({
+                    term: { categoryId: { value: primaryCategoryId, boost: 1.5 } }
+                });
+            }
+
+            if (title) {
+                // Match user title against job title (fuzzy/text)
+                should.push({
+                    match: {
+                        title: {
+                            query: title,
+                            boost: 1.5,
+                            fuzziness: 'AUTO'
+                        }
+                    }
+                });
+            }
+
+            // Match experience level if provided in job
+            if (experienceLevel) {
+                should.push({
+                    term: { experienceLevel: { value: experienceLevel, boost: 1.0 } }
+                });
+            }
+
+            const query: any = {
+                bool: {
+                    must: [
+                        { term: { status: 'OPEN' } }
+                    ],
+                    should,
+                }
+            };
+
+            // If we have profile data, we can require at least one match
+            if (should.length > 0) {
+                query.bool.minimum_should_match = 1;
+            }
+
+            const result = await this.elasticsearchService.search({
+                index: 'jobs',
+                size: limit,
+                query,
+                sort: [
+                    { _score: { order: 'desc' } },
+                    { createdAt: { order: 'desc' } }
+                ]
+            });
+
+            const total = typeof result.hits.total === 'number'
+                ? result.hits.total
+                : (result.hits.total as any).value;
+
+            return {
+                total,
+                limit,
+                results: result.hits.hits.map((hit) => hit._source),
+            };
+        } catch (error) {
+            this.logger.error(`Failed to get recommendations for user ${userId}:`, error.message);
+            // Fallback: return recent jobs
+            return this.searchJobs('', { limit });
         }
     }
 }

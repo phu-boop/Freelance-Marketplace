@@ -55,4 +55,12 @@ export class SearchController {
     ) {
         return this.searchService.searchUsers(query, page, limit);
     }
+
+    @Get('jobs/recommendations')
+    async getRecommendations(
+        @Query('userId') userId: string,
+        @Query('limit') limit: number = 5,
+    ) {
+        return this.searchService.getRecommendedJobs(userId, Number(limit));
+    }
 }

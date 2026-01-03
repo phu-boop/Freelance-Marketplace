@@ -33,7 +33,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       useFactory: async (configService: ConfigService) => ({
         authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
         realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
-        clientId: 'freelance-client', // Matches the client ID in Keycloak
+        clientId: configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-client'), // Matches the client ID in Keycloak
         secret: configService.get<string>('KEYCLOAK_SECRET', ''),
         tokenValidation: TokenValidation.OFFLINE,
       }),

@@ -19,6 +19,7 @@ const KeycloakContext = createContext<KeycloakContextType | null>(null);
 
 export const KeycloakProvider = ({ children }: { children: React.ReactNode }) => {
     const [authenticated, setAuthenticated] = useState(false);
+    const [initialized, setInitialized] = useState(false);
     const [token, setToken] = useState<string | null>(null);
     const [username, setUsername] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
@@ -32,18 +33,51 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                     checkLoginIframe: false,
                     silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
                     pkceMethod: 'S256',
+                    token: localStorage.getItem('kc_token') || undefined,
+                    refreshToken: localStorage.getItem('kc_refreshToken') || undefined,
                 })
-                .then((auth) => {
+                .then(async (auth) => {
                     setAuthenticated(auth);
                     if (auth && keycloak) {
                         setToken(keycloak.token || null);
                         setUsername(keycloak.tokenParsed?.preferred_username || null);
                         setUserId(keycloak.subject || null);
                         setRoles(keycloak.realmAccess?.roles || []);
+
+                        // Persist tokens for session recovery on refresh
+                        if (keycloak.token) localStorage.setItem('kc_token', keycloak.token);
+                        if (keycloak.refreshToken) localStorage.setItem('kc_refreshToken', keycloak.refreshToken);
+
+                        // Handle Social Onboarding if pending
+                        const pendingRole = localStorage.getItem('pending_role');
+                        if (pendingRole) {
+                            try {
+                                await api.post('/users/me/social-onboarding', { role: pendingRole });
+                                localStorage.removeItem('pending_role');
+                                // Refresh roles from DB/Keycloak if possible, 
+                                // or just use the pendingRole for immediate redirect
+                            } catch (error) {
+                                console.error('Social onboarding failed:', error);
+                            }
+                        }
+
+                        // Redirect if on login or register page and authenticated
+                        if (window.location.pathname === '/login' || window.location.pathname === '/register') {
+                            const latestRole = pendingRole || (keycloak.realmAccess?.roles || [])[0];
+                            if (latestRole === 'ADMIN' || keycloak.realmAccess?.roles?.includes('ADMIN')) {
+                                window.location.href = '/admin';
+                            } else if (latestRole === 'CLIENT' || keycloak.realmAccess?.roles?.includes('CLIENT')) {
+                                window.location.href = '/client/dashboard';
+                            } else {
+                                window.location.href = '/dashboard';
+                            }
+                        }
                     }
+                    setInitialized(true);
                 })
                 .catch((err) => {
                     console.error('Keycloak init failed', err);
+                    setInitialized(true); // Still set initialized to true so app can recover/show error
                 });
         }
     }, []);
@@ -62,6 +96,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                 setUserId(payload.sub);
                 setUsername(payload.preferred_username || payload.email);
                 setRoles(payload.realm_access?.roles || []);
+                console.log('DEBUG: User Roles:', payload.realm_access?.roles);
 
                 // Store for persistence
                 localStorage.setItem('kc_token', tokens.access_token);
@@ -71,6 +106,8 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                 const roles = payload.realm_access?.roles || [];
                 if (roles.includes('ADMIN')) {
                     window.location.href = '/admin';
+                } else if (roles.includes('CLIENT')) {
+                    window.location.href = '/client/dashboard';
                 } else {
                     window.location.href = '/dashboard';
                 }
@@ -81,6 +118,17 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
             }
         }
     };
+
+    if (!initialized) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="flex flex-col items-center space-y-4">
+                    <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+                    <p className="text-slate-400 font-medium">Loading session...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <KeycloakContext.Provider value={{ authenticated, token, username, userId, roles, login, logout, register, setTokens }}>

@@ -58,14 +58,21 @@ let EmailService = class EmailService {
         });
     }
     async sendEmail(to, subject, text) {
-        const info = await this.transporter.sendMail({
-            from: '"Freelance Marketplace" <no-reply@freelance.com>',
-            to,
-            subject,
-            text,
-        });
-        console.log('Message sent: %s', info.messageId);
-        return info;
+        try {
+            console.log(`Sending email to ${to} with subject: ${subject}`);
+            const info = await this.transporter.sendMail({
+                from: '"Freelance Marketplace" <no-reply@freelance.com>',
+                to,
+                subject,
+                text,
+            });
+            console.log('Message sent: %s', info.messageId);
+            return info;
+        }
+        catch (error) {
+            console.error(`Error sending email to ${to}:`, error);
+            throw error;
+        }
     }
 };
 exports.EmailService = EmailService;

@@ -12,7 +12,8 @@ import {
   KeycloakConnectModule,
   ResourceGuard,
   RoleGuard,
-  AuthGuard
+  AuthGuard,
+  TokenValidation
 } from 'nest-keycloak-connect';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -39,9 +40,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       useFactory: async (configService: ConfigService) => ({
         authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
         realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
-        clientId: 'freelance-client',
+        clientId: configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-client'),
         secret: configService.get<string>('KEYCLOAK_SECRET', ''),
-        logLevels: ['error', 'warn'],
+        tokenValidation: TokenValidation.OFFLINE,
+        policy: 'PERMISSIVE',
+        logLevels: ['error', 'warn', 'log', 'debug'],
         useNestLogger: true,
       }),
       inject: [ConfigService],

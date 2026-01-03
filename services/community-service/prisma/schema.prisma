@@ -1,0 +1,77 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["community"]
+}
+
+model ForumCategory {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  slug        String      @unique
+  description String?
+  posts       ForumPost[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("forum_categories")
+  @@schema("community")
+}
+
+model ForumPost {
+  id          String         @id @default(uuid())
+  title       String
+  content     String
+  authorId    String         // User ID from user-service
+  categoryId  String
+  category    ForumCategory  @relation(fields: [categoryId], references: [id])
+  tags        String[]
+  comments    ForumComment[]
+  votes       ForumVote[]
+  upvotes     Int            @default(0)
+  downvotes   Int            @default(0)
+  viewCount   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("forum_posts")
+  @@schema("community")
+}
+
+model ForumComment {
+  id        String   @id @default(uuid())
+  content   String
+  authorId  String   // User ID from user-service
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentId  String?  // For threaded comments
+  parent    ForumComment? @relation("CommentToComment", fields: [parentId], references: [id])
+  replies   ForumComment[] @relation("CommentToComment")
+  votes     ForumVote[]
+  upvotes     Int            @default(0)
+  downvotes   Int            @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("forum_comments")
+  @@schema("community")
+}
+
+model ForumVote {
+  id        String        @id @default(uuid())
+  userId    String
+  postId    String?
+  post      ForumPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId String?
+  comment   ForumComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  value     Int           // 1 for upvote, -1 for downvote
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@map("forum_votes")
+  @@schema("community")
+}

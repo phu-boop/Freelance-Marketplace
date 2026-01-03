@@ -1,11 +1,28 @@
 import { Controller, Post, Body, Param, Get, Request, Patch, Query } from '@nestjs/common';
 import { JobsService } from './jobs.service';
+import { AiService } from './ai.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
 
 @Controller('api/proposals')
 export class ProposalsController {
-    constructor(private readonly jobsService: JobsService) { }
+    constructor(
+        private readonly jobsService: JobsService,
+        private readonly aiService: AiService,
+    ) { }
+
+    @Get()
+    @Roles({ roles: ['realm:CLIENT'] })
+    async findAllByJob(@Request() req, @Query('jobId') jobId: string) {
+        return this.jobsService.getProposalsByJobId(jobId, req.user.sub);
+    }
+
+    @Get('generate-ai')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async generateAiProposal(@Request() req, @Query('jobId') jobId: string) {
+        const userId = req.user.sub;
+        return this.aiService.generateProposal(jobId, userId);
+    }
 
     @Post()
     @Roles({ roles: ['realm:FREELANCER'] })
@@ -20,6 +37,12 @@ export class ProposalsController {
     async getMy(@Request() req) {
         const userId = req.user.sub;
         return this.jobsService.getMyProposals(userId);
+    }
+
+    @Get(':id')
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async getById(@Request() req, @Param('id') id: string) {
+        return this.jobsService.getProposalById(id, req.user.sub);
     }
 
     @Post(':id/withdraw')
@@ -58,6 +81,13 @@ export class ProposalsController {
     async counterOffer(@Request() req, @Param('id') id: string, @Body() body: { amount: number, timeline: string }) {
         const userId = req.user.sub;
         return this.jobsService.counterOffer(userId, id, body);
+    }
+
+    @Post(':id/negotiate')
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async negotiate(@Request() req, @Param('id') id: string, @Body() body: { amount?: number, timeline?: string }) {
+        const userId = req.user.sub;
+        return this.jobsService.negotiateProposal(userId, id, body);
     }
 
     @Get('my/contracts')

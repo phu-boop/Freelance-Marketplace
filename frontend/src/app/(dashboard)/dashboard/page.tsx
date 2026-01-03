@@ -35,11 +35,27 @@ export default function DashboardPage() {
     }
 
     // Role-based rendering
+    if (roles.includes('ADMIN')) {
+        // Redirect to admin dashboard if needed, or render Admin view
+        window.location.href = '/admin';
+        return null;
+    }
+
     if (roles.includes('CLIENT')) {
         return <ClientDashboard user={user} />;
     }
 
-    // Default to Freelancer for now
-    return <FreelancerDashboard user={user} />;
+    if (roles.includes('FREELANCER')) {
+        return <FreelancerDashboard user={user} />;
+    }
+
+    // Still determining role or restricted
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+            <div className="w-12 h-12 border-4 border-slate-800 border-t-blue-500 rounded-full animate-spin" />
+            <p className="text-slate-400">Loading your workspace...</p>
+        </div>
+    );
 }
+
 

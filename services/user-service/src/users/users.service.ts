@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ConflictException, HttpException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ConflictException, HttpException, ForbiddenException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -8,18 +8,43 @@ import { KeycloakService } from '../keycloak/keycloak.service';
 
 import * as qrcode from 'qrcode';
 import { authenticator } from 'otplib';
-import { JwtService } from '@nestjs/jwt';
-import * as crypto from 'crypto';
+import { HttpService } from '@nestjs/axios';
+import { JwtService } from '@nestjs/jwt'; // Restored
+import * as crypto from 'crypto'; // Restored
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
-    private keycloakService: KeycloakService,
-    private jwtService: JwtService
+    private keycloakService: KeycloakService, // Fixed typo
+    private jwtService: JwtService,
+    private httpService: HttpService
   ) { }
 
-  async register(createUserDto: CreateUserDto) {
+  private async sendWelcomeEmail(email: string, name: string) {
+    const url = 'http://freelance_email_service:3012/email/send';
+    try {
+      await firstValueFrom(
+        this.httpService.post(url, {
+          to: email,
+          subject: 'Welcome to Freelance Marketplace',
+          text: `Hi ${name || 'User'},\n\nWelcome to Freelance Marketplace! We are excited to have you on board.\n\nBest regards,\nThe Team`
+        })
+      );
+    } catch (error) {
+      console.error('Failed to send welcome email:', error.message);
+    }
+  }
+
+  private generateReferralCode(firstName: string = 'USER'): string {
+    const prefix = firstName.slice(0, 3).toUpperCase();
+    const random = crypto.randomBytes(3).toString('hex').toUpperCase();
+    return `${prefix}-${random}`;
+  }
+
+  async register(createUserDto: CreateUserDto & { referralCode?: string }) {
+    const { referralCode: providedCode, ...dto } = createUserDto;
     try {
       // 1. Create user in Keycloak
       const keycloakId = await this.keycloakService.createUser({
@@ -31,14 +56,27 @@ export class UsersService {
       });
 
       // 2. Create profile in our database
-      const { password, ...userData } = createUserDto;
-      return await this.prisma.user.create({
+      const { password, ...userData } = dto;
+      const referralCode = this.generateReferralCode(userData.firstName || 'USER');
+
+      const user = await this.prisma.user.create({
         data: {
           ...userData,
           id: keycloakId, // Use Keycloak UUID as our DB primary key
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          referralCode,
         },
       });
+
+      // 3. Handle referral if code provided
+      if (providedCode) {
+        await this.processReferral(user.id, providedCode);
+      }
+
+      // 4. Send welcome email
+      this.sendWelcomeEmail(user.email, user.firstName || 'User');
+
+      return user;
     } catch (error) {
       if (error instanceof ConflictException) {
         throw new ConflictException('Email already exists');
@@ -139,6 +177,10 @@ export class UsersService {
 
   async forgotPassword(email: string) {
     return this.keycloakService.sendPasswordResetEmail(email);
+  }
+
+  async resendVerificationEmail(userId: string) {
+    return this.keycloakService.sendVerificationEmail(userId);
   }
 
   create(createUserDto: CreateUserDto) {
@@ -250,12 +292,39 @@ export class UsersService {
 
     if (!user) {
       // Create a basic user record if it doesn't exist
-      // This happens when a user first logs in via Keycloak
+      // This happens when a user first logs in via Keycloak (e.g. social login)
+      const kcUser = await this.keycloakService.getUserById(id);
+      if (!kcUser) {
+        throw new NotFoundException(`User with ID ${id} not found in database or Keycloak`);
+      }
+
+      const federated = await this.keycloakService.getFederatedIdentities(id);
+
+      const socialIds: any = {};
+      if (federated && federated.length > 0) {
+        federated.forEach(identity => {
+          if (identity.identityProvider === 'google') socialIds.googleId = identity.userId;
+          if (identity.identityProvider === 'github') socialIds.githubId = identity.userId;
+          if (identity.identityProvider === 'facebook') socialIds.facebookId = identity.userId;
+        });
+      }
+
+      // Try to extract avatar from attributes (e.g. picture for Google)
+      let avatarUrl = null;
+      if (kcUser.attributes) {
+        avatarUrl = kcUser.attributes.picture?.[0] || kcUser.attributes.avatar_url?.[0] || null;
+      }
+
       user = await this.prisma.user.create({
         data: {
           id,
-          email: `${id}@placeholder.com`, // Email should ideally come from Keycloak
+          email: kcUser.email,
+          firstName: kcUser.firstName,
+          lastName: kcUser.lastName,
+          avatarUrl: avatarUrl,
+          isEmailVerified: kcUser.emailVerified || false,
           status: 'ACTIVE',
+          ...socialIds
         },
         include: {
           education: true,
@@ -268,18 +337,15 @@ export class UsersService {
     return user;
   }
 
-  update(id: string, updateUserDto: UpdateUserDto) {
+  async update(id: string, updateUserDto: UpdateUserDto) {
     console.log('UPDATING USER:', id, JSON.stringify(updateUserDto));
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id },
       data: updateUserDto,
-    }).then(res => {
-      console.log('UPDATE RESULT:', JSON.stringify(res));
-      return res;
-    }).catch(err => {
-      console.error('UPDATE ERROR:', err);
-      throw err;
     });
+    console.log('UPDATE RESULT:', JSON.stringify(user));
+    await this.checkBadges(id);
+    return user;
   }
 
   remove(id: string) {
@@ -420,7 +486,7 @@ export class UsersService {
     // Ensure JSS is within 0-100 and rounded
     const newJss = Math.min(100, Math.max(0, Math.round(calculatedJss)));
 
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         rating: newRating,
@@ -428,6 +494,57 @@ export class UsersService {
         jobSuccessScore: newJss
       }
     });
+
+    await this.checkBadges(userId);
+    return updatedUser;
+  }
+
+  async checkBadges(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        experience: true,
+        education: true,
+        portfolio: true
+      }
+    });
+
+    if (!user) return;
+
+    const newBadges: string[] = [];
+
+    // 1. Identity & Payment
+    if (user.isIdentityVerified) newBadges.push('IDENTITY_VERIFIED');
+    if (user.isPaymentVerified) newBadges.push('PAYMENT_VERIFIED');
+
+    // 2. Rating & Review counts
+    if (Number(user.rating) >= 4.8 && user.reviewCount >= 10 && user.jobSuccessScore >= 90) {
+      newBadges.push('TOP_RATED');
+    } else if (Number(user.rating) >= 4.5 && user.reviewCount >= 3) {
+      newBadges.push('RISING_STAR');
+    }
+
+    // 3. Profile Completeness
+    if (user.completionPercentage >= 90) {
+      newBadges.push('PROFILE_ORACLE');
+    }
+
+    // 4. Veteran (Experience)
+    if (user.experience.length >= 3) {
+      newBadges.push('VETERAN');
+    }
+
+    // Update if changed
+    const currentBadges = user.badges || [];
+    const changed = newBadges.length !== currentBadges.length ||
+      !newBadges.every(b => currentBadges.includes(b));
+
+    if (changed) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { badges: newBadges }
+      });
+    }
   }
 
   suspendUser(id: string) {
@@ -458,13 +575,15 @@ export class UsersService {
     const updatedData = { ...currentUser, ...data };
     const completionPercentage = this.calculateCompletionPercentage(updatedData);
 
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         ...data,
         completionPercentage,
       },
     });
+    await this.checkBadges(userId);
+    return user;
   }
 
   public calculateCompletionPercentage(user: any): number {
@@ -503,6 +622,35 @@ export class UsersService {
     return Math.round((filled / totalFields) * 100);
   }
 
+  async socialOnboarding(userId: string, role: string) {
+    const user = await this.findOne(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    // Only apply if user has default role or no roles
+    // This prevents accidental role overwrites
+    const currentRoles = user.roles || [];
+    if (currentRoles.length <= 1) {
+      // Update DB
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          roles: [role],
+        },
+      });
+
+      // Sync to Keycloak
+      try {
+        await this.keycloakService.assignRole(userId, role);
+      } catch (error) {
+        console.error(`Failed to sync role ${role} to Keycloak for user ${userId}:`, error.message);
+        // We don't throw here to avoid failing the DB update, 
+        // but ideally it should be consistent.
+      }
+    }
+
+    return { success: true, role };
+  }
+
   async exportData(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -520,5 +668,122 @@ export class UsersService {
     // Remove sensitive data before export
     const { password, twoFactorSecret, ...safeData } = user;
     return safeData;
+  }
+
+  async deductConnects(userId: string, amount: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (user.availableConnects < amount) {
+      throw new ForbiddenException('Insufficient connects');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { availableConnects: { decrement: amount } }
+    });
+
+    return { success: true, remaining: updatedUser.availableConnects };
+  }
+
+  async getAvailability(userId: string) {
+    return this.prisma.availabilityCalendar.findMany({
+      where: { userId },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  async updateAvailability(userId: string, availabilityData: { date: string, isBusy: boolean, note?: string }[]) {
+    // Delete existing for simplicity in this MVP or upsert
+    // Let's use a transaction to delete and re-insert or use upsert.
+    // Given it's a date-based calendar, upsert on (userId, date) is better.
+
+    return this.prisma.$transaction(async (prisma) => {
+      const results: any[] = [];
+      for (const item of availabilityData) {
+        const res = await prisma.availabilityCalendar.upsert({
+          where: {
+            userId_date: {
+              userId,
+              date: new Date(item.date),
+            },
+          },
+          update: {
+            isBusy: item.isBusy,
+            note: item.note,
+          },
+          create: {
+            userId,
+            date: new Date(item.date),
+            isBusy: item.isBusy,
+            note: item.note,
+          },
+        });
+        results.push(res);
+      }
+      return results;
+    });
+  }
+
+  async processReferral(referredId: string, referralCode: string) {
+    const referrer = await this.prisma.user.findUnique({
+      where: { referralCode }
+    });
+
+    if (!referrer) {
+      console.warn(`Invalid referral code provided: ${referralCode}`);
+      return;
+    }
+
+    if (referrer.id === referredId) {
+      console.warn(`User ${referredId} tried to refer themselves`);
+      return;
+    }
+
+    try {
+      await this.prisma.referral.create({
+        data: {
+          referrerId: referrer.id,
+          referredId,
+          status: 'COMPLETED',
+          rewardAmount: 50.0, // Tracking reward
+        }
+      });
+
+      // Award Connects
+      // Referrer gets 50
+      await this.prisma.user.update({
+        where: { id: referrer.id },
+        data: { availableConnects: { increment: 50 } }
+      });
+
+      // Referred user gets 20 bonus
+      await this.prisma.user.update({
+        where: { id: referredId },
+        data: { availableConnects: { increment: 20 } }
+      });
+
+      console.log(`Referral processed for referredId: ${referredId} by referrerId: ${referrer.id}`);
+    } catch (error) {
+      console.error('Failed to process referral:', error.message);
+    }
+  }
+
+  async getReferrals(userId: string) {
+    return this.prisma.referral.findMany({
+      where: { referrerId: userId },
+      include: {
+        referred: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            createdAt: true,
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
   }
 }

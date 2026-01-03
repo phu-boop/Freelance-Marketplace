@@ -8,13 +8,16 @@ import {
     Delete,
     Query,
     Res,
+    Request,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AdminsService } from './admins.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
+import { Roles } from 'nest-keycloak-connect';
 
-@Controller('admins')
+@Controller('api/admins')
+@Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
 export class AdminsController {
     constructor(private readonly adminsService: AdminsService) { }
 
@@ -29,8 +32,9 @@ export class AdminsController {
     }
 
     @Get('metrics')
-    getSystemMetrics() {
-        return this.adminsService.getSystemMetrics();
+    getSystemMetrics(@Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.getSystemMetrics(token);
     }
 
     @Get('configs')
@@ -64,46 +68,54 @@ export class AdminsController {
     }
 
     @Get('export/:type')
-    async exportData(@Param('type') type: 'users' | 'jobs' | 'transactions', @Res() res: Response) {
-        const csv = await this.adminsService.exportData(type);
+    async exportData(@Param('type') type: 'users' | 'jobs' | 'transactions', @Res() res: Response, @Request() req: any) {
+        const token = req.headers.authorization;
+        const csv = await this.adminsService.exportData(type, token);
         res.header('Content-Type', 'text/csv');
         res.header('Content-Disposition', `attachment; filename=${type}.csv`);
         res.send(csv);
     }
 
     @Post('jobs/:id/approve')
-    approveJob(@Param('id') id: string) {
-        return this.adminsService.approveJob(id);
+    approveJob(@Param('id') id: string, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.approveJob(id, token);
     }
 
     @Post('jobs/:id/reject')
-    rejectJob(@Param('id') id: string) {
-        return this.adminsService.rejectJob(id);
+    rejectJob(@Param('id') id: string, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.rejectJob(id, token);
     }
 
     @Post('users/:id/suspend')
-    suspendUser(@Param('id') id: string) {
-        return this.adminsService.suspendUser(id);
+    suspendUser(@Param('id') id: string, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.suspendUser(id, token);
     }
 
     @Post('users/:id/ban')
-    banUser(@Param('id') id: string) {
-        return this.adminsService.banUser(id);
+    banUser(@Param('id') id: string, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.banUser(id, token);
     }
 
     @Post('users/:id/activate')
-    activateUser(@Param('id') id: string) {
-        return this.adminsService.activateUser(id);
+    activateUser(@Param('id') id: string, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.activateUser(id, token);
     }
 
     @Post('jobs/:id/lock')
-    lockJob(@Param('id') id: string) {
-        return this.adminsService.lockJob(id);
+    lockJob(@Param('id') id: string, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.lockJob(id, token);
     }
 
     @Post('jobs/:id/unlock')
-    unlockJob(@Param('id') id: string) {
-        return this.adminsService.unlockJob(id);
+    unlockJob(@Param('id') id: string, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.unlockJob(id, token);
     }
 
     @Get(':id')

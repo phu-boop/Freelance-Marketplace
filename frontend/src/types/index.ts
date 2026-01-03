@@ -10,6 +10,7 @@ export interface User {
     firstName?: string;
     lastName?: string;
     avatarUrl?: string;
+    isEmailVerified?: boolean;
     roles: UserRole[];
     status: string;
     isAvailable: boolean;

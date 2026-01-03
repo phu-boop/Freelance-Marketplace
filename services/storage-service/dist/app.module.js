@@ -9,15 +9,25 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const throttler_1 = require("@nestjs/throttler");
+const terminus_1 = require("@nestjs/terminus");
 const storage_controller_1 = require("./storage.controller");
 const minio_service_1 = require("./minio.service");
+const health_controller_1 = require("./health/health.controller");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [config_1.ConfigModule.forRoot()],
-        controllers: [storage_controller_1.StorageController],
+        imports: [
+            config_1.ConfigModule.forRoot(),
+            throttler_1.ThrottlerModule.forRoot([{
+                    ttl: 60000,
+                    limit: 10,
+                }]),
+            terminus_1.TerminusModule,
+        ],
+        controllers: [storage_controller_1.StorageController, health_controller_1.HealthController],
         providers: [minio_service_1.MinioService],
     })
 ], AppModule);
