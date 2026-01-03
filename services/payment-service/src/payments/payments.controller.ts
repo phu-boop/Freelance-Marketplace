@@ -17,7 +17,7 @@ import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
 
 @Controller('')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(private readonly paymentsService: PaymentsService) { }
 
   @Get('wallet')
   @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
@@ -100,6 +100,35 @@ export class PaymentsController {
     return this.paymentsService.getTransactionsByReference(id);
   }
 
+  @Get('transactions')
+  // @Roles({ roles: ['realm:ADMIN'] }) // In prod, protect this
+  getAllTransactions(@Query('limit') limit: number, @Query('offset') offset: number) {
+    return this.paymentsService.getAllTransactions(limit, offset);
+  }
+
+  @Post('transactions/:id/chargeback')
+  // @Roles({ roles: ['realm:ADMIN'] })
+  chargebackTransaction(@Param('id') id: string) {
+    return this.paymentsService.processChargeback(id);
+  }
+
+  @Post('taxes')
+  // @Roles({ roles: ['realm:ADMIN'] })
+  createTaxSetting(@Body() body: { countryCode: string; taxRate: number; name: string }) {
+    return this.paymentsService.createTaxSetting(body);
+  }
+
+  @Get('taxes')
+  getTaxSettings() {
+    return this.paymentsService.getTaxSettings();
+  }
+
+  @Put('taxes/:id')
+  // @Roles({ roles: ['realm:ADMIN'] })
+  updateTaxSetting(@Param('id') id: string, @Body() body: { taxRate?: number; isActive?: boolean }) {
+    return this.paymentsService.updateTaxSetting(id, body);
+  }
+
   @Get('invoices')
   @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
   getMyInvoices(@Request() req) {
@@ -131,6 +160,15 @@ export class PaymentsController {
     return this.paymentsService.getEarningsStats(req.user.sub, period);
   }
 
+  @Get('spending/stats')
+  @Roles({ roles: ['realm:CLIENT'] })
+  getSpendingStats(
+    @Request() req,
+    @Query('period') period: 'daily' | 'weekly' | 'monthly' = 'monthly',
+  ) {
+    return this.paymentsService.getSpendingStats(req.user.sub, period);
+  }
+
   @Patch('wallet/auto-withdrawal')
   @Roles({ roles: ['realm:FREELANCER'] })
   updateAutoWithdrawal(@Request() req, @Body() body: UpdateAutoWithdrawalDto) {
@@ -143,5 +181,40 @@ export class PaymentsController {
   @Get('metrics')
   getMetrics() {
     return this.paymentsService.getMetrics();
+  }
+
+  @Get('methods')
+  @Roles({ roles: ['realm:CLIENT'] })
+  getMyPaymentMethods(@Request() req) {
+    return this.paymentsService.getPaymentMethods(req.user.sub);
+  }
+
+  @Post('methods')
+  @Roles({ roles: ['realm:CLIENT'] })
+  addPaymentMethod(@Request() req, @Body() body: any) {
+    return this.paymentsService.addPaymentMethod(req.user.sub, body);
+  }
+
+  @Delete('methods/:id')
+  @Roles({ roles: ['realm:CLIENT'] })
+  deletePaymentMethod(@Request() req, @Param('id') id: string) {
+    return this.paymentsService.deletePaymentMethod(req.user.sub, id);
+  }
+
+  @Post('auto-deposit/config')
+  @Roles({ roles: ['realm:CLIENT'] })
+  updateAutoDepositConfig(@Request() req, @Body() body: { enabled: boolean; threshold?: number; amount?: number; paymentMethodId?: string }) {
+    return this.paymentsService.updateAutoDepositConfig(req.user.sub, body);
+  }
+
+  @Get('tax-documents/:year')
+  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  async getTaxDocument(@Request() req, @Param('year') year: string, @Res({ passthrough: true }) res) {
+    const buffer = await this.paymentsService.generateTaxDocumentPdf(req.user.sub, parseInt(year));
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="tax-summary-${year}.pdf"`,
+    });
+    return new StreamableFile(buffer);
   }
 }

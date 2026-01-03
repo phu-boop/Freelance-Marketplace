@@ -20,7 +20,28 @@ model Wallet {
   autoWithdrawalThreshold Decimal?
   pendingBalance          Decimal       @default(0.00)
   autoWithdrawalMethodId  String?
+  
+  // Auto-deposit (Client)
+  autoDepositEnabled      Boolean       @default(false)
+  autoDepositThreshold    Decimal?
+  autoDepositAmount       Decimal?
+  paymentMethodId         String?
+
   transactions            Transaction[]
+
+  @@schema("payments")
+}
+
+model PaymentMethod {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // e.g., "CREDIT_CARD"
+  last4     String?
+  brand     String?
+  token     String   // Provider token
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@schema("payments")
 }

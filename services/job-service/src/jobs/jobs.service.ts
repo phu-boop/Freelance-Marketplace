@@ -1409,4 +1409,18 @@ export class JobsService {
       throw new BadRequestException('Analytics service unavailable');
     }
   }
+
+  async getClientStats(userId: string) {
+    const [totalJobs, activeJobs, completedJobs] = await Promise.all([
+      this.prisma.job.count({ where: { client_id: userId } }),
+      this.prisma.job.count({ where: { client_id: userId, status: 'OPEN' } }),
+      this.prisma.job.count({ where: { client_id: userId, status: 'CLOSED' } }),
+    ]);
+
+    return {
+      totalJobs,
+      activeJobs,
+      completedJobs,
+    };
+  }
 }

@@ -440,6 +440,114 @@ export class ContractsService {
     return updated;
   }
 
+  // Contract Templates
+  async createTemplate(clientId: string, data: { name: string; description?: string; content: string }) {
+    return this.prisma.contractTemplate.create({
+      data: {
+        ...data,
+        clientId,
+      },
+    });
+  }
+
+  async getTemplates(clientId: string) {
+    return this.prisma.contractTemplate.findMany({
+      where: { clientId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getTemplate(id: string, clientId: string) {
+    const template = await this.prisma.contractTemplate.findUnique({
+      where: { id },
+    });
+    if (!template) throw new NotFoundException('Template not found');
+    if (template.clientId !== clientId) throw new ForbiddenException('Access denied');
+    return template;
+  }
+
+  async deleteTemplate(id: string, clientId: string) {
+    const template = await this.prisma.contractTemplate.findUnique({
+      where: { id },
+    });
+    if (!template) throw new NotFoundException('Template not found');
+    if (template.clientId !== clientId) throw new ForbiddenException('Access denied');
+
+    return this.prisma.contractTemplate.delete({
+      where: { id },
+    });
+  }
+
+  async autoReleaseMilestones() {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    // Find milestones that are IN_REVIEW
+    const milestones = await this.prisma.milestone.findMany({
+      where: {
+        status: 'IN_REVIEW',
+      },
+      include: {
+        contract: true,
+        submissions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const released = [];
+    for (const milestone of milestones) {
+      const latestSubmission = milestone.submissions[0];
+      // Check if latest submission is older than 14 days
+      if (latestSubmission && latestSubmission.createdAt < fourteenDaysAgo) {
+        try {
+          // Process Payout
+          const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://payment-service:3005');
+          await firstValueFrom(
+            this.httpService.post(`${paymentServiceUrl}/transfer`, {
+              fromUserId: milestone.contract.client_id,
+              toUserId: milestone.contract.freelancer_id,
+              amount: Number(milestone.amount),
+              description: `Auto-Release Payment: ${milestone.description}`,
+            })
+          );
+
+          // Update Status
+          await this.prisma.milestone.update({
+            where: { id: milestone.id },
+            data: { status: 'COMPLETED' },
+          });
+
+          released.push(milestone.id);
+
+          // Notify Client
+          await this.sendNotification(
+            milestone.contract.client_id,
+            'MILESTONE_AUTO_RELEASED',
+            'Milestone Auto-Released',
+            `Milestone "${milestone.description}" was automatically released after 14 days of inactivity.`,
+            { contractId: milestone.contractId, milestoneId: milestone.id }
+          );
+
+          // Notify Freelancer
+          await this.sendNotification(
+            milestone.contract.freelancer_id,
+            'MILESTONE_AUTO_RELEASED',
+            'Milestone Auto-Released',
+            `Payment for milestone "${milestone.description}" has been released automatically.`,
+            { contractId: milestone.contractId, milestoneId: milestone.id }
+          );
+
+        } catch (error) {
+          console.error(`Failed to auto-release milestone ${milestone.id}`, error);
+        }
+      }
+    }
+
+    return { releasedCount: released.length, releasedIds: released };
+  }
+
   private async sendNotification(userId: string, type: string, title: string, message: string, metadata?: any) {
     try {
       const notificationUrl = this.configService.get<string>('NOTIFICATION_SERVICE_URL', 'http://notification-service:3007');
@@ -455,5 +563,22 @@ export class ContractsService {
     } catch (error) {
       console.error('Failed to send notification', error.message);
     }
+  }
+
+  async getClientStats(userId: string) {
+    const [activeContracts, completedContracts, totalSpentResult] = await Promise.all([
+      this.prisma.contract.count({ where: { client_id: userId, status: 'ACTIVE' } }),
+      this.prisma.contract.count({ where: { client_id: userId, status: 'COMPLETED' } }),
+      this.prisma.contract.aggregate({
+        where: { client_id: userId },
+        _sum: { totalAmount: true }
+      })
+    ]);
+
+    return {
+      activeContracts,
+      completedContracts,
+      totalSpent: totalSpentResult._sum.totalAmount || 0,
+    };
   }
 }

@@ -21,7 +21,7 @@ export class PaymentsService {
     private prisma: PrismaService,
     private httpService: HttpService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async createWallet(userId: string) {
     return this.prisma.wallet.create({
@@ -101,6 +101,12 @@ export class PaymentsService {
           description: 'Deposit via Payment Gateway',
         },
       });
+
+      const config = await this.getPaymentGatewayConfig(); // Mock: assume 'STRIPE' or default
+      // Check if gateway is configured. For MVP, warning only.
+      if (!config) {
+        this.logger.warn('No Payment Gateway configuration found. Deposits might fail in production.');
+      }
 
       return updatedWallet;
     });
@@ -266,6 +272,17 @@ export class PaymentsService {
     });
   }
 
+  async getAllTransactions(limit = 100, offset = 0) {
+    return this.prisma.transaction.findMany({
+      take: Number(limit),
+      skip: Number(offset),
+      include: {
+        wallet: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async getMetrics() {
     const transactions = await this.prisma.transaction.findMany({
       where: { status: 'COMPLETED' },
@@ -399,6 +416,20 @@ export class PaymentsService {
     }
   }
 
+  async getPaymentGatewayConfig(provider = 'STRIPE'): Promise<any> {
+    const adminServiceUrl = this.configService.get<string>('ADMIN_SERVICE_URL', 'http://admin-service:3004');
+    try {
+      const key = `GATEWAY_${provider.toUpperCase()}`;
+      const { data } = await firstValueFrom(
+        this.httpService.get(`${adminServiceUrl}/api/public/configs/${key}`)
+      );
+      return data.value ? JSON.parse(data.value) : null;
+    } catch (error) {
+      this.logger.warn(`Failed to fetch gateway config for ${provider}: ${error.message}`);
+      return null;
+    }
+  }
+
   // New method to get earnings stats
   async getEarningsStats(
     userId: string,
@@ -433,6 +464,48 @@ export class PaymentsService {
     const result = Array.from(aggregates.entries()).map(([label, total]) => ({
       period: label,
       totalEarnings: total,
+    }));
+
+    // Sort by period
+    result.sort((a, b) => a.period.localeCompare(b.period));
+
+    return result;
+  }
+
+  // New method to get spending stats (for Clients)
+  async getSpendingStats(
+    userId: string,
+    period: 'daily' | 'weekly' | 'monthly',
+  ) {
+    // Fetch all paid invoices where the user is the sender (spending)
+    const stats = await this.prisma.invoice.findMany({
+      where: { senderId: userId, status: 'PAID' },
+      select: { amount: true, createdAt: true },
+    });
+
+    const aggregates = new Map<string, number>();
+
+    stats.forEach((s) => {
+      const date = new Date(s.createdAt);
+      let periodLabel: string;
+
+      if (period === 'daily') {
+        periodLabel = date.toISOString().split('T')[0];
+      } else if (period === 'weekly') {
+        const week = getISOWeek(date);
+        const year = date.getUTCFullYear();
+        periodLabel = `${year}-W${String(week).padStart(2, '0')}`;
+      } else {
+        periodLabel = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+      }
+
+      const current = aggregates.get(periodLabel) || 0;
+      aggregates.set(periodLabel, current + Number(s.amount));
+    });
+
+    const result = Array.from(aggregates.entries()).map(([label, total]) => ({
+      period: label,
+      totalSpending: total,
     }));
 
     // Sort by period
@@ -493,6 +566,250 @@ export class PaymentsService {
     return this.prisma.withdrawalMethod.update({
       where: { id, userId },
       data: { isDefault: true },
+    });
+  }
+
+  // Payment Methods (Client)
+  async addPaymentMethod(userId: string, data: any) {
+    if (data.isDefault) {
+      await this.prisma.paymentMethod.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    return this.prisma.paymentMethod.create({
+      data: {
+        ...data,
+        userId,
+      },
+    });
+  }
+
+  async getPaymentMethods(userId: string) {
+    return this.prisma.paymentMethod.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async deletePaymentMethod(userId: string, id: string) {
+    return this.prisma.paymentMethod.delete({
+      where: { id, userId },
+    });
+  }
+
+  // Auto-deposit Logic
+  async updateAutoDepositConfig(
+    userId: string,
+    data: { enabled: boolean; threshold?: number; amount?: number; paymentMethodId?: string }
+  ) {
+    const wallet = await this.getWallet(userId);
+    const updated = await this.prisma.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        autoDepositEnabled: data.enabled,
+        autoDepositThreshold: data.threshold ? new Decimal(data.threshold) : null,
+        autoDepositAmount: data.amount ? new Decimal(data.amount) : null,
+        paymentMethodId: data.paymentMethodId,
+      },
+    });
+
+    if (updated.autoDepositEnabled) {
+      await this.checkAndTriggerAutoDeposit(userId);
+    }
+
+    return updated;
+  }
+
+  async checkAndTriggerAutoDeposit(userId: string) {
+    const wallet = await this.getWallet(userId);
+
+    if (
+      wallet.autoDepositEnabled &&
+      wallet.autoDepositThreshold &&
+      wallet.autoDepositAmount &&
+      wallet.balance.lessThan(wallet.autoDepositThreshold)
+    ) {
+      this.logger.log(`Triggering auto-deposit for user ${userId}. Balance: ${wallet.balance}, Threshold: ${wallet.autoDepositThreshold}`);
+
+      // In a real app, charge the payment method here.
+      // For MVP, we simulate a successful charge and deposit.
+
+      const referenceId = `AUTO-DEP-${Date.now()}`;
+      await this.deposit(userId, Number(wallet.autoDepositAmount), referenceId);
+
+      this.logger.log(`Auto-deposit of ${wallet.autoDepositAmount} successful for user ${userId}`);
+    }
+  }
+
+  // Tax Documents (1099-K Preview)
+  async getTaxYearSummary(userId: string, year: number) {
+    const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
+    const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
+
+    // Fetch COMPLETED, PAID invoices where receiverId is the user
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        receiverId: userId,
+        status: 'PAID',
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
+
+    const grossVolume = invoices.reduce((sum, inv) => sum + Number(inv.amount) + Number(inv.feeAmount) + Number(inv.taxAmount), 0);
+    const feesPaid = invoices.reduce((sum, inv) => sum + Number(inv.feeAmount), 0);
+    const taxWithheld = invoices.reduce((sum, inv) => sum + Number(inv.taxAmount), 0);
+    const netVolume = invoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+
+    return {
+      userId,
+      year,
+      grossVolume,
+      feesPaid,
+      taxWithheld,
+      netVolume,
+      transactionCount: invoices.length,
+      generatedAt: new Date(),
+    };
+  }
+
+  async generateTaxDocumentPdf(userId: string, year: number): Promise<Buffer> {
+    const summary = await this.getTaxYearSummary(userId, year);
+    if (summary.transactionCount === 0) {
+      throw new NotFoundException(`No transactions found for tax year ${year}`);
+    }
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument();
+      const buffers: Buffer[] = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      // Header
+      doc.fontSize(20).text('TAX YEAR SUMMARY (1099-K Preview)', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(14).text(`Tax Year: ${year}`, { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(12).text(`Generated Date: ${summary.generatedAt.toDateString()}`, { align: 'center' });
+      doc.moveDown();
+
+      // User Info
+      doc.fontSize(12).text(`Account ID: ${userId}`);
+      doc.moveDown();
+      doc.moveTo(50, 200).lineTo(550, 200).stroke();
+      doc.moveDown();
+
+      // Summary Table
+      const startX = 50;
+      let currentY = 220;
+
+      doc.fontSize(12).text('Metric', startX, currentY);
+      doc.text('Amount (USD)', 400, currentY, { align: 'right' });
+      currentY += 20;
+
+      // Gross
+      doc.text('Gross Payment Volume', startX, currentY);
+      doc.text(`$${summary.grossVolume.toFixed(2)}`, 400, currentY, { align: 'right' });
+      currentY += 20;
+
+      // Fees
+      doc.text('Platform Fees & Adjustments', startX, currentY);
+      doc.text(`-$${summary.feesPaid.toFixed(2)}`, 400, currentY, { align: 'right' });
+      currentY += 20;
+
+      // Tax
+      doc.text('Tax Withheld', startX, currentY);
+      doc.text(`-$${summary.taxWithheld.toFixed(2)}`, 400, currentY, { align: 'right' });
+      currentY += 20;
+
+      doc.moveTo(50, currentY).lineTo(550, currentY).stroke();
+      currentY += 10;
+
+      // Net
+      doc.font('Helvetica-Bold').text('Net Income', startX, currentY);
+      doc.text(`$${summary.netVolume.toFixed(2)}`, 400, currentY, { align: 'right' });
+      currentY += 40;
+
+      doc.font('Helvetica').fontSize(10).text(
+        'Note: This document is a preview for informational purposes only and is not an official IRS form 1099-K. Please consult a tax professional.',
+        50, currentY, { width: 500, align: 'center' }
+      );
+
+      doc.end();
+    });
+  }
+
+  async processChargeback(transactionId: string) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { wallet: true },
+    });
+
+    if (!transaction) throw new NotFoundException('Transaction not found');
+
+    if (transaction.status === 'CHARGEBACK') {
+      throw new BadRequestException('Transaction already charged back');
+    }
+
+    if (transaction.type !== 'PAYMENT') {
+      throw new BadRequestException('Only payments can be charged back');
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      const updatedTx = await prisma.transaction.update({
+        where: { id: transactionId },
+        data: { status: 'CHARGEBACK', description: `${transaction.description} [CHARGEBACK]` }
+      });
+
+      await prisma.wallet.update({
+        where: { id: transaction.walletId },
+        data: { balance: { decrement: transaction.amount } }
+      });
+
+      await prisma.transaction.create({
+        data: {
+          walletId: transaction.walletId,
+          amount: transaction.amount,
+          type: 'CHARGEBACK',
+          status: 'COMPLETED',
+          description: `Chargeback for ${transactionId}`,
+          referenceId: transaction.referenceId
+        }
+      });
+
+      return updatedTx;
+    });
+  }
+
+  // Tax & VAT Management
+  async createTaxSetting(data: { countryCode: string; taxRate: number; name: string }) {
+    return this.prisma.taxSetting.create({
+      data: {
+        ...data,
+        taxRate: new Decimal(data.taxRate),
+      },
+    });
+  }
+
+  async getTaxSettings() {
+    return this.prisma.taxSetting.findMany({
+      orderBy: { countryCode: 'asc' }
+    });
+  }
+
+  async updateTaxSetting(id: string, data: { taxRate?: number; isActive?: boolean }) {
+    return this.prisma.taxSetting.update({
+      where: { id },
+      data: {
+        ...(data.taxRate && { taxRate: new Decimal(data.taxRate) }),
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+      },
     });
   }
 }

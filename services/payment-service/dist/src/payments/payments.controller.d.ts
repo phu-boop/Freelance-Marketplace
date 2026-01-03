@@ -143,6 +143,82 @@ export declare class PaymentsController {
         invoiceId: string | null;
         taxAmount: import("@prisma/client-runtime-utils").Decimal;
     }[]>;
+    getAllTransactions(limit: number, offset: number): Promise<({
+        wallet: {
+            id: string;
+            userId: string;
+            balance: import("@prisma/client-runtime-utils").Decimal;
+            currency: string;
+            createdAt: Date;
+            updatedAt: Date;
+            autoWithdrawalEnabled: boolean;
+            autoWithdrawalSchedule: string | null;
+            autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+            pendingBalance: import("@prisma/client-runtime-utils").Decimal;
+            autoWithdrawalMethodId: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        walletId: string;
+        amount: import("@prisma/client-runtime-utils").Decimal;
+        type: string;
+        status: string;
+        referenceId: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: import("@prisma/client-runtime-utils").Decimal;
+        invoiceId: string | null;
+        taxAmount: import("@prisma/client-runtime-utils").Decimal;
+    })[]>;
+    chargebackTransaction(id: string): Promise<{
+        id: string;
+        createdAt: Date;
+        walletId: string;
+        amount: import("@prisma/client-runtime-utils").Decimal;
+        type: string;
+        status: string;
+        referenceId: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: import("@prisma/client-runtime-utils").Decimal;
+        invoiceId: string | null;
+        taxAmount: import("@prisma/client-runtime-utils").Decimal;
+    }>;
+    createTaxSetting(body: {
+        countryCode: string;
+        taxRate: number;
+        name: string;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        countryCode: string;
+        taxRate: import("@prisma/client-runtime-utils").Decimal;
+        isActive: boolean;
+    }>;
+    getTaxSettings(): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        countryCode: string;
+        taxRate: import("@prisma/client-runtime-utils").Decimal;
+        isActive: boolean;
+    }[]>;
+    updateTaxSetting(id: string, body: {
+        taxRate?: number;
+        isActive?: boolean;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        countryCode: string;
+        taxRate: import("@prisma/client-runtime-utils").Decimal;
+        isActive: boolean;
+    }>;
     getMyInvoices(req: any): Promise<{
         id: string;
         currency: string;
@@ -164,6 +240,10 @@ export declare class PaymentsController {
         period: string;
         totalEarnings: number;
     }[]>;
+    getSpendingStats(req: any, period?: 'daily' | 'weekly' | 'monthly'): Promise<{
+        period: string;
+        totalSpending: number;
+    }[]>;
     updateAutoWithdrawal(req: any, body: UpdateAutoWithdrawalDto): Promise<{
         id: string;
         userId: string;
@@ -183,4 +263,26 @@ export declare class PaymentsController {
         totalWithdrawals: number;
         transactionCount: number;
     }>;
+    getMyPaymentMethods(req: any): Promise<any>;
+    addPaymentMethod(req: any, body: any): Promise<any>;
+    deletePaymentMethod(req: any, id: string): Promise<any>;
+    updateAutoDepositConfig(req: any, body: {
+        enabled: boolean;
+        threshold?: number;
+        amount?: number;
+        paymentMethodId?: string;
+    }): Promise<{
+        id: string;
+        userId: string;
+        balance: import("@prisma/client-runtime-utils").Decimal;
+        currency: string;
+        createdAt: Date;
+        updatedAt: Date;
+        autoWithdrawalEnabled: boolean;
+        autoWithdrawalSchedule: string | null;
+        autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        pendingBalance: import("@prisma/client-runtime-utils").Decimal;
+        autoWithdrawalMethodId: string | null;
+    }>;
+    getTaxDocument(req: any, year: string, res: any): Promise<StreamableFile>;
 }

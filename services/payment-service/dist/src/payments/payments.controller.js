@@ -55,6 +55,21 @@ let PaymentsController = class PaymentsController {
     getTransactionsByReference(id) {
         return this.paymentsService.getTransactionsByReference(id);
     }
+    getAllTransactions(limit, offset) {
+        return this.paymentsService.getAllTransactions(limit, offset);
+    }
+    chargebackTransaction(id) {
+        return this.paymentsService.processChargeback(id);
+    }
+    createTaxSetting(body) {
+        return this.paymentsService.createTaxSetting(body);
+    }
+    getTaxSettings() {
+        return this.paymentsService.getTaxSettings();
+    }
+    updateTaxSetting(id, body) {
+        return this.paymentsService.updateTaxSetting(id, body);
+    }
     getMyInvoices(req) {
         return this.paymentsService.getInvoices(req.user.sub);
     }
@@ -69,11 +84,34 @@ let PaymentsController = class PaymentsController {
     getEarningsStats(req, period = 'monthly') {
         return this.paymentsService.getEarningsStats(req.user.sub, period);
     }
+    getSpendingStats(req, period = 'monthly') {
+        return this.paymentsService.getSpendingStats(req.user.sub, period);
+    }
     updateAutoWithdrawal(req, body) {
         return this.paymentsService.updateAutoWithdrawalSettings(req.user.sub, body);
     }
     getMetrics() {
         return this.paymentsService.getMetrics();
+    }
+    getMyPaymentMethods(req) {
+        return this.paymentsService.getPaymentMethods(req.user.sub);
+    }
+    addPaymentMethod(req, body) {
+        return this.paymentsService.addPaymentMethod(req.user.sub, body);
+    }
+    deletePaymentMethod(req, id) {
+        return this.paymentsService.deletePaymentMethod(req.user.sub, id);
+    }
+    updateAutoDepositConfig(req, body) {
+        return this.paymentsService.updateAutoDepositConfig(req.user.sub, body);
+    }
+    async getTaxDocument(req, year, res) {
+        const buffer = await this.paymentsService.generateTaxDocumentPdf(req.user.sub, parseInt(year));
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="tax-summary-${year}.pdf"`,
+        });
+        return new common_1.StreamableFile(buffer);
     }
 };
 exports.PaymentsController = PaymentsController;
@@ -163,6 +201,42 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "getTransactionsByReference", null);
 __decorate([
+    (0, common_1.Get)('transactions'),
+    __param(0, (0, common_1.Query)('limit')),
+    __param(1, (0, common_1.Query)('offset')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getAllTransactions", null);
+__decorate([
+    (0, common_1.Post)('transactions/:id/chargeback'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "chargebackTransaction", null);
+__decorate([
+    (0, common_1.Post)('taxes'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "createTaxSetting", null);
+__decorate([
+    (0, common_1.Get)('taxes'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getTaxSettings", null);
+__decorate([
+    Put('taxes/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "updateTaxSetting", null);
+__decorate([
     (0, common_1.Get)('invoices'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
     __param(0, (0, common_1.Request)()),
@@ -189,6 +263,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "getEarningsStats", null);
 __decorate([
+    (0, common_1.Get)('spending/stats'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('period')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getSpendingStats", null);
+__decorate([
     (0, common_1.Patch)('wallet/auto-withdrawal'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
     __param(0, (0, common_1.Request)()),
@@ -203,6 +286,51 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "getMetrics", null);
+__decorate([
+    (0, common_1.Get)('methods'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getMyPaymentMethods", null);
+__decorate([
+    (0, common_1.Post)('methods'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "addPaymentMethod", null);
+__decorate([
+    (0, common_1.Delete)('methods/:id'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "deletePaymentMethod", null);
+__decorate([
+    (0, common_1.Post)('auto-deposit/config'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "updateAutoDepositConfig", null);
+__decorate([
+    (0, common_1.Get)('tax-documents/:year'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('year')),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "getTaxDocument", null);
 exports.PaymentsController = PaymentsController = __decorate([
     (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [payments_service_1.PaymentsService])

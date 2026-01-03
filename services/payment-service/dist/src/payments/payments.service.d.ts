@@ -90,6 +90,34 @@ export declare class PaymentsService {
         invoiceId: string | null;
         taxAmount: Prisma.Decimal;
     }[]>;
+    getAllTransactions(limit?: number, offset?: number): Promise<({
+        wallet: {
+            id: string;
+            userId: string;
+            balance: Prisma.Decimal;
+            currency: string;
+            createdAt: Date;
+            updatedAt: Date;
+            autoWithdrawalEnabled: boolean;
+            autoWithdrawalSchedule: string | null;
+            autoWithdrawalThreshold: Prisma.Decimal | null;
+            pendingBalance: Prisma.Decimal;
+            autoWithdrawalMethodId: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        walletId: string;
+        amount: Prisma.Decimal;
+        type: string;
+        status: string;
+        referenceId: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: Prisma.Decimal;
+        invoiceId: string | null;
+        taxAmount: Prisma.Decimal;
+    })[]>;
     getMetrics(): Promise<{
         totalVolume: number;
         totalPayments: number;
@@ -114,9 +142,14 @@ export declare class PaymentsService {
     }[]>;
     generateInvoicePdf(invoiceId: string): Promise<Buffer>;
     getPlatformFeePercent(): Promise<number>;
+    getPaymentGatewayConfig(provider?: string): Promise<any>;
     getEarningsStats(userId: string, period: 'daily' | 'weekly' | 'monthly'): Promise<{
         period: string;
         totalEarnings: number;
+    }[]>;
+    getSpendingStats(userId: string, period: 'daily' | 'weekly' | 'monthly'): Promise<{
+        period: string;
+        totalSpending: number;
     }[]>;
     updateAutoWithdrawalSettings(userId: string, data: any): Promise<{
         id: string;
@@ -174,5 +207,86 @@ export declare class PaymentsService {
         accountNumber: string;
         accountName: string;
         isDefault: boolean;
+    }>;
+    addPaymentMethod(userId: string, data: any): Promise<any>;
+    getPaymentMethods(userId: string): Promise<any>;
+    deletePaymentMethod(userId: string, id: string): Promise<any>;
+    updateAutoDepositConfig(userId: string, data: {
+        enabled: boolean;
+        threshold?: number;
+        amount?: number;
+        paymentMethodId?: string;
+    }): Promise<{
+        id: string;
+        userId: string;
+        balance: Prisma.Decimal;
+        currency: string;
+        createdAt: Date;
+        updatedAt: Date;
+        autoWithdrawalEnabled: boolean;
+        autoWithdrawalSchedule: string | null;
+        autoWithdrawalThreshold: Prisma.Decimal | null;
+        pendingBalance: Prisma.Decimal;
+        autoWithdrawalMethodId: string | null;
+    }>;
+    checkAndTriggerAutoDeposit(userId: string): Promise<void>;
+    getTaxYearSummary(userId: string, year: number): Promise<{
+        userId: string;
+        year: number;
+        grossVolume: number;
+        feesPaid: number;
+        taxWithheld: number;
+        netVolume: number;
+        transactionCount: number;
+        generatedAt: Date;
+    }>;
+    generateTaxDocumentPdf(userId: string, year: number): Promise<Buffer>;
+    processChargeback(transactionId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        walletId: string;
+        amount: Prisma.Decimal;
+        type: string;
+        status: string;
+        referenceId: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: Prisma.Decimal;
+        invoiceId: string | null;
+        taxAmount: Prisma.Decimal;
+    }>;
+    createTaxSetting(data: {
+        countryCode: string;
+        taxRate: number;
+        name: string;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        countryCode: string;
+        taxRate: Prisma.Decimal;
+        isActive: boolean;
+    }>;
+    getTaxSettings(): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        countryCode: string;
+        taxRate: Prisma.Decimal;
+        isActive: boolean;
+    }[]>;
+    updateTaxSetting(id: string, data: {
+        taxRate?: number;
+        isActive?: boolean;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
+        countryCode: string;
+        taxRate: Prisma.Decimal;
+        isActive: boolean;
     }>;
 }

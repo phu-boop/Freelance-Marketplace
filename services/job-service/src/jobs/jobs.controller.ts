@@ -145,4 +145,10 @@ export class JobsController {
     const userId = req.user.sub;
     return this.jobsService.promoteJob(id, userId);
   }
+
+  @Get('client/stats')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  getClientStats(@Request() req) {
+    return this.jobsService.getClientStats(req.user.sub);
+  }
 }
