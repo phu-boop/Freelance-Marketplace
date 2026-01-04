@@ -399,7 +399,7 @@ export class PaymentsService {
   async getPlatformFeePercent(): Promise<number> {
     const adminServiceUrl = this.configService.get<string>(
       'ADMIN_SERVICE_URL',
-      'http://admin-service:3004',
+      'http://admin-service:3009',
     );
     try {
       const { data } = await firstValueFrom(
@@ -417,7 +417,7 @@ export class PaymentsService {
   }
 
   async getPaymentGatewayConfig(provider = 'STRIPE'): Promise<any> {
-    const adminServiceUrl = this.configService.get<string>('ADMIN_SERVICE_URL', 'http://admin-service:3004');
+    const adminServiceUrl = this.configService.get<string>('ADMIN_SERVICE_URL', 'http://admin-service:3009');
     try {
       const key = `GATEWAY_${provider.toUpperCase()}`;
       const { data } = await firstValueFrom(

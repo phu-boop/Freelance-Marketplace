@@ -8,7 +8,11 @@ import {
     Briefcase,
     Trash2,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    Edit2,
+    X,
+    Check,
+    AlertCircle
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -27,6 +31,11 @@ export default function AdminTaxonomyPage() {
     const [parentCategoryId, setParentCategoryId] = useState<string>('');
     const [newSkill, setNewSkill] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    // Edit State
+    const [editingCategory, setEditingCategory] = useState<{ id: string; name: string; parentId?: string | null } | null>(null);
+    const [editingSkill, setEditingSkill] = useState<{ id: string; name: string } | null>(null);
 
     const fetchData = async () => {
         try {
@@ -59,8 +68,11 @@ export default function AdminTaxonomyPage() {
             setNewCategory('');
             setParentCategoryId('');
             await fetchData();
-        } catch (error) {
-            console.error('Failed to add category', error);
+            await fetchData();
+            setError(null);
+        } catch (err: any) {
+            console.error('Failed to add category', err);
+            setError(err.response?.data?.message || 'Failed to add category');
         } finally {
             setActionLoading(null);
         }
@@ -74,8 +86,11 @@ export default function AdminTaxonomyPage() {
             await api.post('/jobs/skills', { name: newSkill });
             setNewSkill('');
             await fetchData();
-        } catch (error) {
-            console.error('Failed to add skill', error);
+            await fetchData();
+            setError(null);
+        } catch (err: any) {
+            console.error('Failed to add skill', err);
+            setError(err.response?.data?.message || 'Failed to add skill');
         } finally {
             setActionLoading(null);
         }
@@ -101,6 +116,37 @@ export default function AdminTaxonomyPage() {
         }
     };
 
+    const handleUpdateCategory = async () => {
+        if (!editingCategory || !editingCategory.name.trim()) return;
+        try {
+            await api.patch(`/jobs/categories/${editingCategory.id}`, {
+                name: editingCategory.name,
+                parentId: editingCategory.parentId
+            });
+            setEditingCategory(null);
+            setError(null);
+            fetchData();
+        } catch (err: any) {
+            console.error('Failed to update category', err);
+            setError(err.response?.data?.message || 'Failed to update category');
+        }
+    };
+
+    const handleUpdateSkill = async () => {
+        if (!editingSkill || !editingSkill.name.trim()) return;
+        try {
+            await api.patch(`/jobs/skills/${editingSkill.id}`, {
+                name: editingSkill.name
+            });
+            setEditingSkill(null);
+            setError(null);
+            fetchData();
+        } catch (err: any) {
+            console.error('Failed to update skill', err);
+            setError(err.response?.data?.message || 'Failed to update skill');
+        }
+    };
+
     // Helper to render hierarchical categories
     const renderCategories = (parentId: string | null = null, level = 0) => {
         return categories
@@ -111,16 +157,42 @@ export default function AdminTaxonomyPage() {
                         className="flex items-center justify-between p-3 rounded-xl bg-slate-950/50 border border-slate-800/50 group hover:border-blue-500/30 transition-all"
                         style={{ marginLeft: `${level * 24}px` }}
                     >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-1">
                             {level > 0 && <span className="text-slate-600">└─</span>}
-                            <span className="text-slate-300">{cat.name}</span>
+                            {editingCategory?.id === cat.id ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                    <input
+                                        type="text"
+                                        value={editingCategory.name}
+                                        onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                                        className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                                        autoFocus
+                                    />
+                                    <button onClick={handleUpdateCategory} className="p-1 text-green-500 hover:text-green-400">
+                                        <Check className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => setEditingCategory(null)} className="p-1 text-slate-500 hover:text-slate-400">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <span className="text-slate-300">{cat.name}</span>
+                            )}
                         </div>
-                        <button
-                            onClick={() => handleDeleteCategory(cat.id)}
-                            className="p-2 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                onClick={() => setEditingCategory(cat)}
+                                className="p-2 text-slate-600 hover:text-blue-400 transition-colors"
+                            >
+                                <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => handleDeleteCategory(cat.id)}
+                                className="p-2 text-slate-600 hover:text-red-400 transition-colors"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                     {renderCategories(cat.id, level + 1)}
                 </React.Fragment>
@@ -133,6 +205,13 @@ export default function AdminTaxonomyPage() {
                 <h1 className="text-3xl font-bold text-white">Taxonomy Management</h1>
                 <p className="text-slate-400">Manage job categories and required skills.</p>
             </div>
+
+            {error && (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <p>{error}</p>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Categories Section */}
@@ -221,13 +300,41 @@ export default function AdminTaxonomyPage() {
                         <div className="flex flex-wrap gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                             {skills.map((skill) => (
                                 <div key={skill.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950 border border-slate-800 group hover:border-purple-500/30 transition-all">
-                                    <span className="text-sm text-slate-300">{skill.name}</span>
-                                    <button
-                                        onClick={() => handleDeleteSkill(skill.id)}
-                                        className="text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </button>
+                                    {editingSkill?.id === skill.id ? (
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="text"
+                                                value={editingSkill.name}
+                                                onChange={(e) => setEditingSkill({ ...editingSkill, name: e.target.value })}
+                                                className="w-24 px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-white text-xs focus:outline-none focus:border-purple-500"
+                                                autoFocus
+                                            />
+                                            <button onClick={handleUpdateSkill} className="text-green-500 hover:text-green-400">
+                                                <Check className="w-3 h-3" />
+                                            </button>
+                                            <button onClick={() => setEditingSkill(null)} className="text-slate-500 hover:text-slate-400">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <span className="text-sm text-slate-300">{skill.name}</span>
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => setEditingSkill(skill)}
+                                                    className="text-slate-600 hover:text-purple-400 transition-colors"
+                                                >
+                                                    <Edit2 className="w-3 h-3" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteSkill(skill.id)}
+                                                    className="text-slate-600 hover:text-red-400 transition-colors"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ))}
                         </div>

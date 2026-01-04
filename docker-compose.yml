@@ -196,6 +196,12 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=contracts&options=-c%20search_path%3Dcontracts
       - PORT=3004
       - PAYMENT_SERVICE_URL=http://payment-service:3005
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - postgres
     volumes:

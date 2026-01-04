@@ -15,9 +15,40 @@ export class ContractsService {
     private configService: ConfigService
   ) { }
 
-  create(createContractDto: CreateContractDto) {
+  async create(createContractDto: CreateContractDto) {
+    let { freelancer_id, client_id, totalAmount, job_id, proposal_id, terms, ...rest } = createContractDto;
+
+    // Fetch missing data from Job Service if IDs or amount are missing
+    if (!freelancer_id || !client_id || !totalAmount) {
+      try {
+        const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://job-service:3002');
+        // We need a way to get proposal details. Proposals are handled in job-service.
+        // Assuming there's an internal endpoint or we use the public one if authorized.
+        const response = await firstValueFrom(
+          this.httpService.get(`${jobServiceUrl}/api/proposals/${proposal_id}`)
+        );
+        const proposal = response.data;
+
+        if (!freelancer_id) freelancer_id = proposal.freelancerId;
+        if (!client_id) client_id = proposal.job.client_id;
+        if (!totalAmount) totalAmount = Number(proposal.bidAmount);
+        if (!job_id) job_id = proposal.jobId;
+
+      } catch (error) {
+        console.error('Failed to fetch proposal details from job-service', error.message);
+        throw new ConflictException('Could not verify proposal details. Please provide all required fields.');
+      }
+    }
+
     return this.prisma.contract.create({
-      data: createContractDto,
+      data: {
+        freelancer_id: freelancer_id as string,
+        client_id: client_id as string,
+        totalAmount: totalAmount as any,
+        job_id: job_id as string,
+        proposal_id: proposal_id as string,
+        ...rest
+      },
     });
   }
 
@@ -496,7 +527,7 @@ export class ContractsService {
       },
     });
 
-    const released = [];
+    const released: string[] = [];
     for (const milestone of milestones) {
       const latestSubmission = milestone.submissions[0];
       // Check if latest submission is older than 14 days

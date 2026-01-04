@@ -4,7 +4,7 @@ import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
 import { Roles } from 'nest-keycloak-connect';
 
-@Controller('contracts')
+@Controller('api/contracts')
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) { }
 

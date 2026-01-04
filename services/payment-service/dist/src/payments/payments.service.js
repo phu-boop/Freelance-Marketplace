@@ -326,7 +326,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         });
     }
     async getPlatformFeePercent() {
-        const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3004');
+        const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3009');
         try {
             const { data } = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/PLATFORM_FEE_PERCENT`));
             return parseFloat(data.value) || 10;
@@ -337,7 +337,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
     }
     async getPaymentGatewayConfig(provider = 'STRIPE') {
-        const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3004');
+        const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3009');
         try {
             const key = `GATEWAY_${provider.toUpperCase()}`;
             const { data } = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/${key}`));
