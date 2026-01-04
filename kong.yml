@@ -56,7 +56,7 @@ services:
       - name: contract-routes
         paths:
           - /api/contracts
-        strip_path: true
+        strip_path: false
 
   - name: payment-service
     url: http://freelance_payment_service:3005

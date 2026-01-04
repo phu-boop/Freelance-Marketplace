@@ -76,6 +76,9 @@ model User {
   referredBy             Referral?              @relation("Referred")
   referrals              Referral[]             @relation("Referrer")
 
+  savedFreelancers       SavedFreelancer[]      @relation("ClientSaved")
+  savedByClients         SavedFreelancer[]      @relation("FreelancerSaved")
+
   @@map("users")
   @@schema("users")
 }
@@ -194,5 +197,20 @@ model TeamMember {
   user      User     @relation(fields: [userId], references: [id])
 
   @@unique([teamId, userId])
+  @@schema("users")
+}
+
+model SavedFreelancer {
+  id           String   @id @default(uuid())
+  clientId     String
+  freelancerId String
+  note         String?
+  tags         String[]
+  createdAt    DateTime @default(now())
+
+  client       User     @relation("ClientSaved", fields: [clientId], references: [id])
+  freelancer   User     @relation("FreelancerSaved", fields: [freelancerId], references: [id])
+
+  @@unique([clientId, freelancerId])
   @@schema("users")
 }

@@ -6,20 +6,24 @@ export class CreateContractDto {
     job_id: string;
 
     @IsString()
-    @IsNotEmpty()
-    freelancer_id: string;
+    @IsOptional()
+    freelancer_id?: string;
 
     @IsString()
-    @IsNotEmpty()
-    client_id: string;
+    @IsOptional()
+    client_id?: string;
 
     @IsString()
     @IsNotEmpty()
     proposal_id: string;
 
     @IsNumber()
-    @IsNotEmpty()
-    totalAmount: number;
+    @IsOptional()
+    totalAmount?: number;
+
+    @IsString()
+    @IsOptional()
+    terms?: string;
 
     @IsString()
     @IsOptional()

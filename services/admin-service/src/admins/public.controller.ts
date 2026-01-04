@@ -21,4 +21,21 @@ export class PublicController {
     async createReport(@Body() body: { reporterId: string; targetId: string; type: string; reason: string }) {
         return this.adminsService.createReport(body);
     }
+
+    @Get('pages/:key')
+    @Public()
+    async getPage(@Param('key') key: string) {
+        const page = await this.adminsService.getPage(key);
+        if (!page || !page.isPublished) {
+            throw new NotFoundException(`Page with key ${key} not found`);
+        }
+        return page;
+    }
+
+    @Get('feature-flags')
+    @Public()
+    async getFeatureFlags() {
+        const flags = await this.adminsService.getFeatureFlags();
+        return flags.map(f => ({ key: f.key, isEnabled: f.isEnabled, percentage: f.percentage }));
+    }
 }

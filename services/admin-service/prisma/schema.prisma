@@ -86,3 +86,95 @@ model Report {
   @@map("reports")
   @@schema("admin")
 }
+
+model SupportTicket {
+  id             String   @id @default(uuid())
+  userId         String
+  subject        String
+  message        String
+  category       String   @default("GENERAL") // GENERAL, TECHNICAL, DISPUTE, BILLING
+  priority       String   @default("NORMAL")  // LOW, NORMAL, HIGH, URGENT
+  status         String   @default("OPEN")    // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  assignedTo     String?  // Admin ID
+  resolutionNote String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("support_tickets")
+  @@schema("admin")
+}
+
+model Warning {
+  id        String   @id @default(uuid())
+  userId    String
+  reason    String
+  adminId   String
+  createdAt DateTime @default(now())
+
+  @@map("warnings")
+  @@schema("admin")
+}
+
+model ScheduledReport {
+    id        String   @id @default(uuid())
+    adminId   String
+    reportType String 
+    frequency String 
+    email     String
+    lastSentAt DateTime?
+    createdAt DateTime @default(now())
+
+    @@map("scheduled_reports")
+    @@schema("admin")
+}
+
+model StaticPage {
+    id          String   @id @default(uuid())
+    key         String   @unique // e.g., "terms-of-service", "faq"
+    title       String
+    content     String   // HTML or Markdown
+    isPublished Boolean  @default(false)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@map("static_pages")
+    @@schema("admin")
+}
+
+model FeatureFlag {
+    id           String   @id @default(uuid())
+    key          String   @unique // e.g., "NEW_DASHBOARD", "PAYMENT_V2"
+    description  String?
+    isEnabled    Boolean  @default(false)
+    percentage   Int      @default(0) // 0-100 for gradual rollout
+    allowedUsers String[] // List of user IDs for beta testing
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    @@map("feature_flags")
+    @@schema("admin")
+}
+
+model SystemBackup {
+    id        String   @id @default(uuid())
+    filename  String
+    size      Int      // bytes
+    createdBy String   // Admin ID
+    createdAt DateTime @default(now())
+
+    @@map("system_backups")
+    @@schema("admin")
+}
+
+model Integration {
+    id          String   @id @default(uuid())
+    name        String   // Display name
+    provider    String   // STRIPE, SENDGRID, etc.
+    credentials Json     // Encrypted or just JSON for now
+    status      String   @default("ACTIVE") // ACTIVE, INACTIVE, ERROR
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@map("integrations")
+    @@schema("admin")
+}

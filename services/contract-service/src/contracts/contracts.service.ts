@@ -15,9 +15,40 @@ export class ContractsService {
     private configService: ConfigService
   ) { }
 
-  create(createContractDto: CreateContractDto) {
+  async create(createContractDto: CreateContractDto) {
+    let { freelancer_id, client_id, totalAmount, job_id, proposal_id, terms, ...rest } = createContractDto;
+
+    // Fetch missing data from Job Service if IDs or amount are missing
+    if (!freelancer_id || !client_id || !totalAmount) {
+      try {
+        const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://job-service:3002');
+        // We need a way to get proposal details. Proposals are handled in job-service.
+        // Assuming there's an internal endpoint or we use the public one if authorized.
+        const response = await firstValueFrom(
+          this.httpService.get(`${jobServiceUrl}/api/proposals/${proposal_id}`)
+        );
+        const proposal = response.data;
+
+        if (!freelancer_id) freelancer_id = proposal.freelancerId;
+        if (!client_id) client_id = proposal.job.client_id;
+        if (!totalAmount) totalAmount = Number(proposal.bidAmount);
+        if (!job_id) job_id = proposal.jobId;
+
+      } catch (error) {
+        console.error('Failed to fetch proposal details from job-service', error.message);
+        throw new ConflictException('Could not verify proposal details. Please provide all required fields.');
+      }
+    }
+
     return this.prisma.contract.create({
-      data: createContractDto,
+      data: {
+        freelancer_id: freelancer_id as string,
+        client_id: client_id as string,
+        totalAmount: totalAmount as any,
+        job_id: job_id as string,
+        proposal_id: proposal_id as string,
+        ...rest
+      },
     });
   }
 
@@ -440,6 +471,114 @@ export class ContractsService {
     return updated;
   }
 
+  // Contract Templates
+  async createTemplate(clientId: string, data: { name: string; description?: string; content: string }) {
+    return this.prisma.contractTemplate.create({
+      data: {
+        ...data,
+        clientId,
+      },
+    });
+  }
+
+  async getTemplates(clientId: string) {
+    return this.prisma.contractTemplate.findMany({
+      where: { clientId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getTemplate(id: string, clientId: string) {
+    const template = await this.prisma.contractTemplate.findUnique({
+      where: { id },
+    });
+    if (!template) throw new NotFoundException('Template not found');
+    if (template.clientId !== clientId) throw new ForbiddenException('Access denied');
+    return template;
+  }
+
+  async deleteTemplate(id: string, clientId: string) {
+    const template = await this.prisma.contractTemplate.findUnique({
+      where: { id },
+    });
+    if (!template) throw new NotFoundException('Template not found');
+    if (template.clientId !== clientId) throw new ForbiddenException('Access denied');
+
+    return this.prisma.contractTemplate.delete({
+      where: { id },
+    });
+  }
+
+  async autoReleaseMilestones() {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    // Find milestones that are IN_REVIEW
+    const milestones = await this.prisma.milestone.findMany({
+      where: {
+        status: 'IN_REVIEW',
+      },
+      include: {
+        contract: true,
+        submissions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const released: string[] = [];
+    for (const milestone of milestones) {
+      const latestSubmission = milestone.submissions[0];
+      // Check if latest submission is older than 14 days
+      if (latestSubmission && latestSubmission.createdAt < fourteenDaysAgo) {
+        try {
+          // Process Payout
+          const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://payment-service:3005');
+          await firstValueFrom(
+            this.httpService.post(`${paymentServiceUrl}/transfer`, {
+              fromUserId: milestone.contract.client_id,
+              toUserId: milestone.contract.freelancer_id,
+              amount: Number(milestone.amount),
+              description: `Auto-Release Payment: ${milestone.description}`,
+            })
+          );
+
+          // Update Status
+          await this.prisma.milestone.update({
+            where: { id: milestone.id },
+            data: { status: 'COMPLETED' },
+          });
+
+          released.push(milestone.id);
+
+          // Notify Client
+          await this.sendNotification(
+            milestone.contract.client_id,
+            'MILESTONE_AUTO_RELEASED',
+            'Milestone Auto-Released',
+            `Milestone "${milestone.description}" was automatically released after 14 days of inactivity.`,
+            { contractId: milestone.contractId, milestoneId: milestone.id }
+          );
+
+          // Notify Freelancer
+          await this.sendNotification(
+            milestone.contract.freelancer_id,
+            'MILESTONE_AUTO_RELEASED',
+            'Milestone Auto-Released',
+            `Payment for milestone "${milestone.description}" has been released automatically.`,
+            { contractId: milestone.contractId, milestoneId: milestone.id }
+          );
+
+        } catch (error) {
+          console.error(`Failed to auto-release milestone ${milestone.id}`, error);
+        }
+      }
+    }
+
+    return { releasedCount: released.length, releasedIds: released };
+  }
+
   private async sendNotification(userId: string, type: string, title: string, message: string, metadata?: any) {
     try {
       const notificationUrl = this.configService.get<string>('NOTIFICATION_SERVICE_URL', 'http://notification-service:3007');
@@ -455,5 +594,22 @@ export class ContractsService {
     } catch (error) {
       console.error('Failed to send notification', error.message);
     }
+  }
+
+  async getClientStats(userId: string) {
+    const [activeContracts, completedContracts, totalSpentResult] = await Promise.all([
+      this.prisma.contract.count({ where: { client_id: userId, status: 'ACTIVE' } }),
+      this.prisma.contract.count({ where: { client_id: userId, status: 'COMPLETED' } }),
+      this.prisma.contract.aggregate({
+        where: { client_id: userId },
+        _sum: { totalAmount: true }
+      })
+    ]);
+
+    return {
+      activeContracts,
+      completedContracts,
+      totalSpent: totalSpentResult._sum.totalAmount || 0,
+    };
   }
 }

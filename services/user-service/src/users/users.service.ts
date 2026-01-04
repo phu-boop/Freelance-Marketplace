@@ -786,4 +786,67 @@ export class UsersService {
       orderBy: { createdAt: 'desc' }
     });
   }
+
+  async saveFreelancer(clientId: string, data: { freelancerId: string; note?: string; tags?: string[] }) {
+    const freelancer = await this.prisma.user.findUnique({
+      where: { id: data.freelancerId },
+    });
+    if (!freelancer) throw new NotFoundException('Freelancer not found');
+
+    return this.prisma.savedFreelancer.upsert({
+      where: {
+        clientId_freelancerId: {
+          clientId,
+          freelancerId: data.freelancerId,
+        },
+      },
+      update: {
+        note: data.note,
+        tags: data.tags,
+      },
+      create: {
+        clientId,
+        freelancerId: data.freelancerId,
+        note: data.note,
+        tags: data.tags || [],
+      },
+    });
+  }
+
+  async getSavedFreelancers(clientId: string) {
+    return this.prisma.savedFreelancer.findMany({
+      where: { clientId },
+      include: {
+        freelancer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            title: true,
+            avatarUrl: true,
+            rating: true,
+            skills: true,
+            hourlyRate: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async removeSavedFreelancer(clientId: string, freelancerId: string) {
+    try {
+      return await this.prisma.savedFreelancer.delete({
+        where: {
+          clientId_freelancerId: {
+            clientId,
+            freelancerId,
+          },
+        },
+      });
+    } catch (e) {
+      if (e.code === 'P2025') throw new NotFoundException('Freelancer not found in saved list');
+      throw e;
+    }
+  }
 }

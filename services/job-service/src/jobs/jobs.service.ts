@@ -8,12 +8,32 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { HttpService } from '@nestjs/axios';
 
+
 @Injectable()
 export class JobsService {
   constructor(
     private prisma: PrismaService,
     private readonly httpService: HttpService
   ) { }
+
+  async syncAllJobs() {
+    const jobs = await this.prisma.job.findMany({
+      include: {
+        category: true,
+        skills: {
+          include: {
+            skill: true
+          }
+        }
+      }
+    });
+
+    console.log(`Syncing ${jobs.length} jobs to search service...`);
+    for (const job of jobs) {
+      await this.syncToSearch(job);
+    }
+    return { count: jobs.length, message: 'Sync started' };
+  }
 
   async create(createJobDto: CreateJobDto) {
     const { skillIds, skills, ...jobData } = createJobDto;
@@ -37,30 +57,52 @@ export class JobsService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30); // Default 30 days
 
-    const job = await this.prisma.job.create({
-      data: {
-        ...jobData,
-        expiresAt,
-        skills: {
-          create: finalSkillIds.map(skillId => ({
-            skill: { connect: { id: skillId } }
-          }))
-        }
-      },
-      include: {
-        category: true,
-        skills: {
-          include: {
-            skill: true
+    try {
+      const job = await this.prisma.job.create({
+        data: {
+          ...jobData,
+          expiresAt,
+          skills: {
+            create: finalSkillIds.map(skillId => ({
+              skill: { connect: { id: skillId } }
+            }))
+          }
+        },
+        include: {
+          category: true,
+          skills: {
+            include: {
+              skill: true
+            }
           }
         }
+      });
+
+      // Sync to search service
+      await this.syncToSearch(job);
+
+      return job;
+    } catch (error) {
+      // P2003: Foreign key constraint failed
+      if (error.code === 'P2003') {
+        const field = error.meta?.field_name;
+        if (field?.includes('categoryId')) {
+          throw new BadRequestException('Invalid category ID');
+        }
+        if (field?.includes('client_id')) {
+          throw new BadRequestException('Invalid client ID'); // Should be checked by auth guard ideally
+        }
       }
-    });
+      // P2025: Record to connect not found (e.g. skills)
+      if (error.code === 'P2025') {
+        throw new BadRequestException('One or more skill IDs are invalid');
+      }
+      throw error;
+    }
+  }
 
-    // Sync to search service
-    await this.syncToSearch(job);
-
-    return job;
+  async deleteCategory(id: string) {
+    return this.prisma.category.delete({ where: { id } });
   }
 
   private async syncToSearch(job: any) {
@@ -128,7 +170,7 @@ export class JobsService {
     };
   }
 
-  findByClient(clientId: string, status?: string) {
+  async findByClient(clientId: string, status?: string) {
     const where: any = { client_id: clientId };
     if (status) {
       where.status = status;
@@ -244,7 +286,7 @@ export class JobsService {
     return job;
   }
 
-  remove(id: string) {
+  async remove(id: string) {
     return this.prisma.job.delete({
       where: { id },
     });
@@ -282,14 +324,14 @@ export class JobsService {
     return job;
   }
 
-  lockJob(id: string) {
+  async lockJob(id: string) {
     return this.prisma.job.update({
       where: { id },
       data: { status: 'LOCKED' }
     });
   }
 
-  unlockJob(id: string) {
+  async unlockJob(id: string) {
     return this.prisma.job.update({
       where: { id },
       data: { status: 'OPEN' }
@@ -336,19 +378,26 @@ export class JobsService {
   }
 
   // Taxonomy - Categories
-  createCategory(createCategoryDto: CreateCategoryDto) {
-    const { name, parentId } = createCategoryDto;
-    const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
-    return this.prisma.category.create({
-      data: {
-        name,
-        slug,
-        parentId: parentId || null
+  async createCategory(createCategoryDto: CreateCategoryDto) {
+    try {
+      const { name, parentId } = createCategoryDto;
+      const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+      return await this.prisma.category.create({
+        data: {
+          name,
+          slug,
+          parentId: parentId || null
+        }
+      });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('Category with this name already exists');
       }
-    });
+      throw error;
+    }
   }
 
-  findAllCategories() {
+  async findAllCategories() {
     return this.prisma.category.findMany({
       include: {
         children: true
@@ -356,12 +405,97 @@ export class JobsService {
     });
   }
 
-  // Taxonomy - Skills
-  createSkill(name: string) {
-    return this.prisma.skill.create({ data: { name } });
+
+
+  private async checkCategoryCycle(categoryId: string, parentId?: string) {
+    if (!parentId) return;
+    if (categoryId === parentId) {
+      throw new BadRequestException('A category cannot be its own parent');
+    }
+
+    let currentParentId = parentId;
+    while (currentParentId) {
+      const parent = await this.prisma.category.findUnique({ where: { id: currentParentId } });
+      if (!parent) break;
+      if (parent.id === categoryId) {
+        throw new BadRequestException('Circular dependency detected');
+      }
+      if (!parent.parentId) break;
+      currentParentId = parent.parentId;
+    }
   }
 
-  findAllSkills() {
+  async updateCategory(id: string, data: { name?: string; parentId?: string }) {
+    try {
+      if (data.parentId !== undefined) {
+        // Perform cycle check before update
+        await this.checkCategoryCycle(id, data.parentId);
+      }
+
+      const slug = data.name ? data.name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') : undefined;
+      const category = await this.prisma.category.update({
+        where: { id },
+        data: {
+          ...data,
+          ...(slug && { slug })
+        }
+      });
+      // Audit Log
+      console.log(`[AUDIT] User updated Category ${id} at ${new Date().toISOString()}`);
+      return category;
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      if (error.code === 'P2002') {
+        throw new ConflictException('Category with this name already exists');
+      }
+      if (error.code === 'P2025') { // Record not found
+        throw new NotFoundException('Category not found');
+      }
+      throw error;
+    }
+  }
+
+  // Taxonomy - Skills
+  async createSkill(name: string) {
+    try {
+      return await this.prisma.skill.create({ data: { name } });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('Skill with this name already exists');
+      }
+      throw error;
+    }
+  }
+
+  async deleteSkill(id: string) {
+    try {
+      return await this.prisma.skill.delete({ where: { id } });
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Skill not found');
+      }
+      throw error;
+    }
+  }
+
+  async updateSkill(id: string, name: string) {
+    try {
+      return await this.prisma.skill.update({
+        where: { id },
+        data: { name }
+      });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('Skill with this name already exists');
+      }
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Skill not found');
+      }
+      throw error;
+    }
+  }
+
+  async findAllSkills() {
     return this.prisma.skill.findMany();
   }
 
@@ -1408,5 +1542,19 @@ export class JobsService {
       console.error(`Failed to get analytics for job ${id}:`, error);
       throw new BadRequestException('Analytics service unavailable');
     }
+  }
+
+  async getClientStats(userId: string) {
+    const [totalJobs, activeJobs, completedJobs] = await Promise.all([
+      this.prisma.job.count({ where: { client_id: userId } }),
+      this.prisma.job.count({ where: { client_id: userId, status: 'OPEN' } }),
+      this.prisma.job.count({ where: { client_id: userId, status: 'CLOSED' } }),
+    ]);
+
+    return {
+      totalJobs,
+      activeJobs,
+      completedJobs,
+    };
   }
 }

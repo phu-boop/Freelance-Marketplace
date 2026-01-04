@@ -51,10 +51,16 @@ export class JobsController {
   }
 
   // Categories
-  @Public()
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
   @Post('categories')
   createCategory(@Body() createCategoryDto: CreateCategoryDto) {
     return this.jobsService.createCategory(createCategoryDto);
+  }
+
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Post('sync')
+  syncAllJobs() {
+    return this.jobsService.syncAllJobs();
   }
 
   @Public()
@@ -63,8 +69,20 @@ export class JobsController {
     return this.jobsService.findAllCategories();
   }
 
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Delete('categories/:id')
+  deleteCategory(@Param('id') id: string) {
+    return this.jobsService.deleteCategory(id);
+  }
+
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Patch('categories/:id')
+  updateCategory(@Param('id') id: string, @Body() body: { name?: string; parentId?: string }) {
+    return this.jobsService.updateCategory(id, body);
+  }
+
   // Skills
-  @Public()
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
   @Post('skills')
   createSkill(@Body('name') name: string) {
     return this.jobsService.createSkill(name);
@@ -74,6 +92,18 @@ export class JobsController {
   @Get('skills')
   findAllSkills() {
     return this.jobsService.findAllSkills();
+  }
+
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Delete('skills/:id')
+  deleteSkills(@Param('id') id: string) {
+    return this.jobsService.deleteSkill(id);
+  }
+
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Patch('skills/:id')
+  updateSkill(@Param('id') id: string, @Body('name') name: string) {
+    return this.jobsService.updateSkill(id, name);
   }
 
   @Public()
@@ -144,5 +174,11 @@ export class JobsController {
   promoteJob(@Param('id') id: string, @Request() req) {
     const userId = req.user.sub;
     return this.jobsService.promoteJob(id, userId);
+  }
+
+  @Get('client/stats')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  getClientStats(@Request() req) {
+    return this.jobsService.getClientStats(req.user.sub);
   }
 }

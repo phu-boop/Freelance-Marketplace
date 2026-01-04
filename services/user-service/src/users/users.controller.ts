@@ -183,4 +183,20 @@ export class UsersController {
   getReferrals(@Param('id') id: string) {
     return this.usersService.getReferrals(id);
   }
+
+  // Talent Pool
+  @Post('saved-freelancers')
+  saveFreelancer(@Request() req, @Body() body: { freelancerId: string, note?: string, tags?: string[] }) {
+    return this.usersService.saveFreelancer(req.user.sub, body);
+  }
+
+  @Get('saved-freelancers')
+  getSavedFreelancers(@Request() req) {
+    return this.usersService.getSavedFreelancers(req.user.sub);
+  }
+
+  @Delete('saved-freelancers/:freelancerId')
+  removeSavedFreelancer(@Request() req, @Param('freelancerId') freelancerId: string) {
+    return this.usersService.removeSavedFreelancer(req.user.sub, freelancerId);
+  }
 }

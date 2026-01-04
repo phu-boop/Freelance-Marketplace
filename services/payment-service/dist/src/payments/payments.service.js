@@ -95,6 +95,10 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     description: 'Deposit via Payment Gateway',
                 },
             });
+            const config = await this.getPaymentGatewayConfig();
+            if (!config) {
+                this.logger.warn('No Payment Gateway configuration found. Deposits might fail in production.');
+            }
             return updatedWallet;
         });
     }
@@ -228,6 +232,16 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             orderBy: { createdAt: 'desc' },
         });
     }
+    async getAllTransactions(limit = 100, offset = 0) {
+        return this.prisma.transaction.findMany({
+            take: Number(limit),
+            skip: Number(offset),
+            include: {
+                wallet: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
     async getMetrics() {
         const transactions = await this.prisma.transaction.findMany({
             where: { status: 'COMPLETED' },
@@ -312,7 +326,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         });
     }
     async getPlatformFeePercent() {
-        const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3004');
+        const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3009');
         try {
             const { data } = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/PLATFORM_FEE_PERCENT`));
             return parseFloat(data.value) || 10;
@@ -320,6 +334,18 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         catch (error) {
             this.logger.warn(`Failed to fetch PLATFORM_FEE_PERCENT from admin-service, falling back to 10%. Error: ${error.message}`);
             return 10;
+        }
+    }
+    async getPaymentGatewayConfig(provider = 'STRIPE') {
+        const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3009');
+        try {
+            const key = `GATEWAY_${provider.toUpperCase()}`;
+            const { data } = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/${key}`));
+            return data.value ? JSON.parse(data.value) : null;
+        }
+        catch (error) {
+            this.logger.warn(`Failed to fetch gateway config for ${provider}: ${error.message}`);
+            return null;
         }
     }
     async getEarningsStats(userId, period) {
@@ -348,6 +374,36 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         const result = Array.from(aggregates.entries()).map(([label, total]) => ({
             period: label,
             totalEarnings: total,
+        }));
+        result.sort((a, b) => a.period.localeCompare(b.period));
+        return result;
+    }
+    async getSpendingStats(userId, period) {
+        const stats = await this.prisma.invoice.findMany({
+            where: { senderId: userId, status: 'PAID' },
+            select: { amount: true, createdAt: true },
+        });
+        const aggregates = new Map();
+        stats.forEach((s) => {
+            const date = new Date(s.createdAt);
+            let periodLabel;
+            if (period === 'daily') {
+                periodLabel = date.toISOString().split('T')[0];
+            }
+            else if (period === 'weekly') {
+                const week = (0, date_fns_1.getISOWeek)(date);
+                const year = date.getUTCFullYear();
+                periodLabel = `${year}-W${String(week).padStart(2, '0')}`;
+            }
+            else {
+                periodLabel = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+            }
+            const current = aggregates.get(periodLabel) || 0;
+            aggregates.set(periodLabel, current + Number(s.amount));
+        });
+        const result = Array.from(aggregates.entries()).map(([label, total]) => ({
+            period: label,
+            totalSpending: total,
         }));
         result.sort((a, b) => a.period.localeCompare(b.period));
         return result;
@@ -398,6 +454,188 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         return this.prisma.withdrawalMethod.update({
             where: { id, userId },
             data: { isDefault: true },
+        });
+    }
+    async addPaymentMethod(userId, data) {
+        if (data.isDefault) {
+            await this.prisma.paymentMethod.updateMany({
+                where: { userId, isDefault: true },
+                data: { isDefault: false },
+            });
+        }
+        return this.prisma.paymentMethod.create({
+            data: {
+                ...data,
+                userId,
+            },
+        });
+    }
+    async getPaymentMethods(userId) {
+        return this.prisma.paymentMethod.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+    async deletePaymentMethod(userId, id) {
+        return this.prisma.paymentMethod.delete({
+            where: { id, userId },
+        });
+    }
+    async updateAutoDepositConfig(userId, data) {
+        const wallet = await this.getWallet(userId);
+        const updated = await this.prisma.wallet.update({
+            where: { id: wallet.id },
+            data: {
+                autoDepositEnabled: data.enabled,
+                autoDepositThreshold: data.threshold ? new Decimal(data.threshold) : null,
+                autoDepositAmount: data.amount ? new Decimal(data.amount) : null,
+                paymentMethodId: data.paymentMethodId,
+            },
+        });
+        if (updated.autoDepositEnabled) {
+            await this.checkAndTriggerAutoDeposit(userId);
+        }
+        return updated;
+    }
+    async checkAndTriggerAutoDeposit(userId) {
+        const wallet = await this.getWallet(userId);
+        if (wallet.autoDepositEnabled &&
+            wallet.autoDepositThreshold &&
+            wallet.autoDepositAmount &&
+            wallet.balance.lessThan(wallet.autoDepositThreshold)) {
+            this.logger.log(`Triggering auto-deposit for user ${userId}. Balance: ${wallet.balance}, Threshold: ${wallet.autoDepositThreshold}`);
+            const referenceId = `AUTO-DEP-${Date.now()}`;
+            await this.deposit(userId, Number(wallet.autoDepositAmount), referenceId);
+            this.logger.log(`Auto-deposit of ${wallet.autoDepositAmount} successful for user ${userId}`);
+        }
+    }
+    async getTaxYearSummary(userId, year) {
+        const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
+        const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
+        const invoices = await this.prisma.invoice.findMany({
+            where: {
+                receiverId: userId,
+                status: 'PAID',
+                createdAt: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+            },
+        });
+        const grossVolume = invoices.reduce((sum, inv) => sum + Number(inv.amount) + Number(inv.feeAmount) + Number(inv.taxAmount), 0);
+        const feesPaid = invoices.reduce((sum, inv) => sum + Number(inv.feeAmount), 0);
+        const taxWithheld = invoices.reduce((sum, inv) => sum + Number(inv.taxAmount), 0);
+        const netVolume = invoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+        return {
+            userId,
+            year,
+            grossVolume,
+            feesPaid,
+            taxWithheld,
+            netVolume,
+            transactionCount: invoices.length,
+            generatedAt: new Date(),
+        };
+    }
+    async generateTaxDocumentPdf(userId, year) {
+        const summary = await this.getTaxYearSummary(userId, year);
+        if (summary.transactionCount === 0) {
+            throw new common_1.NotFoundException(`No transactions found for tax year ${year}`);
+        }
+        return new Promise((resolve, reject) => {
+            const doc = new pdfkit_1.default();
+            const buffers = [];
+            doc.on('data', buffers.push.bind(buffers));
+            doc.on('end', () => resolve(Buffer.concat(buffers)));
+            doc.on('error', reject);
+            doc.fontSize(20).text('TAX YEAR SUMMARY (1099-K Preview)', { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(14).text(`Tax Year: ${year}`, { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(12).text(`Generated Date: ${summary.generatedAt.toDateString()}`, { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(12).text(`Account ID: ${userId}`);
+            doc.moveDown();
+            doc.moveTo(50, 200).lineTo(550, 200).stroke();
+            doc.moveDown();
+            const startX = 50;
+            let currentY = 220;
+            doc.fontSize(12).text('Metric', startX, currentY);
+            doc.text('Amount (USD)', 400, currentY, { align: 'right' });
+            currentY += 20;
+            doc.text('Gross Payment Volume', startX, currentY);
+            doc.text(`$${summary.grossVolume.toFixed(2)}`, 400, currentY, { align: 'right' });
+            currentY += 20;
+            doc.text('Platform Fees & Adjustments', startX, currentY);
+            doc.text(`-$${summary.feesPaid.toFixed(2)}`, 400, currentY, { align: 'right' });
+            currentY += 20;
+            doc.text('Tax Withheld', startX, currentY);
+            doc.text(`-$${summary.taxWithheld.toFixed(2)}`, 400, currentY, { align: 'right' });
+            currentY += 20;
+            doc.moveTo(50, currentY).lineTo(550, currentY).stroke();
+            currentY += 10;
+            doc.font('Helvetica-Bold').text('Net Income', startX, currentY);
+            doc.text(`$${summary.netVolume.toFixed(2)}`, 400, currentY, { align: 'right' });
+            currentY += 40;
+            doc.font('Helvetica').fontSize(10).text('Note: This document is a preview for informational purposes only and is not an official IRS form 1099-K. Please consult a tax professional.', 50, currentY, { width: 500, align: 'center' });
+            doc.end();
+        });
+    }
+    async processChargeback(transactionId) {
+        const transaction = await this.prisma.transaction.findUnique({
+            where: { id: transactionId },
+            include: { wallet: true },
+        });
+        if (!transaction)
+            throw new common_1.NotFoundException('Transaction not found');
+        if (transaction.status === 'CHARGEBACK') {
+            throw new common_1.BadRequestException('Transaction already charged back');
+        }
+        if (transaction.type !== 'PAYMENT') {
+            throw new common_1.BadRequestException('Only payments can be charged back');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            const updatedTx = await prisma.transaction.update({
+                where: { id: transactionId },
+                data: { status: 'CHARGEBACK', description: `${transaction.description} [CHARGEBACK]` }
+            });
+            await prisma.wallet.update({
+                where: { id: transaction.walletId },
+                data: { balance: { decrement: transaction.amount } }
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: transaction.walletId,
+                    amount: transaction.amount,
+                    type: 'CHARGEBACK',
+                    status: 'COMPLETED',
+                    description: `Chargeback for ${transactionId}`,
+                    referenceId: transaction.referenceId
+                }
+            });
+            return updatedTx;
+        });
+    }
+    async createTaxSetting(data) {
+        return this.prisma.taxSetting.create({
+            data: {
+                ...data,
+                taxRate: new Decimal(data.taxRate),
+            },
+        });
+    }
+    async getTaxSettings() {
+        return this.prisma.taxSetting.findMany({
+            orderBy: { countryCode: 'asc' }
+        });
+    }
+    async updateTaxSetting(id, data) {
+        return this.prisma.taxSetting.update({
+            where: { id },
+            data: {
+                ...(data.taxRate && { taxRate: new Decimal(data.taxRate) }),
+                ...(data.isActive !== undefined && { isActive: data.isActive }),
+            },
         });
     }
 };

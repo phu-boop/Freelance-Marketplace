@@ -4,7 +4,7 @@ import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
 import { Roles } from 'nest-keycloak-connect';
 
-@Controller('contracts')
+@Controller('api/contracts')
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) { }
 
@@ -36,6 +36,20 @@ export class ContractsController {
   @Get('disputed')
   findAllDisputed() {
     return this.contractsService.findAllDisputed();
+  }
+
+  @Get('client/stats')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  getClientStats(@Request() req) {
+    return this.contractsService.getClientStats(req.user.sub);
+  }
+
+  @Post('milestones/auto-release')
+  // In production, this should be protected by a special system role or API key
+  // For MVP demo, allowing any authenticated user to trigger the cron-like job
+  @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
+  triggerAutoRelease() {
+    return this.contractsService.autoReleaseMilestones();
   }
 
   @Get(':id')
@@ -160,5 +174,34 @@ export class ContractsController {
   startCheckInMeeting(@Param('checkInId') checkInId: string, @Request() req) {
     const userId = req.user.sub;
     return this.contractsService.startCheckInMeeting(checkInId, userId);
+  }
+
+  // Contract Templates
+  @Post('templates')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  createTemplate(@Body() data: { name: string; description?: string; content: string }, @Request() req) {
+    const userId = req.user.sub;
+    return this.contractsService.createTemplate(userId, data);
+  }
+
+  @Get('templates')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  getTemplates(@Request() req) {
+    const userId = req.user.sub;
+    return this.contractsService.getTemplates(userId);
+  }
+
+  @Get('templates/:id')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  getTemplate(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.contractsService.getTemplate(id, userId);
+  }
+
+  @Delete('templates/:id')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  deleteTemplate(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.contractsService.deleteTemplate(id, userId);
   }
 }
