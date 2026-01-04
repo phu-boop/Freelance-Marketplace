@@ -150,4 +150,14 @@ export class ProposalsController {
     async terminateContract(@Request() req, @Param('id') id: string, @Body('reason') reason: string) {
         return this.jobsService.terminateContract(id, req.user.sub, reason);
     }
+
+    @Get('sync')
+    @Public()
+    sync(
+        @Query('since') since: string,
+        @Query('entities') entities: string,
+    ) {
+        const entityList = entities ? entities.split(',') : ['Proposal', 'Milestone'];
+        return this.jobsService.sync(since || new Date(0).toISOString(), entityList);
+    }
 }

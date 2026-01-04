@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { ProposalModal } from '@/components/ProposalModal';
+import { useKeycloak } from '@/components/KeycloakProvider';
 
 interface Job {
     id: string;
@@ -25,11 +26,19 @@ interface Job {
     posted: string;
     description: string;
     skills: string[];
+    preferredCommunicationStyle?: string;
+}
+
+interface UserProfile {
+    communicationStyle?: string;
+    skills: string[];
 }
 
 export default function JobsPage() {
+    const { userId } = useKeycloak();
     const [searchQuery, setSearchQuery] = useState('');
     const [jobs, setJobs] = useState<Job[]>([]);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -75,6 +84,12 @@ export default function JobsPage() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (userId) {
+            api.get(`/users/${userId}`).then(res => setUserProfile(res.data)).catch(console.error);
+        }
+    }, [userId]);
 
     useEffect(() => {
         fetchJobs();
@@ -211,7 +226,14 @@ export default function JobsPage() {
                                                 <Briefcase className="w-6 h-6 text-blue-400" />
                                             </div>
                                             <div>
-                                                <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
+                                                    {userProfile?.communicationStyle && job.preferredCommunicationStyle === userProfile.communicationStyle && (
+                                                        <span className="px-2 py-0.5 rounded-md bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 flex items-center gap-1">
+                                                            ✨ Smart Match
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-slate-400">{job.company}</p>
                                             </div>
                                         </div>

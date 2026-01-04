@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["users"]
+  schemas  = ["users", "sync"]
 }
 
 model User {
@@ -66,6 +66,19 @@ model User {
   isEmailVerified        Boolean                @default(false)
   taxId                  String?
   billingAddress         String?
+
+  // Portfolio Platform Integration
+  githubUsername         String?
+  behanceUsername        String?
+  dribbbleUsername       String?
+  portfolioSyncEnabled   Boolean                @default(false)
+  lastPortfolioSync      DateTime?
+
+  // Behavioral Metrics
+  communicationStyle     String?                // Proactive, Formal, Concise, etc.
+  avgResponseTime        Float?                 // in minutes
+  reliabilityScore       Float                  @default(100)
+
   availability           AvailabilityCalendar[]
   education              Education[]
   experience             Experience[]
@@ -139,6 +152,8 @@ model Education {
   description  String?
   userId       String
   user         User      @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@schema("users")
 }
@@ -154,6 +169,8 @@ model Experience {
   description String?
   userId      String
   user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("users")
 }
@@ -166,8 +183,13 @@ model PortfolioItem {
   projectUrl     String?
   skills         String[]
   completionDate DateTime?
+  source         String    @default("MANUAL") // MANUAL, GITHUB, BEHANCE, DRIBBBLE
+  externalId     String?
+  externalUrl    String?
   userId         String
   user           User      @relation(fields: [userId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@schema("users")
 }
@@ -212,5 +234,16 @@ model SavedFreelancer {
   freelancer   User     @relation("FreelancerSaved", fields: [freelancerId], references: [id])
 
   @@unique([clientId, freelancerId])
+  @@schema("users")
+}
+
+model SyncTombstone {
+  id        String   @id @default(uuid())
+  entity    String   // e.g., "User", "PortfolioItem"
+  recordId  String
+  deletedAt DateTime @default(now())
+  
+  @@index([entity, deletedAt])
+  @@map("sync_tombstones")
   @@schema("users")
 }

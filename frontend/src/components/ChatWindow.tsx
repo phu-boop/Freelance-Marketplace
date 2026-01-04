@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, User, MoreVertical, Phone, Video } from 'lucide-react';
+import { Send, User, MoreVertical, Phone, Video, AlertTriangle } from 'lucide-react';
 
 interface Message {
     id: string;
@@ -10,6 +10,8 @@ interface Message {
     content: string;
     timestamp: string;
     isMe: boolean;
+    isFlagged?: boolean;
+    flagReason?: string;
 }
 
 interface ChatWindowProps {
@@ -77,16 +79,24 @@ export function ChatWindow({ recipientName, recipientStatus = 'Online', messages
                         animate={{ opacity: 1, y: 0 }}
                         className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}
                     >
-                        <div
-                            className={`max-w-[70%] p-3 rounded-2xl ${msg.isMe
+                        <div className="flex flex-col gap-1">
+                            <div
+                                className={`max-w-[100%] p-3 rounded-2xl ${msg.isMe
                                     ? 'bg-blue-600 text-white rounded-br-none'
                                     : 'bg-slate-800 text-slate-200 rounded-bl-none'
-                                }`}
-                        >
-                            <p className="text-sm">{msg.content}</p>
-                            <p className={`text-[10px] mt-1 text-right ${msg.isMe ? 'text-blue-200' : 'text-slate-400'}`}>
-                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
+                                    } ${msg.isFlagged ? 'border-2 border-red-500/50' : ''}`}
+                            >
+                                <p className="text-sm">{msg.content}</p>
+                                <p className={`text-[10px] mt-1 text-right ${msg.isMe ? 'text-blue-200' : 'text-slate-400'}`}>
+                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                            </div>
+                            {msg.isFlagged && (
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-400 bg-red-500/10 p-2 rounded-lg mt-1 border border-red-500/20">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span>SAFETY WARNING: {msg.flagReason || 'Potential security risk detected.'}</span>
+                                </div>
+                            )}
                         </div>
                     </motion.div>
                 ))}

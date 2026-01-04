@@ -21,6 +21,12 @@ export class Message extends Document {
     @Prop({ type: [String], default: [] })
     attachments: string[];
 
+    @Prop({ default: false })
+    isFlagged: boolean;
+
+    @Prop()
+    flagReason?: string;
+
     createdAt: Date;
     updatedAt: Date;
 }

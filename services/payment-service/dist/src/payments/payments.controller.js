@@ -22,11 +22,23 @@ let PaymentsController = class PaymentsController {
     constructor(paymentsService) {
         this.paymentsService = paymentsService;
     }
+    getExchangeRates(base) {
+        return this.paymentsService.getExchangeRates(base);
+    }
+    updateCryptoAddress(req, address) {
+        return this.paymentsService.updateCryptoAddress(req.user.sub, address);
+    }
+    updatePreferredCurrency(req, currency) {
+        return this.paymentsService.updatePreferredCurrency(req.user.sub, currency);
+    }
     getWalletMe(req) {
         return this.paymentsService.getWallet(req.user.sub);
     }
     getWallet(userId) {
         return this.paymentsService.getWallet(userId);
+    }
+    getPredictiveRevenue(userId) {
+        return this.paymentsService.getPredictiveRevenue(userId);
     }
     deposit(body) {
         return this.paymentsService.deposit(body.userId, body.amount, body.referenceId);
@@ -116,6 +128,31 @@ let PaymentsController = class PaymentsController {
 };
 exports.PaymentsController = PaymentsController;
 __decorate([
+    (0, common_1.Get)('exchange-rates'),
+    __param(0, (0, common_1.Query)('base')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getExchangeRates", null);
+__decorate([
+    (0, common_1.Patch)('wallet/crypto-address'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)('address')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "updateCryptoAddress", null);
+__decorate([
+    (0, common_1.Patch)('wallet/currency'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)('currency')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "updatePreferredCurrency", null);
+__decorate([
     (0, common_1.Get)('wallet'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
     __param(0, (0, common_1.Request)()),
@@ -130,6 +167,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "getWallet", null);
+__decorate([
+    (0, common_1.Get)('revenue/predictive/:userId'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getPredictiveRevenue", null);
 __decorate([
     (0, common_1.Post)('deposit'),
     __param(0, (0, common_1.Body)()),
@@ -229,7 +274,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "getTaxSettings", null);
 __decorate([
-    Put('taxes/:id'),
+    (0, common_1.Put)('taxes/:id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -332,7 +377,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getTaxDocument", null);
 exports.PaymentsController = PaymentsController = __decorate([
-    (0, common_1.Controller)(''),
+    (0, common_1.Controller)('api/payments'),
     __metadata("design:paramtypes", [payments_service_1.PaymentsService])
 ], PaymentsController);
 //# sourceMappingURL=payments.controller.js.map

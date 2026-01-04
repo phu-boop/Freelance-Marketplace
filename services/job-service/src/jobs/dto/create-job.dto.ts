@@ -17,6 +17,10 @@ export class CreateJobDto {
     @IsNotEmpty()
     client_id: string;
 
+    @IsString()
+    @IsOptional()
+    teamId?: string;
+
     @IsArray()
     @IsString({ each: true })
     @IsOptional()

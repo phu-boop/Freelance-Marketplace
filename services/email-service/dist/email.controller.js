@@ -34,7 +34,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], EmailController.prototype, "sendEmail", null);
 exports.EmailController = EmailController = __decorate([
-    (0, common_1.Controller)('email'),
+    (0, common_1.Controller)('api/email'),
     __metadata("design:paramtypes", [email_service_1.EmailService])
 ], EmailController);
 //# sourceMappingURL=email.controller.js.map

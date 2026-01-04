@@ -32,6 +32,7 @@ services:
       - name: user-protected
         paths:
           - /api/users
+          - /api/user/teams
         methods:
           - POST
           - PUT
@@ -48,6 +49,9 @@ services:
           - /api/jobs
           - /api/proposals
           - /api/reports
+          - /api/interviews
+          - /api/timesheets
+          - /api/service-packages
         strip_path: false
 
   - name: contract-service
@@ -64,7 +68,7 @@ services:
       - name: payment-routes
         paths:
           - /api/payments
-        strip_path: true
+        strip_path: false
 
   - name: chat-service
     url: http://freelance_chat_service:3006
@@ -72,7 +76,7 @@ services:
       - name: chat-routes
         paths:
           - /api/chat
-        strip_path: true
+        strip_path: false
 
   - name: notification-service
     url: http://freelance_notification_service:3007
@@ -80,7 +84,7 @@ services:
       - name: notification-routes
         paths:
           - /api/notifications
-        strip_path: true
+        strip_path: false
 
   - name: review-service
     url: http://freelance_review_service:3008
@@ -109,28 +113,16 @@ services:
       - name: admin-routes
         paths:
           - /api/admins
+          - /api/public
         strip_path: false
 
   - name: search-service
-    url: http://freelance_search_service:3010/search
+    url: http://freelance_search_service:3010
     routes:
-      - name: search-read
+      - name: search-routes
         paths:
           - /api/search
-        methods:
-          - GET
-          - OPTIONS
-        strip_path: true
-      - name: search-write
-        paths:
-          - /api/search
-        methods:
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-          - OPTIONS
-        strip_path: true
+        strip_path: false
 
   - name: analytics-service
     url: http://freelance_analytics_service:3014
@@ -138,49 +130,23 @@ services:
       - name: analytics-routes
         paths:
           - /api/analytics
-        strip_path: true
+        strip_path: false
 
   - name: storage-service
-    url: http://freelance_storage_service:3011/storage
+    url: http://freelance_storage_service:3011
     routes:
-      - name: storage-read
+      - name: storage-routes
         paths:
           - /api/storage
-        methods:
-          - GET
-          - OPTIONS
-        strip_path: true
-      - name: storage-write
-        paths:
-          - /api/storage
-        methods:
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-          - OPTIONS
-        strip_path: true
+        strip_path: false
 
   - name: common-service
-    url: http://freelance_common_service:3013/common
+    url: http://freelance_common_service:3013
     routes:
-      - name: common-read
+      - name: common-routes
         paths:
           - /api/common
-        methods:
-          - GET
-          - OPTIONS
-        strip_path: true
-      - name: common-write
-        paths:
-          - /api/common
-        methods:
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-          - OPTIONS
-        strip_path: true
+        strip_path: false
 
   - name: email-service
     url: http://freelance_email_service:3012
@@ -188,7 +154,23 @@ services:
       - name: email-routes
         paths:
           - /api/email
-        strip_path: true
+        strip_path: false
+
+  - name: community-service
+    url: http://freelance_community_service:3015
+    routes:
+      - name: community-routes
+        paths:
+          - /api/forum
+        strip_path: false
+
+  - name: developer-service
+    url: http://freelance_developer_service:3016
+    routes:
+      - name: developer-routes
+        paths:
+          - /api/developer
+        strip_path: false
 
 consumers:
   - username: keycloak-user

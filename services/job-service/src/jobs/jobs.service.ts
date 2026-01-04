@@ -1,12 +1,12 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { CreateJobAlertDto } from './dto/create-job-alert.dto';
 import { CreateCategoryDto } from '../categories/create-category.dto';
 import { PrismaService } from '../prisma/prisma.service';
-
 import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 
 
 @Injectable()
@@ -15,6 +15,8 @@ export class JobsService {
     private prisma: PrismaService,
     private readonly httpService: HttpService
   ) { }
+
+  private readonly logger = new Logger(JobsService.name);
 
   async syncAllJobs() {
     const jobs = await this.prisma.job.findMany({
@@ -81,6 +83,11 @@ export class JobsService {
       // Sync to search service
       await this.syncToSearch(job);
 
+      // Trigger Webhook
+      this.dispatchWebhook('job.created', job).catch(err =>
+        this.logger.error(`Failed to dispatch job.created webhook: ${err.message}`)
+      );
+
       return job;
     } catch (error) {
       // P2003: Foreign key constraint failed
@@ -102,7 +109,9 @@ export class JobsService {
   }
 
   async deleteCategory(id: string) {
-    return this.prisma.category.delete({ where: { id } });
+    const result = await this.prisma.category.delete({ where: { id } });
+    await this.recordTombstone('Category', id);
+    return result;
   }
 
   private async syncToSearch(job: any) {
@@ -141,6 +150,20 @@ export class JobsService {
     }
   }
 
+  private async dispatchWebhook(event: string, payload: any) {
+    try {
+      const developerServiceUrl = process.env.DEVELOPER_SERVICE_URL || 'http://developer-service:3016';
+      await firstValueFrom(
+        this.httpService.post(`${developerServiceUrl}/api/developer/webhooks/dispatch`, {
+          event,
+          payload,
+        })
+      );
+    } catch (error) {
+      this.logger.error(`Webhook dispatch failed: ${error.message}`);
+    }
+  }
+
   async findAll(page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
     const [total, results] = await Promise.all([
@@ -170,8 +193,11 @@ export class JobsService {
     };
   }
 
-  async findByClient(clientId: string, status?: string) {
-    const where: any = { client_id: clientId };
+  async findByClient(clientId: string, status?: string, teamId?: string) {
+    const where: any = teamId
+      ? { teamId }
+      : { client_id: clientId };
+
     if (status) {
       where.status = status;
     }
@@ -287,9 +313,11 @@ export class JobsService {
   }
 
   async remove(id: string) {
-    return this.prisma.job.delete({
-      where: { id },
+    const result = await this.prisma.job.delete({
+      where: { id }
     });
+    await this.recordTombstone('Job', id);
+    return result;
   }
 
   // Admin Actions
@@ -469,7 +497,9 @@ export class JobsService {
 
   async deleteSkill(id: string) {
     try {
-      return await this.prisma.skill.delete({ where: { id } });
+      const result = await this.prisma.skill.delete({ where: { id } });
+      await this.recordTombstone('Skill', id);
+      return result;
     } catch (error) {
       if (error.code === 'P2025') {
         throw new NotFoundException('Skill not found');
@@ -1087,9 +1117,16 @@ export class JobsService {
         }
       });
 
+      // Calculate auto-release date
+      const autoReleaseDate = new Date();
+      autoReleaseDate.setDate(autoReleaseDate.getDate() + (milestone.proposal.autoReleaseDays || 14));
+
       await prisma.milestone.update({
         where: { id: milestoneId },
-        data: { status: 'SUBMITTED' }
+        data: {
+          status: 'SUBMITTED',
+          autoReleaseDate
+        }
       });
 
       // Notify Client
@@ -1104,6 +1141,32 @@ export class JobsService {
 
       return submission;
     });
+  }
+
+  async autoReleaseMilestones() {
+    const now = new Date();
+    const milestonesToRelease = await this.prisma.milestone.findMany({
+      where: {
+        status: 'SUBMITTED',
+        autoReleaseDate: { lte: now },
+      },
+      include: {
+        proposal: {
+          include: { job: true }
+        }
+      },
+    });
+
+    this.logger.log(`Processing ${milestonesToRelease.length} milestones for auto-release in Job Service`);
+
+    for (const milestone of milestonesToRelease) {
+      try {
+        await this.approveMilestone(milestone.id, 'SYSTEM');
+        this.logger.log(`Auto-released milestone ${milestone.id} for proposal ${milestone.proposalId}`);
+      } catch (error) {
+        this.logger.error(`Failed to auto-release milestone ${milestone.id}: ${error.message}`);
+      }
+    }
   }
 
   private async sendNotification(userId: string, type: string, title: string, message: string, metadata?: any) {
@@ -1133,7 +1196,7 @@ export class JobsService {
     });
 
     if (!milestone) throw new NotFoundException('Milestone not found');
-    if (milestone.proposal.job.client_id !== clientId) throw new ForbiddenException('Only the client can approve work');
+    if (clientId !== 'SYSTEM' && milestone.proposal.job.client_id !== clientId) throw new ForbiddenException('Only the client can approve work');
     if (milestone.status !== 'SUBMITTED') throw new BadRequestException('Milestone is not in SUBMITTED state');
 
     // Transfer funds
@@ -1356,9 +1419,21 @@ export class JobsService {
   }
 
   async deleteServicePackage(id: string, userId: string) {
-    return this.prisma.servicePackage.delete({
+    const result = await this.prisma.servicePackage.delete({
       where: { id }
     });
+    await this.recordTombstone('ServicePackage', id);
+    return result;
+  }
+
+  private async recordTombstone(entity: string, recordId: string) {
+    try {
+      await this.prisma.syncTombstone.create({
+        data: { entity, recordId }
+      });
+    } catch (error) {
+      this.logger.error(`Failed to record tombstone for ${entity}:${recordId}: ${error.message}`);
+    }
   }
 
   // Interviews
@@ -1556,5 +1631,74 @@ export class JobsService {
       activeJobs,
       completedJobs,
     };
+  }
+
+  async sync(since: string, entities: string[]) {
+    console.log(`Sync request: since=${since}, entities=${entities}`);
+    const sinceDate = new Date(since);
+    const newSince = new Date();
+    const result: any = {
+      newSince: newSince.toISOString(),
+      upserted: {},
+      deleted: {},
+    };
+
+    if (entities.includes('Job')) {
+      result.upserted.jobs = await this.prisma.job.findMany({
+        where: { updatedAt: { gt: sinceDate } },
+        include: { category: true, skills: { include: { skill: true } } },
+      });
+      const tombstones = await this.prisma.syncTombstone.findMany({
+        where: { entity: 'Job', deletedAt: { gt: sinceDate } },
+        select: { recordId: true },
+      });
+      result.deleted.jobs = tombstones.map(t => t.recordId);
+    }
+
+    if (entities.includes('Category')) {
+      result.upserted.categories = await this.prisma.category.findMany({
+        where: { updatedAt: { gt: sinceDate } },
+      });
+      const tombstones = await this.prisma.syncTombstone.findMany({
+        where: { entity: 'Category', deletedAt: { gt: sinceDate } },
+        select: { recordId: true },
+      });
+      result.deleted.categories = tombstones.map(t => t.recordId);
+    }
+
+    if (entities.includes('Skill')) {
+      result.upserted.skills = await this.prisma.skill.findMany({
+        where: { updatedAt: { gt: sinceDate } },
+      });
+      const tombstones = await this.prisma.syncTombstone.findMany({
+        where: { entity: 'Skill', deletedAt: { gt: sinceDate } },
+        select: { recordId: true },
+      });
+      result.deleted.skills = tombstones.map(t => t.recordId);
+    }
+
+    if (entities.includes('Proposal')) {
+      result.upserted.proposals = await this.prisma.proposal.findMany({
+        where: { updatedAt: { gt: sinceDate } },
+      });
+      const tombstones = await this.prisma.syncTombstone.findMany({
+        where: { entity: 'Proposal', deletedAt: { gt: sinceDate } },
+        select: { recordId: true },
+      });
+      result.deleted.proposals = tombstones.map(t => t.recordId);
+    }
+
+    if (entities.includes('Milestone')) {
+      result.upserted.milestones = await this.prisma.milestone.findMany({
+        where: { updatedAt: { gt: sinceDate } },
+      });
+      const tombstones = await this.prisma.syncTombstone.findMany({
+        where: { entity: 'Milestone', deletedAt: { gt: sinceDate } },
+        select: { recordId: true },
+      });
+      result.deleted.milestones = tombstones.map(t => t.recordId);
+    }
+
+    return result;
   }
 }

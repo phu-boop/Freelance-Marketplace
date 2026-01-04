@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, ConflictException, HttpException, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -19,7 +20,8 @@ export class UsersService {
     private prisma: PrismaService,
     private keycloakService: KeycloakService, // Fixed typo
     private jwtService: JwtService,
-    private httpService: HttpService
+    private httpService: HttpService,
+    private configService: ConfigService
   ) { }
 
   private async sendWelcomeEmail(email: string, name: string) {
@@ -344,14 +346,33 @@ export class UsersService {
       data: updateUserDto,
     });
     console.log('UPDATE RESULT:', JSON.stringify(user));
+
+    // Sync to search service
+    this.syncToSearch(user).catch(err =>
+      console.error(`Failed to sync user ${id} to search service:`, err.message)
+    );
+
     await this.checkBadges(id);
     return user;
   }
 
-  remove(id: string) {
-    return this.prisma.user.delete({
-      where: { id },
+  private async syncToSearch(user: any) {
+    const searchServiceUrl = this.configService.get<string>('SEARCH_SERVICE_URL', 'http://search-service:3004');
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${searchServiceUrl}/api/search/users/index`, user)
+      );
+    } catch (err) {
+      console.error('Search synchronization failed:', err.message);
+    }
+  }
+
+  async remove(id: string) {
+    const result = await this.prisma.user.delete({
+      where: { id }
     });
+    await this.recordTombstone('User', id);
+    return result;
   }
 
   addEducation(userId: string, data: any) {
@@ -367,10 +388,10 @@ export class UsersService {
     });
   }
 
-  deleteEducation(id: string) {
-    return this.prisma.education.delete({
-      where: { id },
-    });
+  async deleteEducation(id: string) {
+    const result = await this.prisma.education.delete({ where: { id } });
+    await this.recordTombstone('Education', id);
+    return result;
   }
 
   addExperience(userId: string, data: any) {
@@ -386,10 +407,10 @@ export class UsersService {
     });
   }
 
-  deleteExperience(id: string) {
-    return this.prisma.experience.delete({
-      where: { id },
-    });
+  async deleteExperience(id: string) {
+    const result = await this.prisma.experience.delete({ where: { id } });
+    await this.recordTombstone('Experience', id);
+    return result;
   }
 
   addPortfolio(userId: string, data: any) {
@@ -405,10 +426,10 @@ export class UsersService {
     });
   }
 
-  deletePortfolio(id: string) {
-    return this.prisma.portfolioItem.delete({
-      where: { id },
-    });
+  async deletePortfolio(id: string) {
+    const result = await this.prisma.portfolioItem.delete({ where: { id } });
+    await this.recordTombstone('PortfolioItem', id);
+    return result;
   }
 
   async toggleAvailability(userId: string) {
@@ -847,6 +868,78 @@ export class UsersService {
     } catch (e) {
       if (e.code === 'P2025') throw new NotFoundException('Freelancer not found in saved list');
       throw e;
+    }
+  }
+
+  private async recordTombstone(entity: string, recordId: string) {
+    try {
+      await this.prisma.syncTombstone.create({
+        data: { entity, recordId }
+      });
+    } catch (error) {
+      console.error(`Failed to record tombstone for ${entity}:${recordId}: ${error.message}`);
+    }
+  }
+
+  async sync(since: string, entities: string[]) {
+    try {
+      console.log(`Sync request: since=${since}, entities=${entities}`);
+      const sinceDate = new Date(since);
+      const newSince = new Date();
+      const result: any = {
+        newSince: newSince.toISOString(),
+        upserted: {},
+        deleted: {},
+      };
+
+      if (entities.includes('User')) {
+        result.upserted.users = await this.prisma.user.findMany({
+          where: { updatedAt: { gt: sinceDate } },
+        });
+        const tombstones = await this.prisma.syncTombstone.findMany({
+          where: { entity: 'User', deletedAt: { gt: sinceDate } },
+          select: { recordId: true },
+        });
+        result.deleted.users = tombstones.map(t => t.recordId);
+      }
+
+      if (entities.includes('Education')) {
+        result.upserted.education = await this.prisma.education.findMany({
+          where: { updatedAt: { gt: sinceDate } },
+        });
+        const tombstones = await this.prisma.syncTombstone.findMany({
+          where: { entity: 'Education', deletedAt: { gt: sinceDate } },
+          select: { recordId: true },
+        });
+        result.deleted.education = tombstones.map(t => t.recordId);
+      }
+
+      if (entities.includes('Experience')) {
+        result.upserted.experience = await this.prisma.experience.findMany({
+          where: { updatedAt: { gt: sinceDate } },
+        });
+        const tombstones = await this.prisma.syncTombstone.findMany({
+          where: { entity: 'Experience', deletedAt: { gt: sinceDate } },
+          select: { recordId: true },
+        });
+        result.deleted.experience = tombstones.map(t => t.recordId);
+      }
+
+      if (entities.includes('PortfolioItem')) {
+        result.upserted.portfolioItems = await this.prisma.portfolioItem.findMany({
+          where: { updatedAt: { gt: sinceDate } },
+        });
+        const tombstones = await this.prisma.syncTombstone.findMany({
+          where: { entity: 'PortfolioItem', deletedAt: { gt: sinceDate } },
+          select: { recordId: true },
+        });
+        result.deleted.portfolioItems = tombstones.map(t => t.recordId);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Sync failed:', error);
+      throw error;
     }
   }
 }

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import keycloak from '@/lib/keycloak';
+import api from '@/lib/api';
 
 interface KeycloakContextType {
     authenticated: boolean;

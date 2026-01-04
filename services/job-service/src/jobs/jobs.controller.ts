@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request } from '@nestjs/common';
 import { JobsService } from './jobs.service';
+import { AiService } from './ai.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { CreateCategoryDto } from '../categories/create-category.dto';
@@ -7,7 +8,29 @@ import { Public, Roles } from 'nest-keycloak-connect';
 
 @Controller('api/jobs')
 export class JobsController {
-  constructor(private readonly jobsService: JobsService) { }
+  constructor(
+    private readonly jobsService: JobsService,
+    private readonly aiService: AiService
+  ) { }
+
+  @Post('ai/scope')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  async generateAiScope(@Body() body: { description: string, budget?: number }) {
+    return this.aiService.generateMilestones(body.description, body.budget);
+  }
+
+  @Post('ai/analyze-style')
+  @Public() // Allow internal calls or from other services without specific user context if needed
+  async analyzeCommunicationStyle(@Body() body: { messages: string[] }) {
+    const style = await this.aiService.analyzeCommunicationStyle(body.messages);
+    return { style };
+  }
+
+  @Post('ai/detect-fraud')
+  @Public()
+  async detectFraud(@Body() body: { content: string }) {
+    return this.aiService.detectFraud(body.content);
+  }
 
   @Post()
   @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:ADMIN', 'ADMIN'] })
@@ -26,9 +49,9 @@ export class JobsController {
   }
 
   @Get('my-jobs')
-  findByClient(@Request() req, @Query('status') status?: string) {
+  findByClient(@Request() req, @Query('status') status?: string, @Query('teamId') teamId?: string) {
     const userId = req.user.sub;
-    return this.jobsService.findByClient(userId, status);
+    return this.jobsService.findByClient(userId, status, teamId);
   }
 
   // Saved Jobs
@@ -176,9 +199,26 @@ export class JobsController {
     return this.jobsService.promoteJob(id, userId);
   }
 
+  @Get(':id/recommendations')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  async getRecommendedFreelancers(@Param('id') id: string) {
+    // This points to search-service for matching
+    return { searchServiceUrl: `/api/search/freelancers/recommendations/${id}` };
+  }
+
   @Get('client/stats')
   @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
   getClientStats(@Request() req) {
     return this.jobsService.getClientStats(req.user.sub);
+  }
+
+  @Get('sync')
+  @Public()
+  sync(
+    @Query('since') since: string,
+    @Query('entities') entities: string,
+  ) {
+    const entityList = entities ? entities.split(',') : ['Job', 'Category', 'Skill'];
+    return this.jobsService.sync(since || new Date(0).toISOString(), entityList);
   }
 }

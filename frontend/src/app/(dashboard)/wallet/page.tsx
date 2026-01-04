@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Wallet, ArrowUpRight, ArrowDownLeft, History, Loader2, Plus, FileText } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, History, Loader2, Plus, FileText, Globe, Smartphone, Save, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import DepositModal from '@/components/DepositModal';
 import WithdrawalModal from '@/components/WithdrawalModal';
+import { useCurrency } from '@/components/CurrencyProvider';
 
 interface Transaction {
     id: string;
@@ -21,27 +22,48 @@ interface WalletData {
     id: string;
     balance: number;
     currency: string;
+    preferredCurrency: string;
+    cryptoAddress?: string;
     transactions: Transaction[];
 }
 
 export default function WalletPage() {
-    const { userId, authenticated } = useKeycloak();
+    const { userId, authenticated, token } = useKeycloak();
+    const { currency, setCurrency, formatAmount, rates } = useCurrency();
     const [wallet, setWallet] = useState<WalletData | null>(null);
     const [loading, setLoading] = useState(true);
     const [isDepositOpen, setIsDepositOpen] = useState(false);
     const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+    const [cryptoAddress, setCryptoAddress] = useState('');
+    const [isSavingCrypto, setIsSavingCrypto] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
 
     const fetchWallet = async () => {
         if (!userId) return;
         try {
             const res = await api.get(`/payments/wallet/${userId}`);
             setWallet(res.data);
+            setCryptoAddress(res.data.cryptoAddress || '');
         } catch (error) {
             console.error('Failed to fetch wallet', error);
         } finally {
             setLoading(false);
         }
     };
+
+    const handleSaveCrypto = async () => {
+        setIsSavingCrypto(true);
+        try {
+            await api.patch('/payments/wallet/crypto-address', { address: cryptoAddress });
+            setSaveSuccess(true);
+            setTimeout(() => setSaveSuccess(false), 3000);
+        } catch (err) {
+            console.error('Failed to save crypto address', err);
+        } finally {
+            setIsSavingCrypto(false);
+        }
+    };
+
 
     useEffect(() => {
         if (authenticated && userId) {
@@ -59,9 +81,24 @@ export default function WalletPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
-            <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-white">My Wallet</h1>
-                <p className="text-slate-400">Manage your earnings and funds.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-bold text-white">My Wallet</h1>
+                    <p className="text-slate-400">Manage your earnings and funds globally.</p>
+                </div>
+
+                <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 p-2 rounded-2xl">
+                    <Globe className="w-4 h-4 text-slate-500 ml-2" />
+                    <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        className="bg-transparent text-white border-none focus:ring-0 text-sm font-bold"
+                    >
+                        {Object.keys(rates).map(c => (
+                            <option key={c} value={c} className="bg-slate-900">{c}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -74,7 +111,7 @@ export default function WalletPage() {
                         <div>
                             <p className="text-blue-200 font-medium">Total Balance</p>
                             <h2 className="text-5xl font-bold mt-2">
-                                ${Number(wallet?.balance || 0).toFixed(2)}
+                                {formatAmount(Number(wallet?.balance || 0))}
                             </h2>
                         </div>
                         <div className="flex gap-4">
@@ -95,16 +132,43 @@ export default function WalletPage() {
                     </div>
                 </div>
 
-                {/* Stats Card */}
-                <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col justify-center space-y-4">
-                    <div className="space-y-1">
-                        <p className="text-slate-400 text-sm">Total Earnings</p>
-                        <p className="text-2xl font-bold text-white">$0.00</p>
+                {/* Stats & Crypto */}
+                <div className="space-y-6">
+                    <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
+                        <div className="space-y-1">
+                            <p className="text-slate-400 text-sm">Total Earnings</p>
+                            <p className="text-2xl font-bold text-white">{formatAmount(0)}</p>
+                        </div>
+                        <div className="h-px bg-slate-800" />
+                        <div className="space-y-1">
+                            <p className="text-slate-400 text-sm">Pending Clearance</p>
+                            <p className="text-2xl font-bold text-slate-300">{formatAmount(0)}</p>
+                        </div>
                     </div>
-                    <div className="h-px bg-slate-800" />
-                    <div className="space-y-1">
-                        <p className="text-slate-400 text-sm">Pending Clearance</p>
-                        <p className="text-2xl font-bold text-slate-300">$0.00</p>
+
+                    <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 text-indigo-400">
+                            <Smartphone className="w-5 h-5" />
+                            <h3 className="font-bold">Crypto Wallet</h3>
+                        </div>
+                        <div className="space-y-2">
+                            <input
+                                type="text"
+                                placeholder="ETH or SOL address"
+                                value={cryptoAddress}
+                                onChange={(e) => setCryptoAddress(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <button
+                                onClick={handleSaveCrypto}
+                                disabled={isSavingCrypto}
+                                className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                                {isSavingCrypto ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                                    saveSuccess ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                                {saveSuccess ? 'Saved!' : 'Save Address'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -139,7 +203,7 @@ export default function WalletPage() {
                                         <div className={`text-lg font-bold ${tx.type === 'DEPOSIT' ? 'text-green-500' :
                                             tx.type === 'WITHDRAWAL' ? 'text-white' : 'text-white'
                                             }`}>
-                                            {tx.type === 'DEPOSIT' ? '+' : '-'}${Number(tx.amount).toFixed(2)}
+                                            {tx.type === 'DEPOSIT' ? '+' : '-'}{formatAmount(Number(tx.amount))}
                                         </div>
                                         <Link
                                             href={`/wallet/invoices/${tx.id}`}

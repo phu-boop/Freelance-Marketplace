@@ -2,7 +2,7 @@ import { Controller, Post, UploadedFile, UseInterceptors, Get, Param } from '@ne
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MinioService } from './minio.service';
 
-@Controller('storage')
+@Controller('api/storage')
 export class StorageController {
     constructor(private readonly minioService: MinioService) { }
 

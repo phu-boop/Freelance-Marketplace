@@ -10,10 +10,13 @@ import {
     Clock,
     Users,
     MoreHorizontal,
-    Loader2
+    Loader2,
+    Building2,
+    ChevronDown
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { useKeycloak } from '@/components/KeycloakProvider';
 
 interface Job {
     id: string;
@@ -25,16 +28,30 @@ interface Job {
 }
 
 export default function ClientJobsPage() {
+    const { authenticated, token } = useKeycloak();
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('ALL');
+    const [teams, setTeams] = useState<any[]>([]);
+    const [selectedTeam, setSelectedTeam] = useState<any>(null);
 
     useEffect(() => {
+        if (authenticated && token) {
+            fetchTeams();
+        }
+    }, [authenticated, token]);
+
+    useEffect(() => {
+        if (!authenticated || !token) return;
+
         const fetchJobs = async () => {
+            setLoading(true);
             try {
-                // In a real implementation, this would potentially be /jobs/my-jobs or filtered by current user ID
-                const res = await api.get('/jobs');
-                setJobs(res.data.results || []);
+                const params: any = {};
+                if (selectedTeam) params.teamId = selectedTeam.id;
+
+                const res = await api.get('/jobs/my-jobs', { params });
+                setJobs(res.data || []);
             } catch (error) {
                 console.error('Failed to fetch jobs', error);
             } finally {
@@ -43,7 +60,21 @@ export default function ClientJobsPage() {
         };
 
         fetchJobs();
-    }, []);
+    }, [authenticated, token, selectedTeam]);
+
+    const fetchTeams = async () => {
+        try {
+            const resp = await fetch('/api/user/teams', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                setTeams(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch teams', err);
+        }
+    };
 
     const filteredJobs = jobs.filter(job => filter === 'ALL' ? true : job.status === filter);
 
@@ -51,15 +82,56 @@ export default function ClientJobsPage() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">My Jobs</h1>
-                    <p className="text-slate-400">Manage your job postings and view proposals.</p>
+                    <h1 className="text-3xl font-bold text-white">Jobs</h1>
+                    <p className="text-slate-400">
+                        {selectedTeam ? `Managing organization posts: ${selectedTeam.name}` : 'Managing your personal posts'}
+                    </p>
                 </div>
-                <Link href="/marketplace/create">
-                    <button className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20">
-                        <PlusCircle className="w-5 h-5" />
-                        Post New Job
-                    </button>
-                </Link>
+
+                <div className="flex items-center gap-3">
+                    <div className="relative group">
+                        <button className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-200 hover:border-slate-700 transition-all">
+                            {selectedTeam ? (
+                                <><Building2 className="w-4 h-4 text-indigo-400" /> {selectedTeam.name}</>
+                            ) : (
+                                <><Users className="w-4 h-4 text-emerald-400" /> Personal</>
+                            )}
+                            <ChevronDown className="w-4 h-4 text-slate-500" />
+                        </button>
+
+                        <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl py-2 invisible group-hover:visible z-50 transition-all opacity-0 group-hover:opacity-100">
+                            <button
+                                onClick={() => setSelectedTeam(null)}
+                                className={`w-full text-left px-4 py-2 hover:bg-slate-800 transition-colors flex items-center gap-3 ${!selectedTeam ? 'text-indigo-400' : 'text-slate-300'}`}
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                    <Users className="w-4 h-4 text-emerald-400" />
+                                </div>
+                                <span className="font-medium">Personal</span>
+                            </button>
+
+                            {teams.map(team => (
+                                <button
+                                    key={team.id}
+                                    onClick={() => setSelectedTeam(team)}
+                                    className={`w-full text-left px-4 py-2 hover:bg-slate-800 transition-colors flex items-center gap-3 ${selectedTeam?.id === team.id ? 'text-indigo-400' : 'text-slate-300'}`}
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                                        <Building2 className="w-4 h-4 text-indigo-400" />
+                                    </div>
+                                    <span className="font-medium truncate">{team.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <Link href="/marketplace/create">
+                        <button className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20">
+                            <PlusCircle className="w-5 h-5" />
+                            Post New Job
+                        </button>
+                    </Link>
+                </div>
             </div>
 
             <div className="flex items-center gap-3 bg-slate-900 p-1 rounded-xl border border-slate-800 w-fit">

@@ -1,11 +1,22 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Public } from 'nest-keycloak-connect';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { UpdateProposalDto } from './dto/update-proposal.dto';
 
-@Controller('proposals')
+@Controller('api/proposals')
 export class ProposalsController {
   constructor(private readonly proposalsService: ProposalsService) { }
+
+  @Get('sync')
+  @Public()
+  sync(
+    @Query('since') since: string,
+    @Query('entities') entities: string,
+  ) {
+    const entityList = entities ? entities.split(',') : ['Proposal'];
+    return this.proposalsService.sync(since || new Date(0).toISOString(), entityList);
+  }
 
   @Post()
   create(@Body() createProposalDto: CreateProposalDto) {

@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["proposals"]
+  schemas  = ["proposals", "sync"]
 }
 
 model Proposal {
@@ -30,4 +30,14 @@ model Proposal {
 
   @@unique([job_id, freelancer_id])
   @@schema("proposals")
+}
+model SyncTombstone {
+  id        String   @id @default(uuid())
+  entity    String   // e.g., "Proposal"
+  recordId  String
+  deletedAt DateTime @default(now())
+  
+  @@index([deletedAt])
+  @@map("sync_tombstones")
+  @@schema("sync")
 }

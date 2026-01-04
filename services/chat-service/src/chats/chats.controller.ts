@@ -12,13 +12,18 @@ import { ChatsService } from './chats.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 
-@Controller('chats')
+@Controller('api/chat')
 export class ChatsController {
   constructor(private readonly chatsService: ChatsService) { }
 
   @Post()
   create(@Body() createChatDto: CreateChatDto) {
     return this.chatsService.create(createChatDto);
+  }
+
+  @Get('sync')
+  sync(@Query('since') since: string) {
+    return this.chatsService.sync(since || new Date(0).toISOString());
   }
 
   @Get()

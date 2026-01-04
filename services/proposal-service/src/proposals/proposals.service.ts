@@ -95,16 +95,65 @@ export class ProposalsService {
     });
   }
 
-  update(id: string, updateProposalDto: UpdateProposalDto) {
+  async update(id: string, updateProposalDto: UpdateProposalDto) {
+    const proposal = await this.prisma.proposal.findUnique({ where: { id } });
+    if (!proposal) {
+      throw new HttpException('Proposal not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (updateProposalDto.baseVersion) {
+      const clientBaseVersion = new Date(updateProposalDto.baseVersion).getTime();
+      const serverBaseVersion = new Date(proposal.updatedAt).getTime();
+      if (clientBaseVersion < serverBaseVersion) {
+        throw new ConflictException('Conflict detected: The record has been modified by another source.');
+      }
+    }
+
+    const { baseVersion, ...data } = updateProposalDto;
     return this.prisma.proposal.update({
       where: { id },
-      data: updateProposalDto,
+      data,
     });
   }
 
-  remove(id: string) {
-    return this.prisma.proposal.delete({
+  async remove(id: string) {
+    const result = await this.prisma.proposal.delete({
       where: { id },
     });
+    await this.recordTombstone('Proposal', id);
+    return result;
+  }
+
+  private async recordTombstone(entity: string, recordId: string) {
+    try {
+      await this.prisma.syncTombstone.create({
+        data: { entity, recordId }
+      });
+    } catch (error) {
+      console.error(`Failed to record tombstone for ${entity}:${recordId}: ${error.message}`);
+    }
+  }
+
+  async sync(since: string, entities: string[]) {
+    const sinceDate = new Date(since);
+    const newSince = new Date();
+    const result: any = {
+      newSince: newSince.toISOString(),
+      upserted: {},
+      deleted: {},
+    };
+
+    if (entities.includes('Proposal')) {
+      result.upserted.proposals = await this.prisma.proposal.findMany({
+        where: { updatedAt: { gt: sinceDate } },
+      });
+      const tombstones = await this.prisma.syncTombstone.findMany({
+        where: { entity: 'Proposal', deletedAt: { gt: sinceDate } },
+        select: { recordId: true },
+      });
+      result.deleted.proposals = tombstones.map(t => t.recordId);
+    }
+
+    return result;
   }
 }

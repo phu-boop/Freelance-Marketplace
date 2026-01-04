@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './health/health.controller';
+import { ScheduleModule } from '@nestjs/schedule';
 import {
   KeycloakConnectModule,
   ResourceGuard,

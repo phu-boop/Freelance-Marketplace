@@ -7,6 +7,8 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import api from '@/lib/api';
 import { useRouter, usePathname } from 'next/navigation';
+import { useCurrency } from '@/components/CurrencyProvider';
+import { Smartphone } from 'lucide-react';
 
 export default function DashboardLayout({
     children,
@@ -14,6 +16,7 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const { authenticated, userId } = useKeycloak();
+    const { currency } = useCurrency();
     const [showOnboarding, setShowOnboarding] = React.useState(false);
     const router = useRouter();
     const pathname = usePathname();
@@ -56,6 +59,9 @@ export default function DashboardLayout({
                 <header className="h-16 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-white">Welcome back!</h2>
                     <div className="flex items-center gap-6">
+                        <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg">
+                            <span className="text-xs font-bold text-slate-500">{currency}</span>
+                        </div>
                         <NotificationBell />
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600" />
                     </div>

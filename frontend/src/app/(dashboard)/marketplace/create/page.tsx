@@ -25,6 +25,7 @@ export default function PostJobPage() {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [categories, setCategories] = useState<any[]>([]);
+    const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -34,6 +35,7 @@ export default function PostJobPage() {
         type: 'FIXED_PRICE',
         skills: [] as string[],
         currentSkill: '',
+        preferredCommunicationStyle: 'Proactive',
         attachments: [] as string[]
     });
 
@@ -97,6 +99,7 @@ export default function PostJobPage() {
                 categoryId: formData.categoryId || null,
                 location: formData.location,
                 type: formData.type,
+                preferredCommunicationStyle: formData.preferredCommunicationStyle,
                 skills: formData.skills,
                 attachments: formData.attachments
             });
@@ -214,6 +217,24 @@ export default function PostJobPage() {
                     </div>
 
                     <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-300">Preferred Communication Style</label>
+                        <div className="relative">
+                            <Tags className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                            <select
+                                value={formData.preferredCommunicationStyle}
+                                onChange={(e) => setFormData({ ...formData, preferredCommunicationStyle: e.target.value })}
+                                className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                            >
+                                <option value="Proactive">Proactive (Daily updates, asks questions)</option>
+                                <option value="Formal">Formal (Professional milestones, reporting)</option>
+                                <option value="Concise">Concise (Result-oriented, minimal chatter)</option>
+                                <option value="Casual">Casual (Friendly, easy-going)</option>
+                                <option value="Instructional">Instructional (Follows detailed specs closely)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-300">Location</label>
                         <div className="relative">
                             <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -228,8 +249,32 @@ export default function PostJobPage() {
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-300">Description</label>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <label className="text-sm font-medium text-slate-300">Description</label>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (!formData.description) return alert('Please enter a description first');
+                                    setLoading(true);
+                                    try {
+                                        const res = await api.post('/jobs/ai/scope', {
+                                            description: formData.description,
+                                            budget: parseFloat(formData.budget) || undefined
+                                        });
+                                        setAiSuggestions(res.data);
+                                    } catch (err) {
+                                        console.error('AI Suggestion failed', err);
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                className="text-xs font-semibold bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-500/20 transition-all flex items-center gap-2"
+                            >
+                                <Loader2 className={`w-3 h-3 ${loading ? 'animate-spin' : 'hidden'}`} />
+                                ✨ AI Scoping Assistant
+                            </button>
+                        </div>
                         <textarea
                             required
                             rows={6}
@@ -238,6 +283,28 @@ export default function PostJobPage() {
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                             className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all resize-none"
                         />
+
+                        {aiSuggestions.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-3"
+                            >
+                                <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider">AI Suggested Milestones</h4>
+                                <div className="grid gap-2">
+                                    {aiSuggestions.map((m: any, i: number) => (
+                                        <div key={i} className="text-sm p-3 rounded-lg bg-slate-950/50 border border-slate-800/50 flex justify-between items-center">
+                                            <div>
+                                                <div className="font-medium text-white">{m.title}</div>
+                                                <div className="text-xs text-slate-500">{m.description}</div>
+                                            </div>
+                                            <div className="text-blue-400 font-bold">{m.percentage}%</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-slate-500 italic text-center">These milestones can be used when creating the contract or drafting the offer.</p>
+                            </motion.div>
+                        )}
                     </div>
 
                     <div className="space-y-2">

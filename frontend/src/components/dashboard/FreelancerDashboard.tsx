@@ -140,7 +140,14 @@ export function FreelancerDashboard({ user }: { user: any }) {
                         </div>
                         <div className="mt-4">
                             <div className="text-2xl font-bold text-white">{stat.value}</div>
-                            <div className="text-sm text-slate-400 mt-1">{stat.label}</div>
+                            <div className="text-sm text-slate-400 mt-1 flex justify-between items-center">
+                                {stat.label}
+                                {stat.label === 'Total Earnings' && (
+                                    <Link href="/reports/revenue" className="text-blue-500 hover:text-blue-400 text-xs font-bold flex items-center gap-0.5">
+                                        View Insights <ArrowUpRight className="w-3 h-3" />
+                                    </Link>
+                                )}
+                            </div>
                         </div>
                     </motion.div>
                 ))}
