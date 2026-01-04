@@ -2,12 +2,49 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { CurrencyConverterService } from './currency-converter.service';
 export declare class PaymentsService {
     private prisma;
     private httpService;
     private configService;
+    private currencyConverter;
     private readonly logger;
-    constructor(prisma: PrismaService, httpService: HttpService, configService: ConfigService);
+    constructor(prisma: PrismaService, httpService: HttpService, configService: ConfigService, currencyConverter: CurrencyConverterService);
+    updateCryptoAddress(userId: string, cryptoAddress: string): Promise<{
+        id: string;
+        userId: string;
+        balance: Prisma.Decimal;
+        currency: string;
+        createdAt: Date;
+        updatedAt: Date;
+        autoWithdrawalEnabled: boolean;
+        autoWithdrawalSchedule: string | null;
+        autoWithdrawalThreshold: Prisma.Decimal | null;
+        pendingBalance: Prisma.Decimal;
+        autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
+    }>;
+    updatePreferredCurrency(userId: string, preferredCurrency: string): Promise<{
+        id: string;
+        userId: string;
+        balance: Prisma.Decimal;
+        currency: string;
+        createdAt: Date;
+        updatedAt: Date;
+        autoWithdrawalEnabled: boolean;
+        autoWithdrawalSchedule: string | null;
+        autoWithdrawalThreshold: Prisma.Decimal | null;
+        pendingBalance: Prisma.Decimal;
+        autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
+    }>;
+    getExchangeRates(base?: string): Promise<Record<string, number>>;
     createWallet(userId: string): Promise<{
         id: string;
         userId: string;
@@ -20,6 +57,10 @@ export declare class PaymentsService {
         autoWithdrawalThreshold: Prisma.Decimal | null;
         pendingBalance: Prisma.Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
     }>;
     getWallet(userId: string): Promise<{
         id: string;
@@ -33,6 +74,10 @@ export declare class PaymentsService {
         autoWithdrawalThreshold: Prisma.Decimal | null;
         pendingBalance: Prisma.Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
     }>;
     deposit(userId: string, amount: number, referenceId: string): Promise<{
         id: string;
@@ -46,6 +91,10 @@ export declare class PaymentsService {
         autoWithdrawalThreshold: Prisma.Decimal | null;
         pendingBalance: Prisma.Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
     }>;
     withdraw(userId: string, amount: number): Promise<{
         id: string;
@@ -59,6 +108,10 @@ export declare class PaymentsService {
         autoWithdrawalThreshold: Prisma.Decimal | null;
         pendingBalance: Prisma.Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
     }>;
     getInvoiceData(transactionId: string): Promise<{
         invoiceNumber: string;
@@ -103,6 +156,10 @@ export declare class PaymentsService {
             autoWithdrawalThreshold: Prisma.Decimal | null;
             pendingBalance: Prisma.Decimal;
             autoWithdrawalMethodId: string | null;
+            autoDepositEnabled: boolean;
+            autoDepositThreshold: Prisma.Decimal | null;
+            autoDepositAmount: Prisma.Decimal | null;
+            paymentMethodId: string | null;
         };
     } & {
         id: string;
@@ -163,6 +220,10 @@ export declare class PaymentsService {
         autoWithdrawalThreshold: Prisma.Decimal | null;
         pendingBalance: Prisma.Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
     }>;
     getWithdrawalMethods(userId: string): Promise<{
         id: string;
@@ -208,9 +269,39 @@ export declare class PaymentsService {
         accountName: string;
         isDefault: boolean;
     }>;
-    addPaymentMethod(userId: string, data: any): Promise<any>;
-    getPaymentMethods(userId: string): Promise<any>;
-    deletePaymentMethod(userId: string, id: string): Promise<any>;
+    addPaymentMethod(userId: string, data: any): Promise<{
+        id: string;
+        userId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: string;
+        isDefault: boolean;
+        last4: string | null;
+        brand: string | null;
+        token: string;
+    }>;
+    getPaymentMethods(userId: string): Promise<{
+        id: string;
+        userId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: string;
+        isDefault: boolean;
+        last4: string | null;
+        brand: string | null;
+        token: string;
+    }[]>;
+    deletePaymentMethod(userId: string, id: string): Promise<{
+        id: string;
+        userId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: string;
+        isDefault: boolean;
+        last4: string | null;
+        brand: string | null;
+        token: string;
+    }>;
     updateAutoDepositConfig(userId: string, data: {
         enabled: boolean;
         threshold?: number;
@@ -228,6 +319,10 @@ export declare class PaymentsService {
         autoWithdrawalThreshold: Prisma.Decimal | null;
         pendingBalance: Prisma.Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: Prisma.Decimal | null;
+        autoDepositAmount: Prisma.Decimal | null;
+        paymentMethodId: string | null;
     }>;
     checkAndTriggerAutoDeposit(userId: string): Promise<void>;
     getTaxYearSummary(userId: string, year: number): Promise<{
@@ -255,6 +350,7 @@ export declare class PaymentsService {
         invoiceId: string | null;
         taxAmount: Prisma.Decimal;
     }>;
+    private logFinancialEvent;
     createTaxSetting(data: {
         countryCode: string;
         taxRate: number;
@@ -288,5 +384,21 @@ export declare class PaymentsService {
         countryCode: string;
         taxRate: Prisma.Decimal;
         isActive: boolean;
+    }>;
+    getPredictiveRevenue(userId: string): Promise<{
+        userId: string;
+        currentStats: {
+            totalEarned: number;
+            pendingRevenue: number;
+            availableBalance: number;
+        };
+        historicalTrend: {
+            month: string;
+            amount: number;
+        }[];
+        projections: {
+            month: string;
+            amount: number;
+        }[];
     }>;
 }

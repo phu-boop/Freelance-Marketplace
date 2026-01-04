@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["jobs", "users"]
+  schemas  = ["jobs", "users", "sync"]
 }
 
 model User {
@@ -89,6 +89,7 @@ model Job {
   description String
   budget      Decimal?
   client_id   String   // User ID from User Service
+  teamId      String?  // Organization/Team ID from User Service
   status      String   @default("PENDING_APPROVAL") // PENDING_APPROVAL, OPEN, IN_PROGRESS, COMPLETED, CLOSED, REJECTED
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -110,6 +111,7 @@ model Job {
   isTrending  Boolean  @default(false)
   promotionExpiresAt DateTime?
   closeReason String?
+  preferredCommunicationStyle String? // e.g. "Proactive", "Formal", "Concise"
 
   savedBy     SavedJob[]
   invitations JobInvitation[]
@@ -138,6 +140,7 @@ model Proposal {
   extensionRequestDate   DateTime?
   extensionRequestReason String?
   extensionRequestStatus String? // PENDING, APPROVED, REJECTED
+  autoReleaseDays Int @default(14)
 
   milestones      Milestone[]
   timesheets      Timesheet[]
@@ -152,6 +155,7 @@ model Milestone {
   description String
   amount      Decimal
   dueDate     DateTime?
+  autoReleaseDate DateTime?
   status      String   @default("PENDING") // PENDING, SUBMITTED, COMPLETED, PAID, CHANGES_REQUESTED
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -255,6 +259,8 @@ model Category {
   parentId String?
   parent   Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children Category[] @relation("CategoryHierarchy")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@schema("jobs")
 }
@@ -263,6 +269,8 @@ model Skill {
   id    String @id @default(uuid())
   name  String @unique
   jobs  JobSkill[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@schema("jobs")
 }
@@ -316,4 +324,14 @@ model Interview {
   updatedAt    DateTime @updatedAt
 
   @@schema("jobs")
+}
+model SyncTombstone {
+  id        String   @id @default(uuid())
+  entity    String   // e.g., "Job", "Category"
+  recordId  String
+  deletedAt DateTime @default(now())
+  
+  @@index([deletedAt])
+  @@map("sync_tombstones")
+  @@schema("sync")
 }

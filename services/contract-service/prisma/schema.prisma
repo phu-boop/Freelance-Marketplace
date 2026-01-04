@@ -15,6 +15,7 @@ model Contract {
   freelancer_id String   // User ID from User Service
   client_id     String   // User ID from User Service
   proposal_id   String   // Proposal ID from Proposal Service
+  agencyId      String?  // Optional: linked agency/team ID
   totalAmount   Decimal
   status        String   @default("ACTIVE") // ACTIVE, COMPLETED, TERMINATED, DISPUTED
   startDate     DateTime @default(now())
@@ -35,9 +36,24 @@ model Contract {
   timeSessions  TimeSession[]
   disputes      Dispute[]
   checkIns      CheckIn[]
+  workspaces    Workspace[]
   disputeStatus String?
   disputeReason String?
+  autoReleaseDays Int @default(14)
 
+  @@schema("contracts")
+}
+
+model Workspace {
+  id         String   @id @default(uuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id])
+  content    Json     @default("{}")
+  version    Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([contractId])
   @@schema("contracts")
 }
 
@@ -67,6 +83,7 @@ model Dispute {
   status        String   @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
   resolution    String?  // Final decision text
   resolvedAt    DateTime?
+  disputeTimeoutAt DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -94,6 +111,7 @@ model Milestone {
   amount      Decimal
   status      String   @default("PENDING") // PENDING, ACTIVE, IN_REVIEW, COMPLETED
   dueDate     DateTime?
+  autoReleaseDate DateTime?
   progressPercentage Int @default(0)
   contractId  String
   contract    Contract @relation(fields: [contractId], references: [id])

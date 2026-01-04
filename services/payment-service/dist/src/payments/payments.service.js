@@ -12,7 +12,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 var PaymentsService_1;
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PaymentsService = void 0;
 const common_1 = require("@nestjs/common");
@@ -24,15 +23,35 @@ const client_1 = require("@prisma/client");
 var Decimal = client_1.Prisma.Decimal;
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const date_fns_1 = require("date-fns");
+const currency_converter_service_1 = require("./currency-converter.service");
 let PaymentsService = PaymentsService_1 = class PaymentsService {
     prisma;
     httpService;
     configService;
+    currencyConverter;
     logger = new common_1.Logger(PaymentsService_1.name);
-    constructor(prisma, httpService, configService) {
+    constructor(prisma, httpService, configService, currencyConverter) {
         this.prisma = prisma;
         this.httpService = httpService;
         this.configService = configService;
+        this.currencyConverter = currencyConverter;
+    }
+    async updateCryptoAddress(userId, cryptoAddress) {
+        const wallet = await this.getWallet(userId);
+        return this.prisma.wallet.update({
+            where: { id: wallet.id },
+            data: { cryptoAddress },
+        });
+    }
+    async updatePreferredCurrency(userId, preferredCurrency) {
+        const wallet = await this.getWallet(userId);
+        return this.prisma.wallet.update({
+            where: { id: wallet.id },
+            data: { preferredCurrency },
+        });
+    }
+    async getExchangeRates(base) {
+        return this.currencyConverter.getExchangeRates(base);
     }
     async createWallet(userId) {
         return this.prisma.wallet.create({
@@ -99,6 +118,14 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             if (!config) {
                 this.logger.warn('No Payment Gateway configuration found. Deposits might fail in production.');
             }
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'DEPOSIT_COMPLETED',
+                actorId: userId,
+                amount: amount,
+                referenceId,
+                metadata: { type: 'DEPOSIT', description: 'Deposit via Payment Gateway' }
+            });
             return updatedWallet;
         });
     }
@@ -122,6 +149,13 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     status: 'COMPLETED',
                     description: 'Withdrawal to Bank Account',
                 },
+            });
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'WITHDRAW_COMPLETED',
+                actorId: userId,
+                amount: amount,
+                metadata: { type: 'WITHDRAWAL', description: 'Withdrawal to Bank Account' }
             });
             return updatedWallet;
         });
@@ -222,6 +256,21 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     referenceId,
                     invoiceId: invoice.id,
                 },
+            });
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'TRANSFER_COMPLETED',
+                actorId: fromUserId,
+                amount: amount,
+                referenceId,
+                metadata: {
+                    toUserId,
+                    description,
+                    grossAmount: amount,
+                    feeAmount,
+                    netAmount,
+                    invoiceId: invoice.id
+                }
             });
             return { success: true, invoiceId: invoice.id };
         });
@@ -328,7 +377,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
     async getPlatformFeePercent() {
         const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3009');
         try {
-            const { data } = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/PLATFORM_FEE_PERCENT`));
+            const { data } = (await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/PLATFORM_FEE_PERCENT`)));
             return parseFloat(data.value) || 10;
         }
         catch (error) {
@@ -340,7 +389,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         const adminServiceUrl = this.configService.get('ADMIN_SERVICE_URL', 'http://admin-service:3009');
         try {
             const key = `GATEWAY_${provider.toUpperCase()}`;
-            const { data } = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/${key}`));
+            const { data } = (await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${adminServiceUrl}/api/public/configs/${key}`)));
             return data.value ? JSON.parse(data.value) : null;
         }
         catch (error) {
@@ -603,18 +652,25 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 where: { id: transaction.walletId },
                 data: { balance: { decrement: transaction.amount } }
             });
-            await prisma.transaction.create({
-                data: {
-                    walletId: transaction.walletId,
-                    amount: transaction.amount,
-                    type: 'CHARGEBACK',
-                    status: 'COMPLETED',
-                    description: `Chargeback for ${transactionId}`,
-                    referenceId: transaction.referenceId
-                }
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'CHARGEBACK_PROCESSED',
+                actorId: transaction.wallet.userId,
+                amount: Number(transaction.amount),
+                referenceId: transaction.referenceId,
+                metadata: { transactionId }
             });
             return updatedTx;
         });
+    }
+    async logFinancialEvent(data) {
+        const auditServiceUrl = this.configService.get('AUDIT_SERVICE_URL', 'http://audit-service:3011');
+        try {
+            await (0, rxjs_1.firstValueFrom)(this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data));
+        }
+        catch (error) {
+            this.logger.error(`Failed to log financial event to audit-service: ${error.message}`);
+        }
     }
     async createTaxSetting(data) {
         return this.prisma.taxSetting.create({
@@ -638,10 +694,93 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             },
         });
     }
+    async getPredictiveRevenue(userId) {
+        const now = new Date();
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setMonth(now.getMonth() - 11);
+        twelveMonthsAgo.setDate(1);
+        twelveMonthsAgo.setHours(0, 0, 0, 0);
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+        const historicalTxs = wallet ? await this.prisma.transaction.findMany({
+            where: {
+                walletId: wallet.id,
+                type: 'PAYMENT',
+                status: { in: ['COMPLETED', 'PENDING'] },
+                createdAt: { gte: twelveMonthsAgo }
+            },
+            orderBy: { createdAt: 'asc' }
+        }) : [];
+        const historicalData = {};
+        for (let i = 0; i < 12; i++) {
+            const d = new Date();
+            d.setMonth(now.getMonth() - i);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            historicalData[key] = 0;
+        }
+        historicalTxs.forEach(tx => {
+            const d = new Date(tx.createdAt);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (historicalData[key] !== undefined) {
+                historicalData[key] += Number(tx.amount);
+            }
+        });
+        let contracts = [];
+        try {
+            const contractServiceUrl = this.configService.get('CONTRACT_SERVICE_URL', 'http://contract-service:3000');
+            const response = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${contractServiceUrl}/api/contracts/internal/freelancer/${userId}`));
+            contracts = response.data;
+        }
+        catch (err) {
+            this.logger.error(`Failed to fetch contracts for predictive revenue: ${err.message}`);
+        }
+        let pendingRevenue = 0;
+        const projections = {};
+        for (let i = 0; i < 4; i++) {
+            const d = new Date();
+            d.setMonth(now.getMonth() + i);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            projections[key] = 0;
+        }
+        contracts.forEach(contract => {
+            if (contract.status === 'ACTIVE' || contract.status === 'DISPUTED') {
+                contract.milestones?.forEach((m) => {
+                    if (m.status === 'IN_REVIEW') {
+                        pendingRevenue += Number(m.amount);
+                    }
+                    else if (m.status === 'PENDING' || m.status === 'ACTIVE') {
+                        const dueDate = m.dueDate ? new Date(m.dueDate) : null;
+                        if (dueDate && dueDate >= now) {
+                            const key = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`;
+                            if (projections[key] !== undefined) {
+                                projections[key] += Number(m.amount);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        return {
+            userId,
+            currentStats: {
+                totalEarned: historicalTxs.reduce((sum, tx) => sum + Number(tx.amount), 0),
+                pendingRevenue,
+                availableBalance: Number(wallet?.balance || 0)
+            },
+            historicalTrend: Object.entries(historicalData)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([month, amount]) => ({ month, amount })),
+            projections: Object.entries(projections)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([month, amount]) => ({ month, amount }))
+        };
+    }
 };
 exports.PaymentsService = PaymentsService;
 exports.PaymentsService = PaymentsService = PaymentsService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, typeof (_a = typeof axios_1.HttpService !== "undefined" && axios_1.HttpService) === "function" ? _a : Object, config_1.ConfigService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        axios_1.HttpService,
+        config_1.ConfigService,
+        currency_converter_service_1.CurrencyConverterService])
 ], PaymentsService);
 //# sourceMappingURL=payments.service.js.map

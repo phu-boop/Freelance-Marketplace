@@ -7,6 +7,8 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
+import { TeamsModule } from './teams/teams.module';
+import { PortfolioModule } from './portfolio/portfolio.module';
 import { HealthController } from './health/health.controller';
 import {
   KeycloakConnectModule,
@@ -35,6 +37,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     PrismaModule,
     UsersModule,
     ProfileModule,
+    TeamsModule,
+    PortfolioModule,
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -43,9 +47,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         clientId: configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-client'),
         secret: configService.get<string>('KEYCLOAK_SECRET', ''),
         tokenValidation: TokenValidation.OFFLINE,
-        policy: 'PERMISSIVE',
-        logLevels: ['error', 'warn', 'log', 'debug'],
-        useNestLogger: true,
       }),
       inject: [ConfigService],
     }),

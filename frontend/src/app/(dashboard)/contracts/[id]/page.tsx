@@ -44,6 +44,18 @@ export default function ContractDetailsPage() {
     const [submissionContent, setSubmissionContent] = React.useState('');
     const [submissionFiles, setSubmissionFiles] = React.useState<string[]>([]);
 
+    const getTimeRemaining = React.useCallback((date: string) => {
+        const remaining = new Date(date).getTime() - new Date().getTime();
+        if (remaining <= 0) return 'Processing...';
+        const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+
+        if (days > 0) return `${days}d ${hours}h`;
+        if (hours > 0) return `${hours}h ${minutes}m`;
+        return `${minutes}m remaining`;
+    }, []);
+
     const fetchContract = React.useCallback(async () => {
         try {
             const res = await api.get(`/proposals/contracts/${params.id}`);
@@ -495,6 +507,12 @@ export default function ContractDetailsPage() {
                                                             } uppercase tracking-wide`}>
                                                             {milestone.status.replace('_', ' ')}
                                                         </span>
+                                                        {milestone.status === 'SUBMITTED' && milestone.autoReleaseDate && (
+                                                            <span className="flex items-center gap-1 text-[10px] text-blue-400 font-medium bg-blue-500/5 px-2 py-0.5 rounded-full border border-blue-500/10">
+                                                                <Clock className="w-3 h-3" />
+                                                                Auto-release in {getTimeRemaining(milestone.autoReleaseDate)}
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     {/* Latest Submission Info */}
@@ -701,11 +719,43 @@ export default function ContractDetailsPage() {
 
             {/* --- Modals --- */}
 
-            {/* Add Milestone Modal */}
             {isAddMilestoneOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
-                        <h3 className="text-xl font-bold text-white mb-4">Add New Milestone</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-white">Add New Milestone</h3>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    setSubmitting(true);
+                                    try {
+                                        const res = await api.post('/jobs/ai/scope', {
+                                            description: contract.job.description,
+                                            budget: parseFloat(contract.bidAmount)
+                                        });
+                                        const suggestions = res.data;
+                                        if (suggestions.length > 0) {
+                                            // Fill the first suggestion or show a list. 
+                                            // For simplicity in modal, let's fill with the first one 
+                                            // or better: just let the user see them. 
+                                            // Actually, a simple prompt choice might be better, 
+                                            // but for now, let's just pick the first one that hasn't been used?
+                                            // Minimal implementation: alert the first suggestion to fill or just fill first.
+                                            const first = suggestions[0];
+                                            setDescription(first.title + ': ' + first.description);
+                                            setAmount(((first.percentage / 100) * parseFloat(contract.bidAmount)).toFixed(2));
+                                        }
+                                    } catch (err) {
+                                        console.error('AI Suggestion failed', err);
+                                    } finally {
+                                        setSubmitting(false);
+                                    }
+                                }}
+                                className="text-xs font-semibold bg-blue-500/10 text-blue-400 px-2 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-500/20 transition-all flex items-center gap-1"
+                            >
+                                ✨ AI Suggest
+                            </button>
+                        </div>
                         <form onSubmit={handleAddMilestone} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>

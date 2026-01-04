@@ -32,4 +32,8 @@ export class CreateContractDto {
     @IsDateString()
     @IsOptional()
     endDate?: string;
+
+    @IsString()
+    @IsOptional()
+    agencyId?: string;
 }

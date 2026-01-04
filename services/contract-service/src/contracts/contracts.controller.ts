@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Request, Query } from '@nestjs/common';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
-import { Roles } from 'nest-keycloak-connect';
+import { Roles, Public } from 'nest-keycloak-connect';
 
 @Controller('api/contracts')
 export class ContractsController {
@@ -10,22 +10,20 @@ export class ContractsController {
 
   @Get('my')
   @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
-  getMyContracts(@Request() req) {
+  getMyContracts(@Request() req, @Query('agencyId') agencyId?: string) {
     const userId = req.user.sub;
-    // We can infer role or try both. For simplicity, let's try both or rely on specific role logic if available in token.
-    // Ideally we inspect roles. But since ID is unique, we can check both findByClient and findByFreelancer?
-    // Or better:
     const roles = req.user.realm_access?.roles || [];
     if (roles.includes('CLIENT')) {
-      return this.contractsService.findByClient(userId);
+      return this.contractsService.findByClient(userId, agencyId);
     }
-    return this.contractsService.findByFreelancer(userId);
+    return this.contractsService.findByFreelancer(userId, agencyId);
   }
 
   @Post()
   @Roles({ roles: ['realm:CLIENT', 'realm:ADMIN'] })
-  create(@Body() createContractDto: CreateContractDto) {
-    return this.contractsService.create(createContractDto);
+  create(@Body() createContractDto: CreateContractDto, @Request() req) {
+    const authHeader = req.headers.authorization;
+    return this.contractsService.create(createContractDto, authHeader);
   }
 
   @Get()
@@ -36,6 +34,12 @@ export class ContractsController {
   @Get('disputed')
   findAllDisputed() {
     return this.contractsService.findAllDisputed();
+  }
+
+  @Get('internal/freelancer/:userId')
+  @Public() // Accessible internally without user token
+  findByFreelancerInternal(@Param('userId') userId: string) {
+    return this.contractsService.findByFreelancer(userId);
   }
 
   @Get('client/stats')
@@ -50,6 +54,12 @@ export class ContractsController {
   @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
   triggerAutoRelease() {
     return this.contractsService.autoReleaseMilestones();
+  }
+
+  @Post('disputes/check-timeouts')
+  @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
+  triggerDisputeTimeouts() {
+    return this.contractsService.handleDisputeTimeouts();
   }
 
   @Get(':id')

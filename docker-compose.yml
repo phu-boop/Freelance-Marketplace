@@ -107,7 +107,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=users
       - PORT=3000
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
@@ -137,7 +137,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
       - PORT=3002
       - SEARCH_SERVICE_URL=http://search-service:3010
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -196,7 +196,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=contracts&options=-c%20search_path%3Dcontracts
       - PORT=3004
       - PAYMENT_SERVICE_URL=http://payment-service:3005
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -266,7 +266,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=reviews&options=-c%20search_path%3Dreviews
       - PORT=3008
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000/api/users
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -296,7 +296,7 @@ services:
       - JOB_SERVICE_URL=http://job-service:3002
       - USER_SERVICE_URL=http://user-service:3000
       - PAYMENT_SERVICE_URL=http://payment-service:3005
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -345,7 +345,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=community&options=-c%20search_path%3Dcommunity
       - PORT=3015
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -444,17 +444,39 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=payments&options=-c%20search_path%3Dpayments
       - PORT=3005
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - ADMIN_SERVICE_URL=http://admin-service:3009
+      - AUDIT_SERVICE_URL=http://audit-service:3011
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
       - postgres
     volumes:
       - ./services/payment-service:/app
+      - /app/node_modules
+    command: npm run start:dev
+    restart: always
+    networks:
+      - freelance_network
+
+  audit-service:
+    build:
+      context: ./services/audit-service
+      dockerfile: Dockerfile
+    container_name: freelance_audit_service
+    ports:
+      - "3011:3011"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=audit&options=-c%20search_path%3Daudit
+      - PORT=3011
+      - AUDIT_SECRET=super-secret-integrity-key
+    depends_on:
+      - postgres
+    volumes:
+      - ./services/audit-service:/app
       - /app/node_modules
     command: npm run start:dev
     restart: always
@@ -582,6 +604,33 @@ services:
   #   restart: always
   #   networks:
   #     - freelance_network
+  # Developer Service
+  developer-service:
+    build:
+      context: ./services/developer-service
+      dockerfile: Dockerfile
+    container_name: freelance_developer_service
+    ports:
+      - "3016:3016"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=developer&options=-c%20search_path%3Ddeveloper
+      - PORT=3016
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_ADMIN_USER=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      - postgres
+      - keycloak
+    volumes:
+      - ./services/developer-service:/app
+      - /app/node_modules
+    command: npm run start:dev
+    restart: always
+    networks:
+      - freelance_network
 
 networks:
   freelance_network:

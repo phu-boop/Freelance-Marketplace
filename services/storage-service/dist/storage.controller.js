@@ -47,7 +47,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], StorageController.prototype, "getFileUrl", null);
 exports.StorageController = StorageController = __decorate([
-    (0, common_1.Controller)('storage'),
+    (0, common_1.Controller)('api/storage'),
     __metadata("design:paramtypes", [minio_service_1.MinioService])
 ], StorageController);
 //# sourceMappingURL=storage.controller.js.map

@@ -22,6 +22,8 @@ interface WithdrawalModalProps {
     balance: number;
 }
 
+import { useCurrency } from '@/components/CurrencyProvider';
+
 export default function WithdrawalModal({
     isOpen,
     onClose,
@@ -29,6 +31,7 @@ export default function WithdrawalModal({
     balance
 }: WithdrawalModalProps) {
     const { userId } = useKeycloak();
+    const { formatAmount, currency } = useCurrency();
     const [amount, setAmount] = useState('');
     const [methods, setMethods] = useState<WithdrawalMethod[]>([]);
     const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
@@ -135,13 +138,13 @@ export default function WithdrawalModal({
                                 <form onSubmit={handleWithdraw} className="space-y-6">
                                     <div className="p-4 rounded-2xl bg-blue-600/10 border border-blue-500/20">
                                         <p className="text-sm text-blue-400 font-medium">Available Balance</p>
-                                        <p className="text-3xl font-bold text-white">${balance.toFixed(2)}</p>
+                                        <p className="text-3xl font-bold text-white">{formatAmount(balance)}</p>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-400">Amount to Withdraw</label>
+                                        <label className="text-sm font-bold text-slate-400">Amount to Withdraw (in {currency})</label>
                                         <div className="relative">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">{currency === 'USD' ? '$' : currency}</span>
                                             <input
                                                 type="number"
                                                 required
@@ -175,8 +178,8 @@ export default function WithdrawalModal({
                                                     key={method.id}
                                                     onClick={() => setSelectedMethodId(method.id)}
                                                     className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${selectedMethodId === method.id
-                                                            ? 'bg-blue-600/10 border-blue-500'
-                                                            : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                                                        ? 'bg-blue-600/10 border-blue-500'
+                                                        : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
                                                         }`}
                                                 >
                                                     <div className="flex items-center gap-3">

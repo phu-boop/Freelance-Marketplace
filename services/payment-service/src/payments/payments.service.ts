@@ -13,6 +13,8 @@ import Decimal = Prisma.Decimal;
 import PDFDocument from 'pdfkit';
 import { getISOWeek } from 'date-fns';
 
+import { CurrencyConverterService } from './currency-converter.service';
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -21,7 +23,28 @@ export class PaymentsService {
     private prisma: PrismaService,
     private httpService: HttpService,
     private configService: ConfigService,
+    private currencyConverter: CurrencyConverterService,
   ) { }
+
+  async updateCryptoAddress(userId: string, cryptoAddress: string) {
+    const wallet = await this.getWallet(userId);
+    return this.prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { cryptoAddress },
+    });
+  }
+
+  async updatePreferredCurrency(userId: string, preferredCurrency: string) {
+    const wallet = await this.getWallet(userId);
+    return this.prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { preferredCurrency },
+    });
+  }
+
+  async getExchangeRates(base?: string) {
+    return this.currencyConverter.getExchangeRates(base);
+  }
 
   async createWallet(userId: string) {
     return this.prisma.wallet.create({
@@ -108,6 +131,15 @@ export class PaymentsService {
         this.logger.warn('No Payment Gateway configuration found. Deposits might fail in production.');
       }
 
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'DEPOSIT_COMPLETED',
+        actorId: userId,
+        amount: amount,
+        referenceId,
+        metadata: { type: 'DEPOSIT', description: 'Deposit via Payment Gateway' }
+      });
+
       return updatedWallet;
     });
   }
@@ -134,6 +166,14 @@ export class PaymentsService {
           status: 'COMPLETED', // In real app, might be PENDING
           description: 'Withdrawal to Bank Account',
         },
+      });
+
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'WITHDRAW_COMPLETED',
+        actorId: userId,
+        amount: amount,
+        metadata: { type: 'WITHDRAWAL', description: 'Withdrawal to Bank Account' }
       });
 
       return updatedWallet;
@@ -259,6 +299,22 @@ export class PaymentsService {
           referenceId,
           invoiceId: invoice.id,
         } as any,
+      });
+
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'TRANSFER_COMPLETED',
+        actorId: fromUserId,
+        amount: amount,
+        referenceId,
+        metadata: {
+          toUserId,
+          description,
+          grossAmount: amount,
+          feeAmount,
+          netAmount,
+          invoiceId: invoice.id
+        }
       });
 
       return { success: true, invoiceId: invoice.id };
@@ -402,11 +458,11 @@ export class PaymentsService {
       'http://admin-service:3009',
     );
     try {
-      const { data } = await firstValueFrom(
+      const { data } = (await firstValueFrom(
         this.httpService.get(
           `${adminServiceUrl}/api/public/configs/PLATFORM_FEE_PERCENT`,
         ),
-      );
+      )) as any;
       return parseFloat(data.value) || 10;
     } catch (error) {
       this.logger.warn(
@@ -420,9 +476,9 @@ export class PaymentsService {
     const adminServiceUrl = this.configService.get<string>('ADMIN_SERVICE_URL', 'http://admin-service:3009');
     try {
       const key = `GATEWAY_${provider.toUpperCase()}`;
-      const { data } = await firstValueFrom(
+      const { data } = (await firstValueFrom(
         this.httpService.get(`${adminServiceUrl}/api/public/configs/${key}`)
-      );
+      )) as any;
       return data.value ? JSON.parse(data.value) : null;
     } catch (error) {
       this.logger.warn(`Failed to fetch gateway config for ${provider}: ${error.message}`);
@@ -772,19 +828,40 @@ export class PaymentsService {
         data: { balance: { decrement: transaction.amount } }
       });
 
-      await prisma.transaction.create({
-        data: {
-          walletId: transaction.walletId,
-          amount: transaction.amount,
-          type: 'CHARGEBACK',
-          status: 'COMPLETED',
-          description: `Chargeback for ${transactionId}`,
-          referenceId: transaction.referenceId
-        }
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'CHARGEBACK_PROCESSED',
+        actorId: transaction.wallet.userId,
+        amount: Number(transaction.amount),
+        referenceId: transaction.referenceId,
+        metadata: { transactionId }
       });
 
       return updatedTx;
     });
+  }
+
+  private async logFinancialEvent(data: {
+    service: string;
+    eventType: string;
+    actorId?: string;
+    amount?: number;
+    metadata?: any;
+    referenceId?: string;
+  }) {
+    const auditServiceUrl = this.configService.get<string>(
+      'AUDIT_SERVICE_URL',
+      'http://audit-service:3011',
+    );
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to log financial event to audit-service: ${error.message}`,
+      );
+    }
   }
 
   // Tax & VAT Management
@@ -811,5 +888,99 @@ export class PaymentsService {
         ...(data.isActive !== undefined && { isActive: data.isActive }),
       },
     });
+  }
+
+  async getPredictiveRevenue(userId: string) {
+    const now = new Date();
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(now.getMonth() - 11);
+    twelveMonthsAgo.setDate(1);
+    twelveMonthsAgo.setHours(0, 0, 0, 0);
+
+    // 1. Fetch historical earnings (last 12 months)
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+    const historicalTxs = wallet ? await this.prisma.transaction.findMany({
+      where: {
+        walletId: wallet.id,
+        type: 'PAYMENT',
+        status: { in: ['COMPLETED', 'PENDING'] },
+        createdAt: { gte: twelveMonthsAgo }
+      },
+      orderBy: { createdAt: 'asc' }
+    }) : [];
+
+    const historicalData: Record<string, number> = {};
+    for (let i = 0; i < 12; i++) {
+      const d = new Date();
+      d.setMonth(now.getMonth() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      historicalData[key] = 0;
+    }
+
+    historicalTxs.forEach(tx => {
+      const d = new Date(tx.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (historicalData[key] !== undefined) {
+        historicalData[key] += Number(tx.amount);
+      }
+    });
+
+    // 2. Fetch contracts and milestones from contract-service
+    let contracts: any[] = [];
+    try {
+      const contractServiceUrl = this.configService.get<string>('CONTRACT_SERVICE_URL', 'http://contract-service:3000');
+      const response: any = await firstValueFrom(
+        this.httpService.get(`${contractServiceUrl}/api/contracts/internal/freelancer/${userId}`)
+      );
+      contracts = response.data;
+    } catch (err) {
+      this.logger.error(`Failed to fetch contracts for predictive revenue: ${err.message}`);
+    }
+
+    let pendingRevenue = 0;
+    const projections: Record<string, number> = {};
+    for (let i = 0; i < 4; i++) {
+      const d = new Date();
+      d.setMonth(now.getMonth() + i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      projections[key] = 0;
+    }
+
+    contracts.forEach(contract => {
+      if (contract.status === 'ACTIVE' || contract.status === 'DISPUTED') {
+        contract.milestones?.forEach((m: any) => {
+          if (m.status === 'IN_REVIEW') {
+            pendingRevenue += Number(m.amount);
+          } else if (m.status === 'PENDING' || m.status === 'ACTIVE') {
+            const dueDate = m.dueDate ? new Date(m.dueDate) : null;
+            if (dueDate && dueDate >= now) {
+              const key = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`;
+              if (projections[key] !== undefined) {
+                projections[key] += Number(m.amount);
+              }
+            }
+          }
+        });
+
+        // Simple hourly projection based on timeLogs if available
+        // Note: For now, we assume current active contracts continue at their current pace.
+        // In a real scenario, we'd average the last 4 weeks of TimeLogs.
+      }
+    });
+
+    return {
+      userId,
+      currentStats: {
+        totalEarned: historicalTxs.reduce((sum, tx) => sum + Number(tx.amount), 0),
+        pendingRevenue, // Money in review
+        availableBalance: Number(wallet?.balance || 0)
+      },
+      historicalTrend: Object.entries(historicalData)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, amount]) => ({ month, amount })),
+      projections: Object.entries(projections)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, amount]) => ({ month, amount }))
+    };
   }
 }

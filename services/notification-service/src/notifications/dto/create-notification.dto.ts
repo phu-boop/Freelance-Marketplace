@@ -17,6 +17,10 @@ export class CreateNotificationDto {
     @IsNotEmpty()
     message: string;
 
+    @IsString()
+    @IsOptional()
+    link?: string;
+
     @IsObject()
     @IsOptional()
     metadata?: Record<string, any>;

@@ -10,14 +10,32 @@ import {
   StreamableFile,
   Res,
   Query,
+  Put,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { Roles } from 'nest-keycloak-connect';
 import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
 
-@Controller('')
+@Controller('api/payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) { }
+
+  @Get('exchange-rates')
+  getExchangeRates(@Query('base') base?: string) {
+    return this.paymentsService.getExchangeRates(base);
+  }
+
+  @Patch('wallet/crypto-address')
+  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  updateCryptoAddress(@Request() req, @Body('address') address: string) {
+    return this.paymentsService.updateCryptoAddress(req.user.sub, address);
+  }
+
+  @Patch('wallet/currency')
+  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  updatePreferredCurrency(@Request() req, @Body('currency') currency: string) {
+    return this.paymentsService.updatePreferredCurrency(req.user.sub, currency);
+  }
 
   @Get('wallet')
   @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
@@ -28,6 +46,12 @@ export class PaymentsController {
   @Get('wallet/:userId')
   getWallet(@Param('userId') userId: string) {
     return this.paymentsService.getWallet(userId);
+  }
+
+  @Get('revenue/predictive/:userId')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  getPredictiveRevenue(@Param('userId') userId: string) {
+    return this.paymentsService.getPredictiveRevenue(userId);
   }
 
   @Post('deposit')

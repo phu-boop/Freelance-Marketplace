@@ -4,6 +4,41 @@ import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
 export declare class PaymentsController {
     private readonly paymentsService;
     constructor(paymentsService: PaymentsService);
+    getExchangeRates(base?: string): Promise<Record<string, number>>;
+    updateCryptoAddress(req: any, address: string): Promise<{
+        id: string;
+        userId: string;
+        balance: import("@prisma/client-runtime-utils").Decimal;
+        currency: string;
+        createdAt: Date;
+        updatedAt: Date;
+        autoWithdrawalEnabled: boolean;
+        autoWithdrawalSchedule: string | null;
+        autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        pendingBalance: import("@prisma/client-runtime-utils").Decimal;
+        autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
+    }>;
+    updatePreferredCurrency(req: any, currency: string): Promise<{
+        id: string;
+        userId: string;
+        balance: import("@prisma/client-runtime-utils").Decimal;
+        currency: string;
+        createdAt: Date;
+        updatedAt: Date;
+        autoWithdrawalEnabled: boolean;
+        autoWithdrawalSchedule: string | null;
+        autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        pendingBalance: import("@prisma/client-runtime-utils").Decimal;
+        autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
+    }>;
     getWalletMe(req: any): Promise<{
         id: string;
         userId: string;
@@ -16,6 +51,10 @@ export declare class PaymentsController {
         autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
         pendingBalance: import("@prisma/client-runtime-utils").Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
     }>;
     getWallet(userId: string): Promise<{
         id: string;
@@ -29,6 +68,26 @@ export declare class PaymentsController {
         autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
         pendingBalance: import("@prisma/client-runtime-utils").Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
+    }>;
+    getPredictiveRevenue(userId: string): Promise<{
+        userId: string;
+        currentStats: {
+            totalEarned: number;
+            pendingRevenue: number;
+            availableBalance: number;
+        };
+        historicalTrend: {
+            month: string;
+            amount: number;
+        }[];
+        projections: {
+            month: string;
+            amount: number;
+        }[];
     }>;
     deposit(body: {
         userId: string;
@@ -46,6 +105,10 @@ export declare class PaymentsController {
         autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
         pendingBalance: import("@prisma/client-runtime-utils").Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
     }>;
     withdraw(body: {
         userId: string;
@@ -62,6 +125,10 @@ export declare class PaymentsController {
         autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
         pendingBalance: import("@prisma/client-runtime-utils").Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
     }>;
     getMyWithdrawalMethods(req: any): Promise<{
         id: string;
@@ -156,6 +223,10 @@ export declare class PaymentsController {
             autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
             pendingBalance: import("@prisma/client-runtime-utils").Decimal;
             autoWithdrawalMethodId: string | null;
+            autoDepositEnabled: boolean;
+            autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+            autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+            paymentMethodId: string | null;
         };
     } & {
         id: string;
@@ -256,6 +327,10 @@ export declare class PaymentsController {
         autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
         pendingBalance: import("@prisma/client-runtime-utils").Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
     }>;
     getMetrics(): Promise<{
         totalVolume: number;
@@ -263,9 +338,39 @@ export declare class PaymentsController {
         totalWithdrawals: number;
         transactionCount: number;
     }>;
-    getMyPaymentMethods(req: any): Promise<any>;
-    addPaymentMethod(req: any, body: any): Promise<any>;
-    deletePaymentMethod(req: any, id: string): Promise<any>;
+    getMyPaymentMethods(req: any): Promise<{
+        id: string;
+        userId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: string;
+        isDefault: boolean;
+        last4: string | null;
+        brand: string | null;
+        token: string;
+    }[]>;
+    addPaymentMethod(req: any, body: any): Promise<{
+        id: string;
+        userId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: string;
+        isDefault: boolean;
+        last4: string | null;
+        brand: string | null;
+        token: string;
+    }>;
+    deletePaymentMethod(req: any, id: string): Promise<{
+        id: string;
+        userId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        type: string;
+        isDefault: boolean;
+        last4: string | null;
+        brand: string | null;
+        token: string;
+    }>;
     updateAutoDepositConfig(req: any, body: {
         enabled: boolean;
         threshold?: number;
@@ -283,6 +388,10 @@ export declare class PaymentsController {
         autoWithdrawalThreshold: import("@prisma/client-runtime-utils").Decimal | null;
         pendingBalance: import("@prisma/client-runtime-utils").Decimal;
         autoWithdrawalMethodId: string | null;
+        autoDepositEnabled: boolean;
+        autoDepositThreshold: import("@prisma/client-runtime-utils").Decimal | null;
+        autoDepositAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        paymentMethodId: string | null;
     }>;
     getTaxDocument(req: any, year: string, res: any): Promise<StreamableFile>;
 }

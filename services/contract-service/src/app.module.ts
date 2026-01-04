@@ -6,7 +6,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ContractsModule } from './contracts/contracts.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { WorkspaceModule } from './workspace/workspace.module';
 import { HealthController } from './health/health.controller';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import {
   KeycloakConnectModule,
@@ -27,8 +29,10 @@ import { ConfigService } from '@nestjs/config';
       ttl: 60000,
       limit: 10,
     }]),
+    ScheduleModule.forRoot(),
     TerminusModule,
     ContractsModule,
+    WorkspaceModule,
     PrismaModule,
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],

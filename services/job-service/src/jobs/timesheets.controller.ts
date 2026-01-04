@@ -3,23 +3,23 @@ import { Controller, Post, Body, Param, Get, Patch, Request } from '@nestjs/comm
 import { TimesheetsService } from './timesheets.service';
 import { Roles } from 'nest-keycloak-connect';
 
-@Controller('api')
+@Controller('api/timesheets')
 export class TimesheetsController {
     constructor(private readonly timesheetsService: TimesheetsService) { }
 
-    @Get('contracts/:id/timesheets')
+    @Get('contract/:id')
     @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
     async getTimesheets(@Request() req, @Param('id') id: string) {
         return this.timesheetsService.getTimesheets(id, req.user.sub);
     }
 
-    @Post('contracts/:id/timesheets')
+    @Post('contract/:id')
     @Roles({ roles: ['realm:FREELANCER'] })
     async addTimeEntry(@Request() req, @Param('id') id: string, @Body() body: any) {
         return this.timesheetsService.addTimeEntry(id, req.user.sub, body);
     }
 
-    @Get('timesheets/:id')
+    @Get(':id')
     @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
     async getTimesheetById(@Request() req, @Param('id') id: string) {
         return this.timesheetsService.getTimesheetById(id, req.user.sub);

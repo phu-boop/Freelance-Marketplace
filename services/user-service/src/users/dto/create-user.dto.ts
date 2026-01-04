@@ -92,4 +92,16 @@ export class CreateUserDto {
     @IsBoolean()
     @IsOptional()
     inAppNotifications?: boolean;
+
+    @IsString()
+    @IsOptional()
+    communicationStyle?: string;
+
+    @IsNumber()
+    @IsOptional()
+    avgResponseTime?: number;
+
+    @IsNumber()
+    @IsOptional()
+    reliabilityScore?: number;
 }

@@ -4,6 +4,7 @@ import { SearchController } from './search.controller';
 import { ElasticsearchModule } from '@nestjs/elasticsearch';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
+import Redis from 'ioredis';
 
 @Module({
     imports: [
@@ -17,7 +18,19 @@ import { HttpModule } from '@nestjs/axios';
         HttpModule,
         ConfigModule,
     ],
-    providers: [SearchService],
+    providers: [
+        SearchService,
+        {
+            provide: 'REDIS_CLIENT',
+            useFactory: (configService: ConfigService) => {
+                return new Redis({
+                    host: configService.get<string>('REDIS_HOST', 'redis'),
+                    port: configService.get<number>('REDIS_PORT', 6379),
+                });
+            },
+            inject: [ConfigService],
+        },
+    ],
     controllers: [SearchController],
     exports: [SearchService],
 })

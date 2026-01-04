@@ -61,7 +61,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CommonController.prototype, "createSkill", null);
 exports.CommonController = CommonController = __decorate([
-    (0, common_1.Controller)('common'),
+    (0, common_1.Controller)('api/common'),
     __metadata("design:paramtypes", [common_service_1.CommonService])
 ], CommonController);
 //# sourceMappingURL=common.controller.js.map

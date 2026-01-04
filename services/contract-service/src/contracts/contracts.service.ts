@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -9,23 +9,27 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ContractsService {
+  private readonly logger = new Logger(ContractsService.name);
+
   constructor(
     private prisma: PrismaService,
     private httpService: HttpService,
     private configService: ConfigService
   ) { }
 
-  async create(createContractDto: CreateContractDto) {
-    let { freelancer_id, client_id, totalAmount, job_id, proposal_id, terms, ...rest } = createContractDto;
+  async create(createContractDto: CreateContractDto, authHeader?: string) {
+    let { freelancer_id, client_id, totalAmount, job_id, proposal_id, terms, agencyId, ...rest } = createContractDto;
 
     // Fetch missing data from Job Service if IDs or amount are missing
     if (!freelancer_id || !client_id || !totalAmount) {
       try {
         const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://job-service:3002');
         // We need a way to get proposal details. Proposals are handled in job-service.
-        // Assuming there's an internal endpoint or we use the public one if authorized.
+        // Propagate auth token to job-service
         const response = await firstValueFrom(
-          this.httpService.get(`${jobServiceUrl}/api/proposals/${proposal_id}`)
+          this.httpService.get(`${jobServiceUrl}/api/proposals/${proposal_id}`, {
+            headers: authHeader ? { Authorization: authHeader } : {}
+          })
         );
         const proposal = response.data;
 
@@ -47,6 +51,7 @@ export class ContractsService {
         totalAmount: totalAmount as any,
         job_id: job_id as string,
         proposal_id: proposal_id as string,
+        agencyId: agencyId as string,
         ...rest
       },
     });
@@ -67,16 +72,23 @@ export class ContractsService {
     });
   }
 
-  findByFreelancer(freelancerId: string) {
+  findByFreelancer(freelancerId: string, agencyId?: string) {
+    const where: any = { freelancer_id: freelancerId };
+    if (agencyId) {
+      where.agencyId = agencyId;
+    }
     return this.prisma.contract.findMany({
-      where: { freelancer_id: freelancerId },
+      where,
       include: { milestones: true }
     });
   }
 
-  findByClient(clientId: string) {
+  findByClient(clientId: string, agencyId?: string) {
+    const where: any = agencyId
+      ? { agencyId }
+      : { client_id: clientId };
     return this.prisma.contract.findMany({
-      where: { client_id: clientId },
+      where,
       include: { milestones: true }
     });
   }
@@ -152,10 +164,17 @@ export class ContractsService {
       },
     });
 
-    // Update milestone status
+    // Calculate auto-release date
+    const autoReleaseDate = new Date();
+    autoReleaseDate.setDate(autoReleaseDate.getDate() + (contract.autoReleaseDays || 14));
+
+    // Update milestone status and set auto-release date
     return this.prisma.milestone.update({
       where: { id: milestoneId },
-      data: { status: 'IN_REVIEW' },
+      data: {
+        status: 'IN_REVIEW',
+        autoReleaseDate,
+      },
     });
   }
 
@@ -212,9 +231,43 @@ export class ContractsService {
       throw new Error('Payment transfer failed. Please ensure client has sufficient funds.');
     }
 
+    await this.logFinancialEvent({
+      service: 'contract-service',
+      eventType: 'MILESTONE_PAID',
+      actorId: contract.client_id,
+      amount: Number(milestone.amount),
+      referenceId: contractId,
+      metadata: { milestoneId: milestone.id, freelancerId: contract.freelancer_id }
+    });
+
     return this.prisma.milestone.update({
       where: { id: data.milestoneId },
       data: { status: 'COMPLETED' },
+    }).then(async (milestone) => {
+      // Update Reliability Score in User Service
+      try {
+        const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://user-service:3001');
+        const { data: user } = await firstValueFrom(
+          this.httpService.get(`${userServiceUrl}/api/users/${contract.freelancer_id}`)
+        );
+
+        let reliabilityDelta = 2; // Default positive for completion
+        if (milestone.dueDate && new Date() > new Date(milestone.dueDate)) {
+          reliabilityDelta = -5; // Penalty for late submission
+        }
+
+        const currentScore = user.reliabilityScore || 100;
+        const newScore = Math.min(100, Math.max(0, currentScore + reliabilityDelta));
+
+        await firstValueFrom(
+          this.httpService.patch(`${userServiceUrl}/api/users/${contract.freelancer_id}`, {
+            reliabilityScore: newScore
+          })
+        );
+      } catch (err) {
+        console.error('Failed to update reliability score:', err.message);
+      }
+      return milestone;
     });
   }
 
@@ -226,12 +279,22 @@ export class ContractsService {
   }
 
   async disputeContract(id: string, reason: string) {
+    const disputeTimeoutAt = new Date();
+    disputeTimeoutAt.setDate(disputeTimeoutAt.getDate() + 7); // Default 7 days for dispute resolution
+
     return this.prisma.contract.update({
       where: { id },
       data: {
         status: 'DISPUTED',
         disputeStatus: 'OPEN',
         disputeReason: reason,
+        disputes: {
+          create: {
+            raisedById: 'SYSTEM', // Simplified for now, or pass userId
+            reason,
+            disputeTimeoutAt,
+          }
+        }
       },
     });
   }
@@ -251,6 +314,62 @@ export class ContractsService {
         disputeStatus: 'RESOLVED',
       },
     });
+  }
+
+  async autoReleaseMilestones() {
+    const now = new Date();
+    const milestonesToRelease = await this.prisma.milestone.findMany({
+      where: {
+        status: 'IN_REVIEW',
+        autoReleaseDate: { lte: now },
+      },
+      include: {
+        contract: true,
+      },
+    });
+
+    this.logger.log(`Processing ${milestonesToRelease.length} milestones for auto-release`);
+
+    for (const milestone of milestonesToRelease) {
+      try {
+        await this.approveWork(milestone.contractId, { milestoneId: milestone.id });
+        this.logger.log(`Auto-released milestone ${milestone.id} for contract ${milestone.contractId}`);
+      } catch (error) {
+        this.logger.error(`Failed to auto-release milestone ${milestone.id}: ${error.message}`);
+      }
+    }
+  }
+
+  async handleDisputeTimeouts() {
+    const now = new Date();
+    const expiredDisputes = await this.prisma.dispute.findMany({
+      where: {
+        status: 'OPEN',
+        disputeTimeoutAt: { lte: now },
+      },
+      include: {
+        contract: true,
+      },
+    });
+
+    this.logger.log(`Processing ${expiredDisputes.length} expired disputes`);
+
+    for (const dispute of expiredDisputes) {
+      try {
+        // Default system action on timeout: Resolve in favor of freelancer if client is unresponsive
+        // or escalate to ADMIN. For now, let's mark as UNDER_REVIEW for admin attention.
+        await this.prisma.dispute.update({
+          where: { id: dispute.id },
+          data: {
+            status: 'UNDER_REVIEW',
+            resolution: 'System escalation due to inactivity.',
+          },
+        });
+        this.logger.log(`Escalated dispute ${dispute.id} due to timeout`);
+      } catch (error) {
+        this.logger.error(`Failed to handle dispute timeout for ${dispute.id}: ${error.message}`);
+      }
+    }
   }
 
   // Time Tracking
@@ -509,75 +628,6 @@ export class ContractsService {
     });
   }
 
-  async autoReleaseMilestones() {
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-    // Find milestones that are IN_REVIEW
-    const milestones = await this.prisma.milestone.findMany({
-      where: {
-        status: 'IN_REVIEW',
-      },
-      include: {
-        contract: true,
-        submissions: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-    });
-
-    const released: string[] = [];
-    for (const milestone of milestones) {
-      const latestSubmission = milestone.submissions[0];
-      // Check if latest submission is older than 14 days
-      if (latestSubmission && latestSubmission.createdAt < fourteenDaysAgo) {
-        try {
-          // Process Payout
-          const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://payment-service:3005');
-          await firstValueFrom(
-            this.httpService.post(`${paymentServiceUrl}/transfer`, {
-              fromUserId: milestone.contract.client_id,
-              toUserId: milestone.contract.freelancer_id,
-              amount: Number(milestone.amount),
-              description: `Auto-Release Payment: ${milestone.description}`,
-            })
-          );
-
-          // Update Status
-          await this.prisma.milestone.update({
-            where: { id: milestone.id },
-            data: { status: 'COMPLETED' },
-          });
-
-          released.push(milestone.id);
-
-          // Notify Client
-          await this.sendNotification(
-            milestone.contract.client_id,
-            'MILESTONE_AUTO_RELEASED',
-            'Milestone Auto-Released',
-            `Milestone "${milestone.description}" was automatically released after 14 days of inactivity.`,
-            { contractId: milestone.contractId, milestoneId: milestone.id }
-          );
-
-          // Notify Freelancer
-          await this.sendNotification(
-            milestone.contract.freelancer_id,
-            'MILESTONE_AUTO_RELEASED',
-            'Milestone Auto-Released',
-            `Payment for milestone "${milestone.description}" has been released automatically.`,
-            { contractId: milestone.contractId, milestoneId: milestone.id }
-          );
-
-        } catch (error) {
-          console.error(`Failed to auto-release milestone ${milestone.id}`, error);
-        }
-      }
-    }
-
-    return { releasedCount: released.length, releasedIds: released };
-  }
 
   private async sendNotification(userId: string, type: string, title: string, message: string, metadata?: any) {
     try {
@@ -611,5 +661,28 @@ export class ContractsService {
       completedContracts,
       totalSpent: totalSpentResult._sum.totalAmount || 0,
     };
+  }
+
+  private async logFinancialEvent(data: {
+    service: string;
+    eventType: string;
+    actorId?: string;
+    amount?: number;
+    metadata?: any;
+    referenceId?: string;
+  }) {
+    const auditServiceUrl = this.configService.get<string>(
+      'AUDIT_SERVICE_URL',
+      'http://audit-service:3011',
+    );
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to log financial event to audit-service: ${error.message}`,
+      );
+    }
   }
 }

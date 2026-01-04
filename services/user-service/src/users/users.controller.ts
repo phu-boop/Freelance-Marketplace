@@ -15,6 +15,16 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  @Public()
+  @Get('sync')
+  sync(
+    @Query('since') since: string,
+    @Query('entities') entities: string,
+  ) {
+    const entityList = entities ? entities.split(',') : ['User', 'Education', 'Experience', 'PortfolioItem'];
+    return this.usersService.sync(since || new Date(0).toISOString(), entityList);
+  }
+
   @Get()
   findAll(
     @Query('page') page: number = 1,
@@ -199,4 +209,5 @@ export class UsersController {
   removeSavedFreelancer(@Request() req, @Param('freelancerId') freelancerId: string) {
     return this.usersService.removeSavedFreelancer(req.user.sub, freelancerId);
   }
+
 }

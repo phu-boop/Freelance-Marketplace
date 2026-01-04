@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
 import { SearchService } from './search.service';
 
-@Controller('search')
+@Controller('api/search')
 export class SearchController {
     constructor(private readonly searchService: SearchService) { }
 
@@ -54,6 +54,14 @@ export class SearchController {
         @Query('limit') limit: number = 10,
     ) {
         return this.searchService.searchUsers(query, page, limit);
+    }
+
+    @Get('freelancers/recommendations/:jobId')
+    async getRecommendedFreelancers(
+        @Param('jobId') jobId: string,
+        @Query('limit') limit: number = 10,
+    ) {
+        return this.searchService.getRecommendedFreelancers(jobId, Number(limit));
     }
 
     @Get('jobs/recommendations')

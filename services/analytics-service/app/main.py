@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS events (
     timestamp DateTime64(3) DEFAULT now64()
 ) ENGINE = MergeTree()
 ORDER BY (timestamp, event_type, job_id)
+""")
 
+client.command("""
 CREATE TABLE IF NOT EXISTS system_metrics (
     service String,
     endpoint String,
@@ -70,11 +72,11 @@ class Event(BaseModel):
     job_id: Optional[str] = ""
     metadata: Optional[str] = "{}"
 
-@app.get("/analytics")
+@app.get("/api/analytics")
 async def root():
     return {"message": "Analytics Service is running"}
 
-@app.post("/analytics/events")
+@app.post("/api/analytics/events")
 async def create_event(event: Event):
     import uuid
     from datetime import datetime
@@ -87,12 +89,12 @@ async def create_event(event: Event):
     
     return {"status": "success", "event_id": str(event_id)}
 
-@app.get("/analytics/stats")
+@app.get("/api/analytics/stats")
 async def get_stats():
     result = client.query("SELECT event_type, count() as count FROM events GROUP BY event_type")
     return [{"event_type": row[0], "count": row[1]} for row in result.result_rows]
 
-@app.get("/analytics/jobs/{job_id}")
+@app.get("/api/analytics/jobs/{job_id}")
 async def get_job_stats(job_id: str):
     # Get views by day for the last 7 days
     views_query = f"""
@@ -120,7 +122,7 @@ async def get_job_stats(job_id: str):
         "total_events": {row[0]: row[1] for row in total_result.result_rows}
     }
 
-@app.get("/analytics/retention")
+@app.get("/api/analytics/retention")
 async def get_retention():
     # Cohort Analysis:
     # 1. Identify "Cohort Month" (First month user was seen)

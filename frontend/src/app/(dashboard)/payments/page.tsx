@@ -212,7 +212,7 @@ export default function PaymentsPage() {
                                             borderRadius: '12px',
                                             color: '#fff'
                                         }}
-                                        formatter={(val: number) => [`$${val.toFixed(2)}`, 'Earnings']}
+                                        formatter={(val: any) => [`$${(val || 0).toFixed(2)}`, 'Earnings']}
                                     />
                                     <Bar
                                         dataKey="totalEarnings"

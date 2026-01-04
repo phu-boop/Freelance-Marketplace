@@ -1,0 +1,42 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["developer"]
+}
+
+model DeveloperApp {
+  id           String   @id @default(uuid())
+  name         String
+  ownerId      String   // User ID who owns the app
+  clientId     String   @unique // Keycloak Client ID
+  clientSecret String?  // Encrypted or managed by Keycloak
+  redirectUris String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  webhooks WebhookSubscription[]
+
+  @@map("developer_apps")
+  @@schema("developer")
+}
+
+model WebhookSubscription {
+  id        String   @id @default(uuid())
+  appId     String
+  targetUrl String
+  events    String[] // e.g. ["job.created", "milestone.completed"]
+  secret    String   // Signing secret
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  app DeveloperApp @relation(fields: [appId], references: [id])
+
+  @@map("webhook_subscriptions")
+  @@schema("developer")
+}
