@@ -104,4 +104,20 @@ export class CreateUserDto {
     @IsNumber()
     @IsOptional()
     reliabilityScore?: number;
+
+    @IsString()
+    @IsOptional()
+    kycStatus?: string;
+
+    @IsBoolean()
+    @IsOptional()
+    isIdentityVerified?: boolean;
+
+    @IsBoolean()
+    @IsOptional()
+    isEmailVerified?: boolean;
+
+    @IsBoolean()
+    @IsOptional()
+    isPaymentVerified?: boolean;
 }

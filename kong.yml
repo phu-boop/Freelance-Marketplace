@@ -172,6 +172,14 @@ services:
           - /api/developer
         strip_path: false
 
+  - name: talent-cloud-service
+    url: http://freelance_talent_cloud_service:3017
+    routes:
+      - name: talent-cloud-routes
+        paths:
+          - /api/clouds
+        strip_path: false
+
 consumers:
   - username: keycloak-user
     jwt_secrets:

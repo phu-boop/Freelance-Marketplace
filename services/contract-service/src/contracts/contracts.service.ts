@@ -372,6 +372,65 @@ export class ContractsService {
     }
   }
 
+  // Insurance Marketplace
+  listInsuranceOptions() {
+    return [
+      {
+        provider: 'Bunker',
+        name: 'Professional Liability Basic',
+        coverage: 1000000,
+        premiumPerMonth: 29.0,
+      },
+      {
+        provider: 'Next Insurance',
+        name: 'Errors & Omissions Pro',
+        coverage: 2000000,
+        premiumPerMonth: 45.0,
+      },
+    ];
+  }
+
+  async purchaseInsurance(contractId: string, data: { provider: string; coverageAmount: number; premiumAmount: number }) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId }
+    });
+    if (!contract) throw new NotFoundException('Contract not found');
+
+    const endDate = new Date();
+    endDate.setFullYear(endDate.getFullYear() + 1); // 1-year policy
+
+    const policy = await this.prisma.insurancePolicy.create({
+      data: {
+        contractId,
+        provider: data.provider,
+        coverageAmount: data.coverageAmount,
+        premiumAmount: data.premiumAmount,
+        startDate: new Date(),
+        endDate,
+        status: 'ACTIVE',
+      }
+    });
+
+    await this.prisma.contract.update({
+      where: { id: contractId },
+      data: { insurancePolicyId: policy.id }
+    });
+
+    // Notify User Service to update badges/trust score
+    try {
+      const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://user-service:3001');
+      await firstValueFrom(
+        this.httpService.patch(`${userServiceUrl}/api/users/${contract.freelancer_id}`, {
+          metadata: { hasActiveInsurance: true } // Trigger trust score recalculation
+        })
+      );
+    } catch (err) {
+      this.logger.error(`Failed to update insurance status in user-service: ${err.message}`);
+    }
+
+    return policy;
+  }
+
   // Time Tracking
   async logTime(contractId: string, data: { hours: number; description: string; date: string }) {
     const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });

@@ -441,14 +441,61 @@ export class UsersService {
     });
   }
 
-  submitKyc(userId: string, idDocument: string) {
+  async updateTaxInfo(userId: string, data: { taxId: string, taxIdType: string, billingAddress: string }) {
+    // Simple mock encryption (Base64 + salt for demonstration)
+    const encryptedTaxId = Buffer.from(`SALT_${data.taxId}`).toString('base64');
+
     return this.prisma.user.update({
       where: { id: userId },
       data: {
-        kycStatus: 'PENDING',
-        idDocument,
+        taxId: encryptedTaxId,
+        taxIdType: data.taxIdType,
+        billingAddress: data.billingAddress,
+        taxVerifiedStatus: 'PENDING'
       },
     });
+  }
+
+  async submitDocumentKyc(userId: string, idDocument: string) {
+    // Simulate OCR Extraction
+    const mockOcrData = {
+      extractedName: "John Doe",
+      documentType: "PASSPORT",
+      expiryDate: "2030-01-01",
+      confidence: 0.98
+    };
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'REVIEW_REQUIRED',
+        kycMethod: 'DOCUMENT',
+        idDocument,
+        documentData: mockOcrData as any,
+      },
+    });
+    await this.recalculateTrustScore(userId);
+    return user;
+  }
+
+  async scheduleVideoKyc(userId: string, scheduledDate: string) {
+    const mockMeetingLink = `https://meet.jit.si/FreelanceKYC_${userId.slice(0, 8)}`;
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'PENDING',
+        kycMethod: 'VIDEO',
+        videoInterviewAt: new Date(scheduledDate),
+        videoInterviewLink: mockMeetingLink,
+      },
+    });
+    await this.recalculateTrustScore(userId);
+    return user;
+  }
+
+  submitKyc(userId: string, idDocument: string) {
+    return this.submitDocumentKyc(userId, idDocument);
   }
 
   updateClientInfo(userId: string, data: { companyName?: string, companyLogo?: string }) {
@@ -467,11 +514,13 @@ export class UsersService {
     });
   }
 
-  verifyPayment(userId: string) {
-    return this.prisma.user.update({
+  async verifyPayment(userId: string) {
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: { isPaymentVerified: true },
     });
+    await this.recalculateTrustScore(userId);
+    return user;
   }
 
   async updateStats(userId: string, rating: number) {
@@ -526,7 +575,8 @@ export class UsersService {
       include: {
         experience: true,
         education: true,
-        portfolio: true
+        portfolio: true,
+        certifications: true
       }
     });
 
@@ -537,6 +587,7 @@ export class UsersService {
     // 1. Identity & Payment
     if (user.isIdentityVerified) newBadges.push('IDENTITY_VERIFIED');
     if (user.isPaymentVerified) newBadges.push('PAYMENT_VERIFIED');
+    if (user.certifications.some(c => c.status === 'VERIFIED')) newBadges.push('SKILL_VERIFIED');
 
     // 2. Rating & Review counts
     if (Number(user.rating) >= 4.8 && user.reviewCount >= 10 && user.jobSuccessScore >= 90) {
@@ -555,6 +606,27 @@ export class UsersService {
       newBadges.push('VETERAN');
     }
 
+    // 5. Background Check
+    if (user.backgroundCheckStatus === 'COMPLETED') {
+      newBadges.push('SAFE_TO_WORK');
+    }
+
+    // 6. Tax Verification
+    if (user.taxVerifiedStatus === 'VERIFIED') {
+      newBadges.push('TAX_VERIFIED');
+    }
+
+    // 7. Insurance
+    const metadata = user.metadata as any;
+    if (metadata?.hasActiveInsurance) {
+      newBadges.push('INSURED_PRO');
+    }
+
+    // 8. Talent Cloud Member
+    if (metadata?.isCloudMember) {
+      newBadges.push('CLOUD_MEMBER');
+    }
+
     // Update if changed
     const currentBadges = user.badges || [];
     const changed = newBadges.length !== currentBadges.length ||
@@ -566,6 +638,160 @@ export class UsersService {
         data: { badges: newBadges }
       });
     }
+
+    await this.recalculateTrustScore(userId);
+  }
+
+  async recalculateTrustScore(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { certifications: true }
+    });
+    if (!user) return;
+
+    let score = 0;
+    if (user.isIdentityVerified) score += 40;
+    if (user.isPaymentVerified) score += 20;
+    if (user.isEmailVerified) score += 10;
+
+    const verifiedCerts = user.certifications.filter(c => c.status === 'VERIFIED');
+    score += Math.min(30, verifiedCerts.length * 10);
+
+    if (user.backgroundCheckStatus === 'COMPLETED') {
+      score += 25;
+    }
+
+    if (user.taxVerifiedStatus === 'VERIFIED') {
+      score += 15;
+    }
+
+    const metadata = user.metadata as any;
+    if (metadata?.hasActiveInsurance) {
+      score += 10;
+    }
+
+    if (metadata?.isCloudMember) {
+      score += 20;
+    }
+
+    // Caps at 100
+    const finalScore = Math.min(100, score);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { trustScore: finalScore }
+    });
+  }
+
+  addCertification(userId: string, data: { title: string, issuer: string, issuerId: string, verificationUrl: string }) {
+    return this.prisma.certification.create({
+      data: {
+        ...data,
+        userId,
+        status: 'PENDING'
+      }
+    });
+  }
+
+  async verifyCertification(certId: string) {
+    const cert = await this.prisma.certification.findUnique({ where: { id: certId } });
+    if (!cert) throw new NotFoundException('Certification not found');
+
+    // Simulate 3rd party API check
+    const isMockValid = cert.issuerId.startsWith('VERIFIED_');
+    const status = isMockValid ? 'VERIFIED' : 'REJECTED';
+
+    const updatedCert = await this.prisma.certification.update({
+      where: { id: certId },
+      data: {
+        status,
+        verifiedAt: isMockValid ? new Date() : null
+      }
+    });
+
+    await this.checkBadges(cert.userId);
+    return updatedCert;
+  }
+
+  getCertifications(userId: string) {
+    return this.prisma.certification.findMany({
+      where: { userId }
+    });
+  }
+
+  async initiateBackgroundCheck(userId: string) {
+    const backgroundCheckId = `BCK_${userId.slice(0, 8)}_${Date.now()}`;
+    const backgroundCheckUrl = `https://backgroundchecker.io/portal/${backgroundCheckId}`;
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        backgroundCheckStatus: 'PENDING',
+        backgroundCheckId,
+        backgroundCheckUrl,
+      },
+    });
+  }
+
+  async verifyBackgroundCheck(userId: string, status: 'COMPLETED' | 'REJECTED') {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        backgroundCheckStatus: status,
+        backgroundCheckVerifiedAt: status === 'COMPLETED' ? new Date() : null,
+      },
+    });
+
+    await this.checkBadges(userId);
+    return user;
+  }
+
+  async submitTaxForm(userId: string, data: {
+    taxId: string,
+    taxIdType: string,
+    taxFormType: string,
+    taxSignatureName: string,
+    taxSignatureIp: string,
+    billingAddress: string
+  }) {
+    // Simple mock encryption
+    const encryptedTaxId = Buffer.from(`SALT_${data.taxId}`).toString('base64');
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        taxId: encryptedTaxId,
+        taxIdType: data.taxIdType,
+        taxFormType: data.taxFormType,
+        taxSignatureName: data.taxSignatureName,
+        taxSignatureIp: data.taxSignatureIp,
+        taxSignatureDate: new Date(),
+        billingAddress: data.billingAddress,
+        taxVerifiedStatus: 'VERIFIED', // Simulate instant verification
+      },
+    });
+
+    await this.checkBadges(userId);
+    return user;
+  }
+
+  async updateCloudMembership(userId: string, payload: { isCloudMember?: boolean; hasCloudOwnership?: boolean; cloudId?: string }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const metadata = (user.metadata as any) || {};
+
+    if (payload.isCloudMember !== undefined) metadata.isCloudMember = payload.isCloudMember;
+    if (payload.hasCloudOwnership !== undefined) metadata.hasCloudOwnership = payload.hasCloudOwnership;
+    if (payload.cloudId) metadata.cloudId = payload.cloudId;
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { metadata }
+    });
+
+    await this.checkBadges(userId);
+    return updatedUser;
   }
 
   suspendUser(id: string) {

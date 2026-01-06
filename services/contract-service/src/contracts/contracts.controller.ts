@@ -158,6 +158,19 @@ export class ContractsController {
     return this.contractsService.extendContract(id, userId, data);
   }
 
+  // Insurance Marketplace
+  @Get('insurance/options')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  listInsuranceOptions() {
+    return this.contractsService.listInsuranceOptions();
+  }
+
+  @Post(':id/insurance')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  purchaseInsurance(@Param('id') id: string, @Body() body: { provider: string; coverageAmount: number; premiumAmount: number }) {
+    return this.contractsService.purchaseInsurance(id, body);
+  }
+
   @Post(':id/check-ins')
   @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   scheduleCheckIn(@Param('id') id: string, @Body() data: { title: string; description?: string; scheduledAt: string; durationMinutes?: number }, @Request() req) {

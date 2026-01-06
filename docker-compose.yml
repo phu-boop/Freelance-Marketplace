@@ -14,6 +14,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
 
   # Keycloak - IAM
   keycloak:
@@ -38,6 +43,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
 
   # Redis - Cache
   redis:
@@ -48,6 +58,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.3"
 
   # MongoDB - Chat & Notifications
   mongo:
@@ -63,6 +78,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
 
   # Kong - API Gateway (DB-less mode for simplicity initially, or with DB)
   # Using DB-less for quick start, or we can use Postgres. Let's use DB-less for now or standard.
@@ -95,6 +115,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.3"
 
   # User Service
   user-service:
@@ -113,6 +138,7 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=admin
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - KEYCLOAK_CLIENT_ID=freelance-client
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -124,6 +150,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Job Service
   job-service:
@@ -145,6 +176,7 @@ services:
       - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
       - GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -156,6 +188,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Proposal Service
   proposal-service:
@@ -174,6 +211,7 @@ services:
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - JOB_SERVICE_URL=http://job-service:3002/api/jobs
       - USER_SERVICE_URL=http://user-service:3000/api/users
+      - NODE_OPTIONS=--max-old-space-size=256
     depends_on:
       - postgres
     volumes:
@@ -183,6 +221,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Contract Service
   contract-service:
@@ -200,6 +243,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -211,6 +255,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Chat Service
   chat-service:
@@ -223,6 +272,7 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_chat?authSource=admin
       - PORT=3006
+      - NODE_OPTIONS=--max-old-space-size=256
     depends_on:
       - mongo
     volumes:
@@ -232,6 +282,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Notification Service
   notification-service:
@@ -244,6 +299,7 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_notifications?authSource=admin
       - PORT=3007
+      - NODE_OPTIONS=--max-old-space-size=256
     depends_on:
       - mongo
     volumes:
@@ -253,6 +309,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Review Service
   review-service:
@@ -270,6 +331,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -281,6 +343,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Admin Service
   admin-service:
@@ -300,6 +367,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -311,6 +379,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Search Service
   search-service:
@@ -324,6 +397,7 @@ services:
       - ELASTICSEARCH_NODE=http://elasticsearch:9200
       - PORT=3010
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000
+      - NODE_OPTIONS=--max-old-space-size=256
     depends_on:
       - elasticsearch
     volumes:
@@ -333,6 +407,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Community Service
   community-service:
@@ -349,6 +428,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -360,6 +440,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Elasticsearch
   elasticsearch:
@@ -377,6 +462,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.5"
 
   # Kibana
   kibana:
@@ -391,6 +481,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
 
   # Analytics Service
   analytics-service:
@@ -415,6 +510,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
   clickhouse:
     image: clickhouse/clickhouse-server:23.8
     container_name: freelance_clickhouse
@@ -432,6 +532,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
 
   # Payment Service
   payment-service:
@@ -450,6 +555,7 @@ services:
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - ADMIN_SERVICE_URL=http://admin-service:3009
       - AUDIT_SERVICE_URL=http://audit-service:3011
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -461,6 +567,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   audit-service:
     build:
@@ -473,6 +584,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=audit&options=-c%20search_path%3Daudit
       - PORT=3011
       - AUDIT_SECRET=super-secret-integrity-key
+      - NODE_OPTIONS=--max-old-space-size=256
     depends_on:
       - postgres
     volumes:
@@ -482,6 +594,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # MinIO - Object Storage (S3 Compatible)
   minio:
@@ -499,6 +616,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
 
   # Mailhog - Email Testing
   mailhog:
@@ -510,6 +632,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.3"
 
   # Email Service
   email-service:
@@ -525,6 +652,7 @@ services:
       - EMAIL_PASS=password
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
+      - NODE_OPTIONS=--max-old-space-size=256
     volumes:
       - ./services/email-service:/app
       - /app/node_modules
@@ -532,6 +660,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Storage Service
   storage-service:
@@ -547,6 +680,7 @@ services:
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=admin
       - MINIO_SECRET_KEY=password
+      - NODE_OPTIONS=--max-old-space-size=256
     depends_on:
       - minio
     volumes:
@@ -556,6 +690,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Common Service
   common-service:
@@ -568,6 +707,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=common&options=-c%20search_path%3Dcommon
       - PORT=3013
+      - NODE_OPTIONS=--max-old-space-size=256
     depends_on:
       - postgres
     volumes:
@@ -577,6 +717,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
   # Frontend
   # frontend:
@@ -619,6 +764,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
+      - NODE_OPTIONS=--max-old-space-size=256
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -631,6 +777,41 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
+
+  # Talent Cloud Service
+  talent-cloud-service:
+    build:
+      context: ./services/talent-cloud-service
+      dockerfile: Dockerfile
+    container_name: freelance_talent_cloud_service
+    ports:
+      - "3017:3017"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=talent_clouds&options=-c%20search_path%3Dtalent_clouds
+      - PORT=3017
+      - USER_SERVICE_URL=http://user-service:3000
+      - NODE_OPTIONS=--max-old-space-size=256
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      - postgres
+    volumes:
+      - ./services/talent-cloud-service:/app
+      - /app/node_modules
+    command: npm run start:dev
+    restart: always
+    networks:
+      - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
 
 networks:
   freelance_network:

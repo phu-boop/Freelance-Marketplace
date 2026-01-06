@@ -41,6 +41,28 @@ model Contract {
   disputeReason String?
   autoReleaseDays Int @default(14)
 
+  // Insurance
+  insurancePolicyId String?
+  insurancePolicy   InsurancePolicy? @relation(fields: [insurancePolicyId], references: [id])
+
+  @@schema("contracts")
+}
+
+model InsurancePolicy {
+  id              String   @id @default(uuid())
+  contractId      String   @unique
+  provider        String   // Bunker, Next Insurance
+  coverageAmount  Decimal
+  premiumAmount   Decimal
+  status          String   @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED
+  startDate       DateTime @default(now())
+  endDate         DateTime
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  contracts       Contract[]
+
   @@schema("contracts")
 }
 

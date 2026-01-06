@@ -65,7 +65,25 @@ model User {
   githubId               String?                @unique
   isEmailVerified        Boolean                @default(false)
   taxId                  String?
+  taxIdType              String?                // SSN, EIN, VAT
+  taxVerifiedStatus      String                 @default("UNVERIFIED")
+  taxFormType            String?                // W8BEN, W9
+  taxSignatureName       String?
+  taxSignatureDate       DateTime?
+  taxSignatureIp         String?
   billingAddress         String?
+
+  // Advanced KYC
+  kycMethod              String?                // DOCUMENT, VIDEO
+  documentData           Json?                  // Extracted OCR data
+  videoInterviewAt       DateTime?
+  videoInterviewLink     String?
+
+  // Background Check
+  backgroundCheckStatus      String                 @default("UNSTARTED") // UNSTARTED, PENDING, COMPLETED, REJECTED
+  backgroundCheckId          String?
+  backgroundCheckUrl         String?
+  backgroundCheckVerifiedAt  DateTime?
 
   // Portfolio Platform Integration
   githubUsername         String?
@@ -78,6 +96,7 @@ model User {
   communicationStyle     String?                // Proactive, Formal, Concise, etc.
   avgResponseTime        Float?                 // in minutes
   reliabilityScore       Float                  @default(100)
+  metadata               Json?                  // Generic metadata for badges/trust score
 
   availability           AvailabilityCalendar[]
   education              Education[]
@@ -91,8 +110,27 @@ model User {
 
   savedFreelancers       SavedFreelancer[]      @relation("ClientSaved")
   savedByClients         SavedFreelancer[]      @relation("FreelancerSaved")
+  certifications         Certification[]
 
   @@map("users")
+  @@schema("users")
+}
+
+model Certification {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  issuer          String   // Credly, HackerRank, LinkedIn
+  issuerId        String
+  verificationUrl String
+  status          String   @default("PENDING") // PENDING, VERIFIED, REJECTED
+  verifiedAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
   @@schema("users")
 }
 

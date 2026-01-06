@@ -119,9 +119,34 @@ export class UsersController {
     return this.usersService.toggleAvailability(id);
   }
 
+  @Patch(':id/tax')
+  updateTaxInfo(@Param('id') id: string, @Body() data: { taxId: string, taxIdType: string, billingAddress: string }) {
+    return this.usersService.updateTaxInfo(id, data);
+  }
+
   @Post(':id/kyc')
   submitKyc(@Param('id') id: string, @Body() kycData: { idDocument: string }) {
     return this.usersService.submitKyc(id, kycData.idDocument);
+  }
+
+  @Post(':id/kyc/document')
+  submitDocumentKyc(@Param('id') id: string, @Body() kycData: { idDocument: string }) {
+    return this.usersService.submitDocumentKyc(id, kycData.idDocument);
+  }
+
+  @Post(':id/kyc/video')
+  scheduleVideoKyc(@Param('id') id: string, @Body() body: { scheduledDate: string }) {
+    return this.usersService.scheduleVideoKyc(id, body.scheduledDate);
+  }
+
+  @Public() // Usually internal-only or admin-auth
+  @Post(':id/kyc/verify')
+  verifyKyc(@Param('id') id: string, @Body() data: { status: 'APPROVED' | 'REJECTED', reason?: string }) {
+    // In a real app, this would update taxVerifiedStatus too if needed
+    return this.usersService.update(id, {
+      kycStatus: data.status as any,
+      isIdentityVerified: data.status === 'APPROVED'
+    });
   }
 
   @Patch(':id/client-info')
@@ -164,9 +189,10 @@ export class UsersController {
     return this.usersService.banUser(id);
   }
 
-  @Patch(':id/onboarding')
-  completeOnboarding(@Param('id') id: string, @Body() data: any) {
-    return this.usersService.completeOnboarding(id, data);
+  @Public()
+  @Patch(':id/cloud-membership')
+  updateCloudMembership(@Param('id') id: string, @Body() payload: any) {
+    return this.usersService.updateCloudMembership(id, payload);
   }
 
   @Post(':id/activate')
@@ -192,6 +218,46 @@ export class UsersController {
   @Get(':id/referrals')
   getReferrals(@Param('id') id: string) {
     return this.usersService.getReferrals(id);
+  }
+
+  // Certifications
+  @Post(':id/certifications')
+  addCertification(@Param('id') id: string, @Body() data: any) {
+    return this.usersService.addCertification(id, data);
+  }
+
+  @Get(':id/certifications')
+  getCertifications(@Param('id') id: string) {
+    return this.usersService.getCertifications(id);
+  }
+
+  @Post('certifications/:certId/verify')
+  verifyCertification(@Param('certId') certId: string) {
+    return this.usersService.verifyCertification(certId);
+  }
+
+  // Background Checks
+  @Post(':id/background-check/initiate')
+  initiateBackgroundCheck(@Param('id') id: string) {
+    return this.usersService.initiateBackgroundCheck(id);
+  }
+
+  @Post(':id/background-check/verify')
+  verifyBackgroundCheck(@Param('id') id: string, @Body() body: { status: 'COMPLETED' | 'REJECTED' }) {
+    return this.usersService.verifyBackgroundCheck(id, body.status);
+  }
+
+  // Tax Compliance
+  @Post(':id/tax-form')
+  submitTaxForm(@Param('id') id: string, @Body() body: {
+    taxId: string,
+    taxIdType: string,
+    taxFormType: string,
+    taxSignatureName: string,
+    taxSignatureIp: string,
+    billingAddress: string
+  }) {
+    return this.usersService.submitTaxForm(id, body);
   }
 
   // Talent Pool

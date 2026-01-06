@@ -9,6 +9,13 @@ datasource db {
   schemas  = ["reviews"]
 }
 
+enum ReviewStatus {
+  PENDING
+  RELEASED
+
+  @@schema("reviews")
+}
+
 model Review {
   id            String   @id @default(uuid())
   reviewer_id   String
@@ -23,6 +30,8 @@ model Review {
   comment       String?
   reply         String?
   repliedAt     DateTime?
+  status        ReviewStatus @default(PENDING)
+  revealedAt    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
