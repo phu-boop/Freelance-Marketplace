@@ -12,6 +12,9 @@ const axios_1 = require("@nestjs/axios");
 const payments_service_1 = require("./payments.service");
 const payments_controller_1 = require("./payments.controller");
 const currency_converter_service_1 = require("./currency-converter.service");
+const withdrawal_scheduler_service_1 = require("./withdrawal-scheduler.service");
+const subscription_scheduler_service_1 = require("./subscription-scheduler.service");
+const regional_gateway_service_1 = require("./regional-gateway.service");
 let PaymentsModule = class PaymentsModule {
 };
 exports.PaymentsModule = PaymentsModule;
@@ -19,7 +22,13 @@ exports.PaymentsModule = PaymentsModule = __decorate([
     (0, common_1.Module)({
         imports: [axios_1.HttpModule],
         controllers: [payments_controller_1.PaymentsController],
-        providers: [payments_service_1.PaymentsService, WithdrawalSchedulerService, currency_converter_service_1.CurrencyConverterService],
+        providers: [
+            payments_service_1.PaymentsService,
+            withdrawal_scheduler_service_1.WithdrawalSchedulerService,
+            subscription_scheduler_service_1.SubscriptionSchedulerService,
+            currency_converter_service_1.CurrencyConverterService,
+            regional_gateway_service_1.RegionalGatewayService,
+        ],
     })
 ], PaymentsModule);
 //# sourceMappingURL=payments.module.js.map

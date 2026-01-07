@@ -6,6 +6,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
   schemas  = ["contracts"]
 }
 
@@ -16,8 +18,11 @@ model Contract {
   client_id     String   // User ID from User Service
   proposal_id   String   // Proposal ID from Proposal Service
   agencyId      String?  // Optional: linked agency/team ID
+  departmentId  String?  // Optional: linked department ID
   totalAmount   Decimal
-  status        String   @default("ACTIVE") // ACTIVE, COMPLETED, TERMINATED, DISPUTED
+  status        String   @default("ACTIVE") // ACTIVE, COMPLETED, TERMINATED, DISPUTED, PENDING_APPROVAL
+  type          String   @default("FREELANCE") // FREELANCE, EOR
+  eorFeePercentage Decimal @default(5.0)
   startDate     DateTime @default(now())
   endDate       DateTime?
   createdAt     DateTime @default(now())
@@ -29,6 +34,7 @@ model Contract {
   
   // Template
   templateUrl   String?
+  customClauses Json?    // Array of { title, content }
 
   // Relations
   milestones    Milestone[]
@@ -37,6 +43,8 @@ model Contract {
   disputes      Dispute[]
   checkIns      CheckIn[]
   workspaces    Workspace[]
+  arbitrationCases ArbitrationCase[]
+  approvalParams ContractApprovalRequest?
   disputeStatus String?
   disputeReason String?
   autoReleaseDays Int @default(14)
@@ -44,6 +52,21 @@ model Contract {
   // Insurance
   insurancePolicyId String?
   insurancePolicy   InsurancePolicy? @relation(fields: [insurancePolicyId], references: [id])
+
+  @@schema("contracts")
+}
+
+model ContractApprovalRequest {
+  id          String   @id @default(uuid())
+  contractId  String   @unique
+  contract    Contract @relation(fields: [contractId], references: [id])
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  requestedBy String   // User ID
+  decidedBy   String?  // User ID
+  decidedAt   DateTime?
+  reason      String?  // Rejection reason
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("contracts")
 }
@@ -132,6 +155,7 @@ model Milestone {
   description String
   amount      Decimal
   status      String   @default("PENDING") // PENDING, ACTIVE, IN_REVIEW, COMPLETED
+  escrowStatus String  @default("UNFUNDED") // UNFUNDED, FUNDED, RELEASED, REFUNDED
   dueDate     DateTime?
   autoReleaseDate DateTime?
   progressPercentage Int @default(0)
@@ -139,6 +163,18 @@ model Milestone {
   contract    Contract @relation(fields: [contractId], references: [id])
   submissions Submission[]
   
+  @@schema("contracts")
+}
+model ArbitrationCase {
+  id             String   @id @default(uuid())
+  contractId     String
+  contract       Contract @relation(fields: [contractId], references: [id])
+  status         String   @default("OPEN") // OPEN, IN_REVIEW, RESOLVED, CLOSED
+  investigatorId String?  // User ID of assigned investigator
+  decision       String?  // Decision text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
   @@schema("contracts")
 }
 
@@ -176,6 +212,8 @@ model TimeSession {
   startTime   DateTime @default(now())
   endTime     DateTime?
   description String?
+  activityScore Float?   // 0-100 score based on activity
+  idleMinutes   Int?     // Total idle time detected
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

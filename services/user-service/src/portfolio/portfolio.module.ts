@@ -6,9 +6,9 @@ import { PortfolioSyncController } from './portfolio-sync.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-    imports: [HttpModule, ConfigModule, PrismaModule],
-    controllers: [PortfolioSyncController],
-    providers: [PortfolioSyncService],
-    exports: [PortfolioSyncService],
+  imports: [HttpModule, ConfigModule, PrismaModule],
+  controllers: [PortfolioSyncController],
+  providers: [PortfolioSyncService],
+  exports: [PortfolioSyncService],
 })
-export class PortfolioModule { }
+export class PortfolioModule {}

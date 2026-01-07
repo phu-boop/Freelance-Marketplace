@@ -133,7 +133,7 @@ services:
         strip_path: false
 
   - name: storage-service
-    url: http://freelance_storage_service:3011
+    url: http://freelance_storage_service:3018
     routes:
       - name: storage-routes
         paths:

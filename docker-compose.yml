@@ -17,7 +17,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 2048m
           cpus: "1.0"
 
   # Keycloak - IAM
@@ -46,7 +46,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 2048m
           cpus: "1.0"
 
   # Redis - Cache
@@ -61,7 +61,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128m
+          memory: 2048m
           cpus: "0.3"
 
   # MongoDB - Chat & Notifications
@@ -81,7 +81,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 2048m
           cpus: "1.0"
 
   # Kong - API Gateway (DB-less mode for simplicity initially, or with DB)
@@ -118,8 +118,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128m
-          cpus: "0.3"
+          memory: 2048m
+          cpus: "0.5"
 
   # User Service
   user-service:
@@ -138,7 +138,7 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=admin
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - KEYCLOAK_CLIENT_ID=freelance-client
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -146,16 +146,17 @@ services:
     volumes:
       - ./services/user-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
-          cpus: "0.5"
-
+          memory: 2048m  # Tăng lên ít nhất 512m
+          cpus: "0.5"   # Có thể tăng nhẹ CPU để khởi động nhanh hơn
+        reservations:
+          memory: 2048m  # Đảm bảo hệ thống luôn dành ra 256m cho Kong
   # Job Service
   job-service:
     build:
@@ -176,7 +177,7 @@ services:
       - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
       - GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -184,14 +185,14 @@ services:
     volumes:
       - ./services/job-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Proposal Service
@@ -211,20 +212,20 @@ services:
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - JOB_SERVICE_URL=http://job-service:3002/api/jobs
       - USER_SERVICE_URL=http://user-service:3000/api/users
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - postgres
     volumes:
       - ./services/proposal-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Contract Service
@@ -243,7 +244,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -251,14 +252,14 @@ services:
     volumes:
       - ./services/contract-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Chat Service
@@ -272,20 +273,20 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_chat?authSource=admin
       - PORT=3006
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - mongo
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Notification Service
@@ -299,20 +300,20 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_notifications?authSource=admin
       - PORT=3007
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - mongo
     volumes:
       - ./services/notification-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Review Service
@@ -331,7 +332,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -339,14 +340,14 @@ services:
     volumes:
       - ./services/review-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Admin Service
@@ -367,7 +368,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -375,14 +376,14 @@ services:
     volumes:
       - ./services/admin-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Search Service
@@ -397,20 +398,20 @@ services:
       - ELASTICSEARCH_NODE=http://elasticsearch:9200
       - PORT=3010
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - elasticsearch
     volumes:
       - ./services/search-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Community Service
@@ -428,7 +429,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -436,14 +437,14 @@ services:
     volumes:
       - ./services/community-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Elasticsearch
@@ -484,7 +485,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 2048m
           cpus: "1.0"
 
   # Analytics Service
@@ -506,14 +507,14 @@ services:
       - clickhouse
     volumes:
       - ./services/analytics-service:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload
+    command: sh -c "until curl -s http://clickhouse:8123/ping; do echo 'Waiting for ClickHouse...'; sleep 3; done && uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
   clickhouse:
     image: clickhouse/clickhouse-server:23.8
@@ -537,6 +538,12 @@ services:
         limits:
           memory: 1g
           cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   # Payment Service
   payment-service:
@@ -555,7 +562,7 @@ services:
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - ADMIN_SERVICE_URL=http://admin-service:3009
       - AUDIT_SERVICE_URL=http://audit-service:3011
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -563,14 +570,14 @@ services:
     volumes:
       - ./services/payment-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   audit-service:
@@ -584,20 +591,20 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=audit&options=-c%20search_path%3Daudit
       - PORT=3011
       - AUDIT_SECRET=super-secret-integrity-key
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - postgres
     volumes:
       - ./services/audit-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # MinIO - Object Storage (S3 Compatible)
@@ -619,7 +626,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256m
+          memory: 2048m
           cpus: "0.5"
 
   # Mailhog - Email Testing
@@ -635,7 +642,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128m
+          memory: 2048m
           cpus: "0.3"
 
   # Email Service
@@ -652,18 +659,18 @@ services:
       - EMAIL_PASS=password
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     volumes:
       - ./services/email-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Storage Service
@@ -673,27 +680,27 @@ services:
       dockerfile: Dockerfile
     container_name: freelance_storage_service
     ports:
-      - "3011:3011"
+      - "3018:3018"
     environment:
-      - PORT=3011
+      - PORT=3018
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=admin
       - MINIO_SECRET_KEY=password
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - minio
     volumes:
       - ./services/storage-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Common Service
@@ -707,20 +714,20 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=common&options=-c%20search_path%3Dcommon
       - PORT=3013
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - postgres
     volumes:
       - ./services/common-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Frontend
@@ -764,7 +771,7 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -773,14 +780,14 @@ services:
     volumes:
       - ./services/developer-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
   # Talent Cloud Service
@@ -795,7 +802,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=talent_clouds&options=-c%20search_path%3Dtalent_clouds
       - PORT=3017
       - USER_SERVICE_URL=http://user-service:3000
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -803,14 +810,14 @@ services:
     volumes:
       - ./services/talent-cloud-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
     deploy:
       resources:
         limits:
-          memory: 384m
+          memory: 2048m
           cpus: "0.5"
 
 networks:

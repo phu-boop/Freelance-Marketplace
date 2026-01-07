@@ -12,6 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 var PaymentsService_1;
+var _a, _b;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PaymentsService = void 0;
 const common_1 = require("@nestjs/common");
@@ -24,17 +25,20 @@ var Decimal = client_1.Prisma.Decimal;
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const date_fns_1 = require("date-fns");
 const currency_converter_service_1 = require("./currency-converter.service");
+const regional_gateway_service_1 = require("./regional-gateway.service");
 let PaymentsService = PaymentsService_1 = class PaymentsService {
     prisma;
     httpService;
     configService;
     currencyConverter;
+    regionalGateway;
     logger = new common_1.Logger(PaymentsService_1.name);
-    constructor(prisma, httpService, configService, currencyConverter) {
+    constructor(prisma, httpService, configService, currencyConverter, regionalGateway) {
         this.prisma = prisma;
         this.httpService = httpService;
         this.configService = configService;
         this.currencyConverter = currencyConverter;
+        this.regionalGateway = regionalGateway;
     }
     async updateCryptoAddress(userId, cryptoAddress) {
         const wallet = await this.getWallet(userId);
@@ -124,38 +128,81 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 actorId: userId,
                 amount: amount,
                 referenceId,
-                metadata: { type: 'DEPOSIT', description: 'Deposit via Payment Gateway' }
+                metadata: {
+                    type: 'DEPOSIT',
+                    description: 'Deposit via Payment Gateway',
+                },
             });
             return updatedWallet;
         });
     }
-    async withdraw(userId, amount) {
+    async withdraw(userId, amount, instant = false) {
         const wallet = await this.getWallet(userId);
         if (!wallet)
             throw new common_1.NotFoundException('Wallet not found');
         if (Number(wallet.balance) < amount) {
             throw new common_1.BadRequestException('Insufficient funds');
         }
+        let fee = 0;
+        let description = 'Withdrawal to Bank Account';
+        let status = 'COMPLETED';
+        if (instant) {
+            const defaultMethod = await this.prisma.withdrawalMethod.findFirst({
+                where: { userId, isDefault: true },
+            });
+            if (!defaultMethod) {
+                throw new common_1.BadRequestException('No default withdrawal method found');
+            }
+            if (!defaultMethod.isInstantCapable) {
+                throw new common_1.BadRequestException('Default withdrawal method is not eligible for Instant Pay');
+            }
+            const calculatedFee = amount * 0.015;
+            fee = Math.max(calculatedFee, 2.0);
+            if (Number(wallet.balance) < amount + fee) {
+                throw new common_1.BadRequestException(`Insufficient funds to cover withdrawal plus instant fee of $${fee.toFixed(2)}`);
+            }
+            description = 'Instant Withdrawal to Debit Card';
+            status = 'INSTANT_PROCESSED';
+        }
         return this.prisma.$transaction(async (prisma) => {
+            const totalDeduction = amount + fee;
             const updatedWallet = await prisma.wallet.update({
                 where: { id: wallet.id },
-                data: { balance: { decrement: amount } },
+                data: { balance: { decrement: totalDeduction } },
             });
             await prisma.transaction.create({
                 data: {
                     walletId: wallet.id,
-                    amount: amount,
+                    amount: totalDeduction,
+                    feeAmount: fee,
                     type: 'WITHDRAWAL',
-                    status: 'COMPLETED',
-                    description: 'Withdrawal to Bank Account',
+                    status,
+                    description,
                 },
             });
+            const defaultMethod = await prisma.withdrawalMethod.findFirst({
+                where: { userId, isDefault: true },
+            });
+            if (defaultMethod) {
+                const regionalTypes = ['MOMO', 'PIX', 'PROMPTPAY', 'M_PESA'];
+                if (regionalTypes.includes(defaultMethod.type)) {
+                    await this.regionalGateway.processRegionalPayout(userId, amount, defaultMethod.id);
+                }
+            }
             await this.logFinancialEvent({
                 service: 'payment-service',
-                eventType: 'WITHDRAW_COMPLETED',
+                eventType: instant
+                    ? 'INSTANT_WITHDRAW_COMPLETED'
+                    : 'WITHDRAW_COMPLETED',
                 actorId: userId,
                 amount: amount,
-                metadata: { type: 'WITHDRAWAL', description: 'Withdrawal to Bank Account' }
+                metadata: {
+                    type: 'WITHDRAWAL',
+                    description,
+                    instant,
+                    fee,
+                    method: defaultMethod?.type,
+                },
             });
             return updatedWallet;
         });
@@ -188,7 +235,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             userId: transaction.wallet.userId,
         };
     }
-    async transfer(fromUserId, toUserId, amount, description, referenceId) {
+    async transfer(fromUserId, toUserId, amount, description, referenceId, teamId, departmentId) {
         const fromWallet = await this.getWallet(fromUserId);
         const toWallet = await this.getWallet(toUserId);
         if (!fromWallet || !toWallet) {
@@ -206,57 +253,39 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 where: { id: fromWallet.id },
                 data: { balance: { decrement: amount } },
             });
-            await prisma.transaction.create({
+            let status = 'COMPLETED';
+            if (teamId) {
+                const approvalCheck = await this.checkApproval(teamId, 'PAYMENT', amount);
+                if (approvalCheck.required) {
+                    status = 'PENDING_APPROVAL';
+                }
+            }
+            const senderTx = await prisma.transaction.create({
                 data: {
                     walletId: fromWallet.id,
                     amount: amount,
                     type: 'PAYMENT',
-                    status: 'COMPLETED',
+                    status,
                     description: `Payment to ${toUserId}: ${description}`,
                     referenceId,
+                    departmentId,
                 },
             });
-            const clearingDate = new Date();
-            clearingDate.setDate(clearingDate.getDate() + 5);
-            await prisma.wallet.update({
-                where: { id: toWallet.id },
-                data: { pendingBalance: { increment: netAmount } },
-            });
-            const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-            const invoice = await prisma.invoice.create({
-                data: {
-                    invoiceNumber,
-                    senderId: fromUserId,
-                    receiverId: toUserId,
-                    amount: new Decimal(netAmount),
-                    feeAmount: new Decimal(feeAmount),
-                    status: 'PAID',
-                    paidAt: new Date(),
-                    items: [
-                        {
-                            description,
-                            quantity: 1,
-                            unitPrice: amount,
-                            grossAmount: amount,
-                            feeAmount: feeAmount,
-                            netAmount: netAmount,
-                        },
-                    ],
-                },
-            });
-            await prisma.transaction.create({
-                data: {
-                    walletId: toWallet.id,
-                    amount: netAmount,
-                    feeAmount: feeAmount,
-                    type: 'PAYMENT',
-                    status: 'PENDING',
-                    clearedAt: clearingDate,
-                    description: `Payment from ${fromUserId}: ${description}`,
-                    referenceId,
-                    invoiceId: invoice.id,
-                },
-            });
+            if (status === 'PENDING_APPROVAL') {
+                await prisma.paymentApprovalRequest.create({
+                    data: {
+                        transactionId: senderTx.id,
+                        requestedBy: fromUserId,
+                        status: 'PENDING',
+                    },
+                });
+                return {
+                    success: true,
+                    status: 'PENDING_APPROVAL',
+                    transactionId: senderTx.id,
+                };
+            }
+            const invoice = await this.processRecipientCredit(prisma, fromUserId, toUserId, amount, feeAmount, netAmount, description, referenceId);
             await this.logFinancialEvent({
                 service: 'payment-service',
                 eventType: 'TRANSFER_COMPLETED',
@@ -269,8 +298,8 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     grossAmount: amount,
                     feeAmount,
                     netAmount,
-                    invoiceId: invoice.id
-                }
+                    invoiceId: invoice.id,
+                },
             });
             return { success: true, invoiceId: invoice.id };
         });
@@ -485,8 +514,13 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
         return this.prisma.withdrawalMethod.create({
             data: {
-                ...data,
                 userId,
+                type: data.type,
+                provider: data.provider,
+                accountNumber: data.accountNumber,
+                accountName: data.accountName,
+                isDefault: data.isDefault,
+                isInstantCapable: data.isInstantCapable || false,
             },
         });
     }
@@ -503,6 +537,186 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         return this.prisma.withdrawalMethod.update({
             where: { id, userId },
             data: { isDefault: true },
+        });
+    }
+    async verifyInstantCapability(userId, id) {
+        return this.prisma.withdrawalMethod.update({
+            where: { id, userId },
+            data: { isInstantCapable: true },
+        });
+    }
+    async createSubscription(userId, data) {
+        const wallet = await this.getWallet(userId);
+        if (Number(wallet.balance) < data.price) {
+            throw new common_1.BadRequestException('Insufficient funds in wallet');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            await prisma.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { decrement: data.price } },
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: data.price,
+                    type: 'SUBSCRIPTION_FEE',
+                    status: 'COMPLETED',
+                    description: `Subscription: ${data.planId}`,
+                },
+            });
+            const nextBillingDate = new Date();
+            nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+            const sub = await prisma.subscription.create({
+                data: {
+                    userId,
+                    planId: data.planId,
+                    price: new Decimal(data.price),
+                    nextBillingDate,
+                    status: 'ACTIVE',
+                },
+            });
+            try {
+                const userServiceUrl = this.configService.get('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000/api/users');
+                await (0, rxjs_1.firstValueFrom)(this.httpService.patch(`${userServiceUrl}/${userId}/subscription-status`, {
+                    tier: data.planId,
+                    status: 'ACTIVE',
+                    endsAt: nextBillingDate.toISOString(),
+                }));
+            }
+            catch (error) {
+                this.logger.error(`Failed to sync subscription status with user-service for user ${userId}: ${error.message}`);
+            }
+            return sub;
+        });
+    }
+    async fundEscrow(userId, data) {
+        const wallet = await this.getWallet(userId);
+        if (Number(wallet.balance) < data.amount) {
+            throw new common_1.BadRequestException('Insufficient funds to fund escrow');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            await prisma.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { decrement: data.amount } },
+            });
+            const transaction = await prisma.transaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: new Decimal(data.amount),
+                    type: 'DESCROW_FUND',
+                    status: 'COMPLETED',
+                    description: `Escrow Fund for Contract ${data.contractId} Milestone ${data.milestoneId}`,
+                },
+            });
+            return prisma.escrowHold.create({
+                data: {
+                    walletId: wallet.id,
+                    transactionId: transaction.id,
+                    contractId: data.contractId,
+                    milestoneId: data.milestoneId,
+                    amount: new Decimal(data.amount),
+                    status: 'HELD',
+                },
+            });
+        });
+    }
+    async releaseEscrow(contractId, milestoneId, freelancerId) {
+        const hold = await this.prisma.escrowHold.findFirst({
+            where: { contractId, milestoneId, status: 'HELD' },
+        });
+        if (!hold) {
+            throw new common_1.NotFoundException('No active escrow hold found for this milestone');
+        }
+        const contractUrl = this.configService.get('CONTRACT_SERVICE_URL', 'http://contract-service:3003');
+        try {
+            const contractRes = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${contractUrl}/api/contracts/${contractId}`));
+            const contract = contractRes.data;
+            if (contract.status === 'DISPUTED') {
+                throw new common_1.BadRequestException('Cannot release escrow while contract is in DISPUTED status. Please resolve arbitration first.');
+            }
+        }
+        catch (error) {
+            if (error instanceof common_1.BadRequestException)
+                throw error;
+            this.logger.error(`Failed to verify contract status: ${error.message}`);
+            throw new common_1.BadRequestException('Could not verify contract status. Try again later.');
+        }
+        const freelancerWallet = await this.getWallet(freelancerId);
+        return this.prisma.$transaction(async (prisma) => {
+            await prisma.wallet.update({
+                where: { id: freelancerWallet.id },
+                data: { balance: { increment: hold.amount } },
+            });
+            await prisma.escrowHold.update({
+                where: { id: hold.id },
+                data: { status: 'RELEASED' },
+            });
+            return prisma.transaction.create({
+                data: {
+                    walletId: freelancerWallet.id,
+                    amount: hold.amount,
+                    type: 'ESCROW_RELEASE',
+                    status: 'COMPLETED',
+                    description: `Escrow Release for Contract ${contractId} Milestone ${milestoneId}`,
+                },
+            });
+        });
+    }
+    async processPayroll(contractId, data) {
+        const contractUrl = this.configService.get('CONTRACT_SERVICE_URL', 'http://contract-service:3003');
+        const contractRes = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${contractUrl}/api/contracts/${contractId}`));
+        const contract = contractRes.data;
+        if (contract.type !== 'EOR')
+            throw new common_1.BadRequestException('Not an EOR contract');
+        const gross = new Decimal(data.grossAmount);
+        const eorFee = gross.mul(contract.eorFeePercentage || 5.0).div(100);
+        const taxRate = 0.2;
+        const benefitsCost = 150.0;
+        const taxAmount = gross.mul(taxRate);
+        const netAmount = gross.sub(taxAmount).sub(benefitsCost);
+        const clientWallet = await this.getWallet(contract.client_id);
+        return this.prisma.$transaction(async (prisma) => {
+            const totalCharge = gross.add(eorFee);
+            await prisma.wallet.update({
+                where: { id: clientWallet.id },
+                data: { balance: { decrement: totalCharge } },
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: clientWallet.id,
+                    amount: totalCharge,
+                    type: 'PAYROLL_CHARGE',
+                    status: 'COMPLETED',
+                    description: `Payroll for ${data.periodStart} - ${data.periodEnd} (Incl. Fees)`,
+                },
+            });
+            const employeeWallet = await this.getWallet(data.employeeId);
+            await prisma.wallet.update({
+                where: { id: employeeWallet.id },
+                data: { balance: { increment: netAmount } },
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: employeeWallet.id,
+                    amount: netAmount,
+                    type: 'PAYROLL_RECEIPT',
+                    status: 'COMPLETED',
+                    description: `Salary Payment (Net after Tax/Benefits)`,
+                },
+            });
+            return prisma.payroll.create({
+                data: {
+                    contractId,
+                    employeeId: data.employeeId,
+                    periodStart: data.periodStart,
+                    periodEnd: data.periodEnd,
+                    grossAmount: gross,
+                    taxAmount,
+                    benefitsAmount: benefitsCost,
+                    netAmount,
+                    status: 'PAID',
+                },
+            });
         });
     }
     async addPaymentMethod(userId, data) {
@@ -536,7 +750,9 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             where: { id: wallet.id },
             data: {
                 autoDepositEnabled: data.enabled,
-                autoDepositThreshold: data.threshold ? new Decimal(data.threshold) : null,
+                autoDepositThreshold: data.threshold
+                    ? new Decimal(data.threshold)
+                    : null,
                 autoDepositAmount: data.amount ? new Decimal(data.amount) : null,
                 paymentMethodId: data.paymentMethodId,
             },
@@ -571,7 +787,10 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 },
             },
         });
-        const grossVolume = invoices.reduce((sum, inv) => sum + Number(inv.amount) + Number(inv.feeAmount) + Number(inv.taxAmount), 0);
+        const grossVolume = invoices.reduce((sum, inv) => sum +
+            Number(inv.amount) +
+            Number(inv.feeAmount) +
+            Number(inv.taxAmount), 0);
         const feesPaid = invoices.reduce((sum, inv) => sum + Number(inv.feeAmount), 0);
         const taxWithheld = invoices.reduce((sum, inv) => sum + Number(inv.taxAmount), 0);
         const netVolume = invoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
@@ -597,11 +816,17 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             doc.on('data', buffers.push.bind(buffers));
             doc.on('end', () => resolve(Buffer.concat(buffers)));
             doc.on('error', reject);
-            doc.fontSize(20).text('TAX YEAR SUMMARY (1099-K Preview)', { align: 'center' });
+            doc
+                .fontSize(20)
+                .text('TAX YEAR SUMMARY (1099-K Preview)', { align: 'center' });
             doc.moveDown();
             doc.fontSize(14).text(`Tax Year: ${year}`, { align: 'center' });
             doc.moveDown();
-            doc.fontSize(12).text(`Generated Date: ${summary.generatedAt.toDateString()}`, { align: 'center' });
+            doc
+                .fontSize(12)
+                .text(`Generated Date: ${summary.generatedAt.toDateString()}`, {
+                align: 'center',
+            });
             doc.moveDown();
             doc.fontSize(12).text(`Account ID: ${userId}`);
             doc.moveDown();
@@ -613,20 +838,31 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             doc.text('Amount (USD)', 400, currentY, { align: 'right' });
             currentY += 20;
             doc.text('Gross Payment Volume', startX, currentY);
-            doc.text(`$${summary.grossVolume.toFixed(2)}`, 400, currentY, { align: 'right' });
+            doc.text(`$${summary.grossVolume.toFixed(2)}`, 400, currentY, {
+                align: 'right',
+            });
             currentY += 20;
             doc.text('Platform Fees & Adjustments', startX, currentY);
-            doc.text(`-$${summary.feesPaid.toFixed(2)}`, 400, currentY, { align: 'right' });
+            doc.text(`-$${summary.feesPaid.toFixed(2)}`, 400, currentY, {
+                align: 'right',
+            });
             currentY += 20;
             doc.text('Tax Withheld', startX, currentY);
-            doc.text(`-$${summary.taxWithheld.toFixed(2)}`, 400, currentY, { align: 'right' });
+            doc.text(`-$${summary.taxWithheld.toFixed(2)}`, 400, currentY, {
+                align: 'right',
+            });
             currentY += 20;
             doc.moveTo(50, currentY).lineTo(550, currentY).stroke();
             currentY += 10;
             doc.font('Helvetica-Bold').text('Net Income', startX, currentY);
-            doc.text(`$${summary.netVolume.toFixed(2)}`, 400, currentY, { align: 'right' });
+            doc.text(`$${summary.netVolume.toFixed(2)}`, 400, currentY, {
+                align: 'right',
+            });
             currentY += 40;
-            doc.font('Helvetica').fontSize(10).text('Note: This document is a preview for informational purposes only and is not an official IRS form 1099-K. Please consult a tax professional.', 50, currentY, { width: 500, align: 'center' });
+            doc
+                .font('Helvetica')
+                .fontSize(10)
+                .text('Note: This document is a preview for informational purposes only and is not an official IRS form 1099-K. Please consult a tax professional.', 50, currentY, { width: 500, align: 'center' });
             doc.end();
         });
     }
@@ -646,19 +882,22 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         return this.prisma.$transaction(async (prisma) => {
             const updatedTx = await prisma.transaction.update({
                 where: { id: transactionId },
-                data: { status: 'CHARGEBACK', description: `${transaction.description} [CHARGEBACK]` }
+                data: {
+                    status: 'CHARGEBACK',
+                    description: `${transaction.description} [CHARGEBACK]`,
+                },
             });
             await prisma.wallet.update({
                 where: { id: transaction.walletId },
-                data: { balance: { decrement: transaction.amount } }
+                data: { balance: { decrement: transaction.amount } },
             });
             await this.logFinancialEvent({
                 service: 'payment-service',
                 eventType: 'CHARGEBACK_PROCESSED',
                 actorId: transaction.wallet.userId,
                 amount: Number(transaction.amount),
-                referenceId: transaction.referenceId,
-                metadata: { transactionId }
+                referenceId: transaction.referenceId || undefined,
+                metadata: { transactionId },
             });
             return updatedTx;
         });
@@ -682,7 +921,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
     }
     async getTaxSettings() {
         return this.prisma.taxSetting.findMany({
-            orderBy: { countryCode: 'asc' }
+            orderBy: { countryCode: 'asc' },
         });
     }
     async updateTaxSetting(id, data) {
@@ -701,15 +940,17 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         twelveMonthsAgo.setDate(1);
         twelveMonthsAgo.setHours(0, 0, 0, 0);
         const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-        const historicalTxs = wallet ? await this.prisma.transaction.findMany({
-            where: {
-                walletId: wallet.id,
-                type: 'PAYMENT',
-                status: { in: ['COMPLETED', 'PENDING'] },
-                createdAt: { gte: twelveMonthsAgo }
-            },
-            orderBy: { createdAt: 'asc' }
-        }) : [];
+        const historicalTxs = wallet
+            ? await this.prisma.transaction.findMany({
+                where: {
+                    walletId: wallet.id,
+                    type: 'PAYMENT',
+                    status: { in: ['COMPLETED', 'PENDING'] },
+                    createdAt: { gte: twelveMonthsAgo },
+                },
+                orderBy: { createdAt: 'asc' },
+            })
+            : [];
         const historicalData = {};
         for (let i = 0; i < 12; i++) {
             const d = new Date();
@@ -717,7 +958,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             historicalData[key] = 0;
         }
-        historicalTxs.forEach(tx => {
+        historicalTxs.forEach((tx) => {
             const d = new Date(tx.createdAt);
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             if (historicalData[key] !== undefined) {
@@ -741,7 +982,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             projections[key] = 0;
         }
-        contracts.forEach(contract => {
+        contracts.forEach((contract) => {
             if (contract.status === 'ACTIVE' || contract.status === 'DISPUTED') {
                 contract.milestones?.forEach((m) => {
                     if (m.status === 'IN_REVIEW') {
@@ -764,23 +1005,136 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             currentStats: {
                 totalEarned: historicalTxs.reduce((sum, tx) => sum + Number(tx.amount), 0),
                 pendingRevenue,
-                availableBalance: Number(wallet?.balance || 0)
+                availableBalance: Number(wallet?.balance || 0),
             },
             historicalTrend: Object.entries(historicalData)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([month, amount]) => ({ month, amount })),
             projections: Object.entries(projections)
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([month, amount]) => ({ month, amount }))
+                .map(([month, amount]) => ({ month, amount })),
         };
+    }
+    async processRecipientCredit(prisma, fromUserId, toUserId, grossAmount, feeAmount, netAmount, description, referenceId) {
+        const toWallet = await this.getWallet(toUserId);
+        const clearingDate = new Date();
+        clearingDate.setDate(clearingDate.getDate() + 5);
+        await prisma.wallet.update({
+            where: { id: toWallet.id },
+            data: { pendingBalance: { increment: netAmount } },
+        });
+        const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const invoice = await prisma.invoice.create({
+            data: {
+                invoiceNumber,
+                senderId: fromUserId,
+                receiverId: toUserId,
+                amount: new Decimal(netAmount),
+                feeAmount: new Decimal(feeAmount),
+                status: 'PAID',
+                paidAt: new Date(),
+                items: [
+                    {
+                        description,
+                        quantity: 1,
+                        unitPrice: grossAmount,
+                        grossAmount: grossAmount,
+                        feeAmount: feeAmount,
+                        netAmount: netAmount,
+                    },
+                ],
+            },
+        });
+        await prisma.transaction.create({
+            data: {
+                walletId: toWallet.id,
+                amount: netAmount,
+                feeAmount: feeAmount,
+                type: 'PAYMENT',
+                status: 'PENDING',
+                clearedAt: clearingDate,
+                description: `Payment from ${fromUserId}: ${description}`,
+                referenceId,
+                invoiceId: invoice.id,
+            },
+        });
+        return invoice;
+    }
+    async checkApproval(teamId, triggerType, amount) {
+        try {
+            const userServiceUrl = this.configService.get('USER_SERVICE_URL', 'http://user-service:3001');
+            const { data } = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${userServiceUrl}/api/user/teams/${teamId}/policies/check`, {
+                params: { type: triggerType, amount },
+            }));
+            return data;
+        }
+        catch (error) {
+            this.logger.error(`Failed to check approval policy: ${error.message}`);
+            return { required: false };
+        }
+    }
+    async approvePayment(transactionId, userId) {
+        const tx = await this.prisma.transaction.findUnique({
+            where: { id: transactionId },
+            include: { approvalParams: true, wallet: true },
+        });
+        if (!tx)
+            throw new common_1.NotFoundException('Transaction not found');
+        if (tx.status !== 'PENDING_APPROVAL')
+            throw new common_1.ConflictException('Transaction not pending approval');
+        return this.prisma.$transaction(async (prisma) => {
+            await prisma.transaction.update({
+                where: { id: transactionId },
+                data: { status: 'COMPLETED' },
+            });
+            if (tx.approvalParams) {
+                await prisma.paymentApprovalRequest.update({
+                    where: { id: tx.approvalParams.id },
+                    data: {
+                        status: 'APPROVED',
+                        decidedBy: userId,
+                        decidedAt: new Date(),
+                    },
+                });
+            }
+            const feeRatePercent = await this.getPlatformFeePercent();
+            const amount = Number(tx.amount);
+            const feeRate = feeRatePercent / 100;
+            const feeAmount = amount * feeRate;
+            const netAmount = amount - feeAmount;
+            const match = tx.description?.match(/Payment to ([^:]+):/);
+            if (!match)
+                throw new Error('Could not determine recipient from transaction description');
+            const toUserId = match[1];
+            const description = tx.description?.split(': ')[1] || 'Payment';
+            const invoice = await this.processRecipientCredit(prisma, tx.wallet.userId, toUserId, amount, feeAmount, netAmount, description, tx.referenceId || undefined);
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'PAYMENT_APPROVED',
+                actorId: userId,
+                amount: amount,
+                referenceId: tx.referenceId || undefined,
+                metadata: {
+                    approvedBy: userId,
+                    transactionId,
+                },
+            });
+            return { success: true, status: 'APPROVED', invoiceId: invoice.id };
+        });
+    }
+    async getDepartmentSpend(departmentId) {
+        const transactions = await this.prisma.transaction.findMany({
+            where: { departmentId },
+            select: { amount: true },
+        });
+        const totalSpend = transactions.reduce((acc, tx) => acc + Number(tx.amount), 0);
+        return { departmentId, totalSpend: new Decimal(totalSpend) };
     }
 };
 exports.PaymentsService = PaymentsService;
 exports.PaymentsService = PaymentsService = PaymentsService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        axios_1.HttpService,
-        config_1.ConfigService,
-        currency_converter_service_1.CurrencyConverterService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, typeof (_a = typeof axios_1.HttpService !== "undefined" && axios_1.HttpService) === "function" ? _a : Object, typeof (_b = typeof config_1.ConfigService !== "undefined" && config_1.ConfigService) === "function" ? _b : Object, currency_converter_service_1.CurrencyConverterService,
+        regional_gateway_service_1.RegionalGatewayService])
 ], PaymentsService);
 //# sourceMappingURL=payments.service.js.map

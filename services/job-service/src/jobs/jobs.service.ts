@@ -7,13 +7,15 @@ import { CreateCategoryDto } from '../categories/create-category.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { AiService } from './ai.service';
 
 
 @Injectable()
 export class JobsService {
   constructor(
     private prisma: PrismaService,
-    private readonly httpService: HttpService
+    private readonly httpService: HttpService,
+    private readonly aiService: AiService,
   ) { }
 
   private readonly logger = new Logger(JobsService.name);
@@ -364,6 +366,34 @@ export class JobsService {
       where: { id },
       data: { status: 'OPEN' }
     });
+  }
+
+  async pauseJob(id: string, userId: string) {
+    const job = await this.prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.client_id !== userId) throw new ForbiddenException('Not your job');
+
+    const updated = await this.prisma.job.update({
+      where: { id },
+      data: { status: 'PAUSED' },
+      include: { category: true, skills: { include: { skill: true } } }
+    });
+    await this.syncToSearch(updated);
+    return updated;
+  }
+
+  async resumeJob(id: string, userId: string) {
+    const job = await this.prisma.job.findUnique({ where: { id } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.client_id !== userId) throw new ForbiddenException('Not your job');
+
+    const updated = await this.prisma.job.update({
+      where: { id },
+      data: { status: 'OPEN' },
+      include: { category: true, skills: { include: { skill: true } } }
+    });
+    await this.syncToSearch(updated);
+    return updated;
   }
 
   async duplicateJob(id: string, userId: string) {
@@ -719,7 +749,7 @@ export class JobsService {
         data: { availableConnects: { decrement: 2 } }
       });
 
-      return tx.proposal.create({
+      const proposal = await tx.proposal.create({
         data: {
           jobId: dto.jobId,
           freelancerId: userId,
@@ -730,6 +760,13 @@ export class JobsService {
           portfolioItemIds: dto.portfolioItemIds || []
         }
       });
+
+      // Trigger AI Screening in background
+      this.aiService.autoScreenProposal(proposal.id).catch(err =>
+        this.logger.error(`AI Screening failed for proposal ${proposal.id}: ${err.message}`)
+      );
+
+      return proposal;
     });
   }
 

@@ -1,10 +1,13 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl"]
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
   schemas  = ["payments"]
 }
 
@@ -55,6 +58,7 @@ model Transaction {
   type        String
   status      String
   referenceId String?
+  departmentId String?
   description String?
   createdAt   DateTime  @default(now())
   clearedAt   DateTime?
@@ -63,6 +67,22 @@ model Transaction {
   taxAmount   Decimal   @default(0.0)
   invoice     Invoice?  @relation(fields: [invoiceId], references: [id])
   wallet      Wallet    @relation(fields: [walletId], references: [id])
+  approvalParams PaymentApprovalRequest?
+
+  @@schema("payments")
+}
+
+model PaymentApprovalRequest {
+  id            String      @id @default(uuid())
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  status        String      @default("PENDING") // PENDING, APPROVED, REJECTED
+  requestedBy   String      // User ID
+  decidedBy     String?     // User ID
+  decidedAt     DateTime?
+  reason        String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@schema("payments")
 }
@@ -118,6 +138,35 @@ model WithdrawalMethod {
   accountNumber String
   accountName   String
   isDefault     Boolean  @default(false)
+  isInstantCapable Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("payments")
+}
+
+model Subscription {
+  id              String   @id @default(uuid())
+  userId          String
+  planId          String
+  price           Decimal
+  status          String   @default("ACTIVE")
+  nextBillingDate DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@schema("payments")
+}
+
+model EscrowHold {
+  id            String   @id @default(uuid())
+  walletId      String   // Client's wallet
+  transactionId String   @unique // Link to the funding transaction
+  contractId    String
+  milestoneId   String
+  amount        Decimal
+  currency      String   @default("USD")
+  status        String   @default("HELD") // HELD, RELEASED, REFUNDED
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

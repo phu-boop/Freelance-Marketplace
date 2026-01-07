@@ -1,4 +1,10 @@
 Project Roadmap: Freelance Marketplace
+IMPORTANT
+
+HOT RELOADING IS ACTIVE: Do NOT restart services manually for code changes. Only restart if 
+package.json
+ changes or Prisma Schema updates occur.
+
 Infrastructure
  Align infrastructure with DEV Requirements
  Remove hardcoded IDs (Keycloak Hostname)
@@ -23,19 +29,53 @@ Infrastructure
  Add Keycloak protection to admin-service
  Implement token propagation in AdminsService
  Final verification of all protected endpoints
+ Fix 502 error on contract-service due to compilation failure
+ Standardize microservice endpoints and Kong routing
+ Audit all 16 microservices for routing consistency
+ Update Kong to use strip_path: false for all services
+ Standardize all controllers to @Controller('api/...')
+ Fix compilation and dependency issues in payment-service
+ Fix ClickHouse syntax and FastAPI routes in analytics-service
+ Map missing Interview, Forum, and Public routes in Kong
+ Fix internal 401 Unauthorized when contract-service calls job-service
+ Update 
+ContractsController
+ to propagate auth token
+ Update 
+ContractsService
+ to use auth token in internal calls The microservice architecture had inconsistent routing prefixes and unreachable endpoints.
+Root Cause: Inconsistent use of strip_path in Kong and mismatching controller prefixes. Missing Kong routes for Interviews, Forum, and Public configurations.
+Fix:
+Standardized all 16 services to use the /api/... pattern (e.g., @Controller('api/payments')).
+Updated 
+kong.yml
+ to use strip_path: false for all services, ensuring predictable routing.
+Resolved build failures in payment-service by synchronizing Prisma and installing @nestjs/axios.
+Fixed syntax errors and standardized routes in analytics-service (FastAPI).
+Verified all services are healthy and routes are correctly mapped.
+8. Service Communication Fixes
+Payment Service: Fixed internal HTTP calls to admin-service to use the new /api/public standardized endpoints.
+
+Job Service: Corrected timesheet route conflicts to ensure reliable tracking. uting mismatch
+
+ Fix 401 Unauthorized on contract-service due to Keycloak misconfiguration
  Seed job data for search testing
+
  Update seed.ts with job & skill data
  Implement search sync in seed script
  Run seed and verify in search results
  Fix 401 Unauthorized on profile draft endpoint
+
  Enable offline token validation in user-service
  Verify routing and controller access
  Fix 404 on Profile Page (Reviews endpoint)
+
  Standardize review-service routing
  Add reviewee endpoint to ReviewController
  Secure review-service with Keycloak
  Standardize user-service routing
  Story G-013: OAuth2 Registration (Google/Github)
+
  Add githubId/facebookId to User schema
  Implement getUserById in KeycloakService
  Update UsersService for real auto-provisioning
@@ -51,7 +91,7 @@ True Dev Mode (Hot Reloading)
  Verify instant reload on code changes
 I. GUEST (UNAUTHENTICATED)
 1. General Information
- Story G-001: Home page with banner, stats, and trending jobs
+ Story G-001: Home page with banner, stats, and trending jobs (Implemented)
  Story G-002: Hierarchical categories (category > sub-category)
  Story G-003: Public job list with pagination
  Story G-004: Advanced job search (keyword, location, budget)
@@ -213,6 +253,7 @@ C. Hiring
  Story C-035: Send job offer
  Story C-036: Negotiate terms
  Story C-037: Create contract
+ Fix 502/404/401/400 errors blocking contract creation
  Story C-038: Milestone & payment schedule
  Story C-039: Custom contract templates (NDA)
  Story C-040: View freelancer history
@@ -267,6 +308,7 @@ A. User Management
  Story A-010: Export user list
 B. Job & Contract Management
  Story A-011: Job moderation (Approve/Reject)
+ Fix 502 error caused by admin-service compilation failure
  Story A-012: Job list with status
  Story A-013: Edit job postings
  Story A-014: Delete violating jobs
@@ -312,9 +354,155 @@ E. System & Configuration
 F. Content Moderation
  Story A-051: Flagged content view
  Story A-052: Moderation actions
- Story A-053: Moderation queue
+Story A-053: Moderation queue
+ Case A-053.1: Automated content filtering (In Progress)
  Story A-054: Automated filters
  Story A-055: User trust scores
+V. ADVANCED ECOSYSTEM & POLISH (FUTURE ROADMAP)
+1. AI & Intelligence
+ Story E-001: AI Scoping Assistant (Auto-milestone generation for clients) (Completed)
+ Story E-002: Smart Matchmaking v2 (Behavioral & communication style matching) (Completed)
+ Schema & Elasticsearch Integration
+ Basic Search Matching Logic
+ UI Match Score Badges
+ Implement Behavioral Data Pipeline
+ Track response times in Chat Service
+ Trigger AI style analysis after 10 messages
+ Link milestone performance to Reliability Score
+ Story E-003: Predictive Revenue Dashboard for Freelancers
+ Backend: Predictive revenue endpoint in payment-service
+ Backend: Integrate milestone data from contract-service
+ Frontend: New Revenue Dashboard page with charts
+ Frontend: Revenue prediction visualizations
+ Story E-004: Automated Fraud & Spam Detection (Real-time message analysis) (Completed)
+ Backend: AI Fraud Detection endpoint in job-service
+ Backend: Real-time analysis hook in chat-service
+ Backend: Flagged message tracking in chat-service schema
+ Frontend: Warning UI for flagged messages
+2. Collaboration & Enterprises
+ Story E-005: Agency Mode (Groups of freelancers sharing a profile/contracts) (Completed)
+ Backend: Teams module in user-service (CRUD + Membership)
+ Backend: agencyId support in contract-service
+ Frontend: Agency management UI (Create, Invite, Dashboard)
+ Frontend: Shared contract visibility for agency members
+ Story E-006: Shared Workspace (Real-time collaborative document for requirements) (Completed)
+ Backend: Workspace model in contract-service
+ Backend: WebSocket gateway for real-time sync
+ Frontend: Collaborative editor component
+ Frontend: Real-time cursor tracking and presence
+ Story E-007: GitHub/Behance/Dribbble Live Integration for Portfolios (Completed)
+ Backend: OAuth integration for GitHub/Behance/Dribbble
+ Backend: Portfolio sync service with API clients
+ Backend: Scheduled sync jobs for automatic updates
+ Frontend: Connect/disconnect platform buttons
+ Frontend: Live portfolio display with platform badges
+ Story E-008: Team/Sub-user management for Client Companies (Completed)
+ Backend: Update Teams module for Client support
+ Backend: Shared Job/Contract access via teamId
+ Frontend: Company Team management UI
+3. Financial & System Extensions
+ Story E-009: Multi-currency support (Standardized conversion & Crypto wallets) (Completed)
+ Backend: Currency conversion service
+ Backend: Crypto wallet address support
+ Frontend: Global currency selector & display
+ Frontend: Crypto wallet management UI
+ Story E-010: Escrow Auto-Release Rules (Advanced logic & dispute timers) (Completed)
+ Backend: Scheduler for auto-release & dispute timeouts
+ Backend: Logic for funds transfer on auto-release
+ Frontend: Auto-release countdown display
+ Frontend: Dispute timer UI
+ Story E-011: Marketplace API Developer Portal (3rd party app integrations) (Completed)
+ Backend: Initialize developer-service and Prisma schema
+ Backend: Keycloak Client management logic
+ Backend: Webhook dispatcher logic
+ Frontend: Developer Portal UI (/developer)
+ Infrastructure: Docker & Kong configuration
+Story E-012: Mobile App (React Native / Flutter) synchronization (In Progress)
+ Research: Evaluate sync strategies (Delta vs Full, Offline-first)
+ Backend: Implementation of Sync API (Versioned updates)
+ Backend: Logic for conflict resolution
+ Backend: Verified Sync & Conflict Resolution (Debugging 500/404 errors)
+ Frontend: Sync Logic Reference Implementation
+ Create SyncManager and LocalStore
+ Implement Delta Pull (GET /sync) handling
+ Implement Versioned Push (PATCH) with 409 handling
+ Verify Sync Flow
+ Documentation: Sync protocol for mobile developers
+4. Communication & Performance
+Story E-013: Web Push Notifications & Slack/Discord Integration
+ Infrastructure: Install web-push and configure VAPID keys
+ Web Push: Implement Subscription Schema & API
+ Web Push: Integrate PushService into notification flow
+ External Chat: Implement Integration Schema (Slack/Discord Webhooks)
+ External Chat: Create IntegrationService for webhook dispatch
+ Verification: Test Push & Webhook delivery
+ Story E-014: Global Search Performance (Redis/Elasticsearch deep optimization)
+ Dependency: Install ioredis in search-service
+ Caching: Implement Redis caching for search & recommendations
+ Optimization: optimize Elasticsearch queries (source filtering)
+ Verification: Verify cache hit/miss performance
+ Story E-015: Cross-service Event Sourcing for Financial Integrity (Audit Trail)
+ Infrastructure: Initialize audit-service and add to Docker
+ Core Logic: Implement 
+AuditLog
+ schema and API
+ Instrumentation: Integrity logging in payment-service
+ Instrumentation: Integrity logging in contract-service
+ Verification: Audit trail validation (checksums, flow)
+VI. TRUST, SAFETY & COMPLIANCE (PROFESSIONAL GRADE)
+ Story T-001: Double-Blind Feedback System (Reviews hidden until both parties submit or 14 days pass)
+ Story T-002: Advanced Identity Verification (Live Video KYC vs Document OCR)
+ Story T-003: Verified Skill Certifications (Integration with Credly/LinkedIn/HackerRank)
+ Schema: Add Certification model to Prisma
+ Core Logic: Add/Verify certification methods in UsersService
+ Trust Integration: Update Trust Score based on verification
+ API: Expose certification endpoints in UsersController
+ Verification: Simulation of 3rd party badge verification
+ Story T-004: Background Check Integration (Safe-to-Work certification via 3rd party API)
+ Schema: Add background check fields to User model
+ Core Logic: Implement initiate/verify methods in UsersService
+ Trust Integration: Update Trust Score (+25) and award SAFE_TO_WORK badge
+ API: Expose background check endpoints in UsersController
+ Verification: Simulation script for background check flow
+ Story T-005: Digital Tax Compliance (W-8BEN/W-9 collection, encryption, and e-signatures)
+ Schema: Add tax form and signature fields to User model
+ Core Logic: Implement submitTaxForm in UsersService
+ Trust Integration: Update Trust Score (+15) and award TAX_VERIFIED badge
+ API: Expose tax submission endpoint in UsersController
+ Verification: Simulation script for digital tax compliance flow
+ Story T-006: Professional Liability Insurance Marketplace (Offer insurance during contract signing)
+ Schema (Contract): Add InsurancePolicy model and link to Contract
+ Core Logic (Contract): Implement insurance options and purchase logic
+ Core Logic (User): Update Trust Score (+10) and award INSURED_PRO badge
+ API: Expose insurance endpoints in ContractsController
+ Verification: Simulation script for insurance purchase and trust boost
+VII. ENTERPRISE & CORPORATE SOLUTIONS
+ Story C-075: Talent Clouds (Private pools of vetted freelancers for Enterprise clients)
+ Define Prisma schema for TalentCloud and TalentCloudMember
+ Implement TalentCloud service with create, addMember, removeMember, listForUser
+ Implement TalentCloud controller endpoints
+ Add user-service integration for cloud membership updates
+ Write unit/integration tests for service and controller
+ Verification: manual API testing and badge/trust score validation
+ Story C-076: Multi-stage Approval Workflows (Manager-level sign-off for hires/payments)
+ Story C-077: Departmental Budgeting & Expense Allocation (Track spend by cost-center)
+ Story C-078: Enterprise SSO Integration (SAML/OIDC for corporate security)
+ Story C-079: Custom Contract Clause Library (Standardized NDAs, IP Assignment, etc.)
+VIII. ADVANCED FINANCIAL ECOSYSTEM
+ Story F-076: Instant Pay (Real-time withdrawal to debit card via Visa Direct/Mastercard Send)
+ Story F-077: Platform Subscription Tiers (Freelancer Plus, Client Enterprise)
+ Story F-078: Escrow for Complex Fixed-Price Milestones (Multi-currency escrow hold)
+ Story F-079: Employer of Record (EOR) Service (Handle payroll, tax, and benefits for long-term hires)
+ Story F-080: Dispute Arbitration Panel (Formal mediation workflow with external investigators)
+IX. AI-FIRST PRODUCTIVITY (NEXT-GEN)
+ Story A-056: AI Auto-Screener (Pre-screen candidates based on job description & profile analysis)
+ Story A-057: AI Real-time Portfolio Generator (Smart extraction of work from completed contracts)
+ Story A-058: AI Contract Risk Analyzer (Flag unusual or risky clauses in custom contracts)
+ Story A-059: AI Smart Hourly Tracking (Detect idle time vs active coding time locally)
+X. GLOBAL OPERATIONS & LOCALIZATION
+ Story L-001: Regional Payment Gateways (Momo, PromptPay, Pix, M-Pesa integration)
+ Story L-002: Dynamic Legal Logic (Auto-adjust contract terms based on jurisdiction)
+ Story L-003: Timezone-Aware Meeting Scheduler (Auto-sync with Google/Outlook calendars)
 Testing Accounts
 Role	Email	Password
 Freelancer	freelancer@example.com	Password123!

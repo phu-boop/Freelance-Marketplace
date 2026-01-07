@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { AuthController } from './auth.controller';
+import { AiService } from './ai.service';
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { KeycloakModule } from '../keycloak/keycloak.module';
@@ -26,7 +27,7 @@ import { HttpModule } from '@nestjs/axios';
     }),
   ],
   controllers: [UsersController, AuthController],
-  providers: [UsersService],
-  exports: [UsersService],
+  providers: [UsersService, AiService],
+  exports: [UsersService, AiService],
 })
 export class UsersModule { }

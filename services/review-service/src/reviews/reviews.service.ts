@@ -72,7 +72,7 @@ export class ReviewsService {
 
     private async triggerStatsUpdate(userId: string, rating: number) {
         try {
-            const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000');
+            const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000/api/users');
             await firstValueFrom(
                 this.httpService.post(`${userServiceUrl}/${userId}/stats`, {
                     rating

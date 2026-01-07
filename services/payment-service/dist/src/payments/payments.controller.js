@@ -44,7 +44,7 @@ let PaymentsController = class PaymentsController {
         return this.paymentsService.deposit(body.userId, body.amount, body.referenceId);
     }
     withdraw(body) {
-        return this.paymentsService.withdraw(body.userId, body.amount);
+        return this.paymentsService.withdraw(body.userId, body.amount, body.instant);
     }
     getMyWithdrawalMethods(req) {
         return this.paymentsService.getWithdrawalMethods(req.user.sub);
@@ -58,11 +58,17 @@ let PaymentsController = class PaymentsController {
     setDefaultWithdrawalMethod(req, id) {
         return this.paymentsService.setDefaultWithdrawalMethod(req.user.sub, id);
     }
+    verifyInstantPay(req, id) {
+        return this.paymentsService.verifyInstantCapability(req.user.sub, id);
+    }
     getInvoice(id) {
         return this.paymentsService.getInvoiceData(id);
     }
     transfer(body) {
-        return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description, body.referenceId);
+        return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description, body.referenceId, body.teamId, body.departmentId);
+    }
+    getDepartmentSpend(id) {
+        return this.paymentsService.getDepartmentSpend(id);
     }
     getTransactionsByReference(id) {
         return this.paymentsService.getTransactionsByReference(id);
@@ -72,6 +78,9 @@ let PaymentsController = class PaymentsController {
     }
     chargebackTransaction(id) {
         return this.paymentsService.processChargeback(id);
+    }
+    approvePayment(id, req) {
+        return this.paymentsService.approvePayment(id, req.user.sub);
     }
     createTaxSetting(body) {
         return this.paymentsService.createTaxSetting(body);
@@ -124,6 +133,22 @@ let PaymentsController = class PaymentsController {
             'Content-Disposition': `attachment; filename="tax-summary-${year}.pdf"`,
         });
         return new common_1.StreamableFile(buffer);
+    }
+    createSubscription(req, body) {
+        return this.paymentsService.createSubscription(req.user.sub, body);
+    }
+    fundEscrow(req, body) {
+        return this.paymentsService.fundEscrow(req.user.sub, body);
+    }
+    releaseEscrow(body) {
+        return this.paymentsService.releaseEscrow(body.contractId, body.milestoneId, body.freelancerId);
+    }
+    processPayroll(body) {
+        return this.paymentsService.processPayroll(body.contractId, {
+            ...body,
+            periodStart: new Date(body.periodStart),
+            periodEnd: new Date(body.periodEnd),
+        });
     }
 };
 exports.PaymentsController = PaymentsController;
@@ -225,6 +250,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "setDefaultWithdrawalMethod", null);
 __decorate([
+    (0, common_1.Post)('withdrawal-methods/:id/verify-instant'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "verifyInstantPay", null);
+__decorate([
     (0, common_1.Get)('transactions/:id/invoice'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -238,6 +272,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "transfer", null);
+__decorate([
+    (0, common_1.Get)('departments/:id/spend'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT', 'CLIENT'] }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getDepartmentSpend", null);
 __decorate([
     (0, common_1.Get)('transactions/reference/:id'),
     __param(0, (0, common_1.Param)('id')),
@@ -260,6 +302,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "chargebackTransaction", null);
+__decorate([
+    (0, common_1.Post)('transactions/:id/approve'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT', 'CLIENT'] }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "approvePayment", null);
 __decorate([
     (0, common_1.Post)('taxes'),
     __param(0, (0, common_1.Body)()),
@@ -376,6 +427,40 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getTaxDocument", null);
+__decorate([
+    (0, common_1.Post)('subscriptions'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "createSubscription", null);
+__decorate([
+    (0, common_1.Post)('escrow/fund'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "fundEscrow", null);
+__decorate([
+    (0, common_1.Post)('escrow/release'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "releaseEscrow", null);
+__decorate([
+    (0, common_1.Post)('payroll/process'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "processPayroll", null);
 exports.PaymentsController = PaymentsController = __decorate([
     (0, common_1.Controller)('api/payments'),
     __metadata("design:paramtypes", [payments_service_1.PaymentsService])

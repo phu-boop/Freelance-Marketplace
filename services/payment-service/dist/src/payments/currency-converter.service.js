@@ -9,6 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 var CurrencyConverterService_1;
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CurrencyConverterService = void 0;
 const common_1 = require("@nestjs/common");
@@ -25,7 +26,7 @@ let CurrencyConverterService = CurrencyConverterService_1 = class CurrencyConver
     }
     async getExchangeRates(base = 'USD') {
         const now = Date.now();
-        if (this.rates && (now - this.lastFetch < this.CACHE_DURATION)) {
+        if (this.rates && now - this.lastFetch < this.CACHE_DURATION) {
             return this.rates;
         }
         try {
@@ -61,6 +62,6 @@ let CurrencyConverterService = CurrencyConverterService_1 = class CurrencyConver
 exports.CurrencyConverterService = CurrencyConverterService;
 exports.CurrencyConverterService = CurrencyConverterService = CurrencyConverterService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [axios_1.HttpService])
+    __metadata("design:paramtypes", [typeof (_a = typeof axios_1.HttpService !== "undefined" && axios_1.HttpService) === "function" ? _a : Object])
 ], CurrencyConverterService);
 //# sourceMappingURL=currency-converter.service.js.map
