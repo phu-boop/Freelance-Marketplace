@@ -146,7 +146,7 @@ services:
     volumes:
       - ./services/user-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -185,7 +185,7 @@ services:
     volumes:
       - ./services/job-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -218,7 +218,7 @@ services:
     volumes:
       - ./services/proposal-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -252,7 +252,7 @@ services:
     volumes:
       - ./services/contract-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -279,7 +279,7 @@ services:
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -306,7 +306,7 @@ services:
     volumes:
       - ./services/notification-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -340,7 +340,7 @@ services:
     volumes:
       - ./services/review-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -376,7 +376,7 @@ services:
     volumes:
       - ./services/admin-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -404,7 +404,7 @@ services:
     volumes:
       - ./services/search-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -437,7 +437,7 @@ services:
     volumes:
       - ./services/community-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -539,7 +539,7 @@ services:
           memory: 1g
           cpus: "1.0"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8123/ping"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -570,7 +570,7 @@ services:
     volumes:
       - ./services/payment-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -597,7 +597,7 @@ services:
     volumes:
       - ./services/audit-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -663,7 +663,7 @@ services:
     volumes:
       - ./services/email-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -693,7 +693,7 @@ services:
     volumes:
       - ./services/storage-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -720,7 +720,7 @@ services:
     volumes:
       - ./services/common-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -780,7 +780,7 @@ services:
     volumes:
       - ./services/developer-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
@@ -810,7 +810,7 @@ services:
     volumes:
       - ./services/talent-cloud-service:/app
       - /app/node_modules
-    command: sh -c "npx prisma generate && npm run start:dev"
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network

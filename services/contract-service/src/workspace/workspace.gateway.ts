@@ -19,15 +19,14 @@ import { Logger, UseGuards } from '@nestjs/common';
   namespace: '/workspace',
 })
 export class WorkspaceGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+  implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   private logger = new Logger('WorkspaceGateway');
   private activeUsers = new Map<string, Set<string>>(); // contractId -> Set of socketIds
 
-  constructor(private workspaceService: WorkspaceService) {}
+  constructor(private workspaceService: WorkspaceService) { }
 
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
@@ -60,7 +59,7 @@ export class WorkspaceGateway
     if (!this.activeUsers.has(contractId)) {
       this.activeUsers.set(contractId, new Set());
     }
-    this.activeUsers.get(contractId).add(client.id);
+    (this.activeUsers.get(contractId) as Set<string>).add(client.id);
 
     // Store user info on socket
     client.data.userId = userId;
@@ -86,7 +85,7 @@ export class WorkspaceGateway
     client.leave(contractId);
 
     if (this.activeUsers.has(contractId)) {
-      this.activeUsers.get(contractId).delete(client.id);
+      (this.activeUsers.get(contractId) as Set<string>).delete(client.id);
       this.broadcastPresence(contractId);
     }
 
