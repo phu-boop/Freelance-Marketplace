@@ -119,7 +119,7 @@ export class JobsService {
   private async syncToSearch(job: any) {
     try {
       const searchUrl = process.env.SEARCH_SERVICE_URL || 'http://search-service:3010';
-      console.log(`Syncing job ${job.id} to ${searchUrl}/search/jobs/index`);
+      console.log(`Syncing job ${job.id} to ${searchUrl}/api/search/jobs/index`);
       const indexedJob = {
         id: job.id,
         title: job.title,
@@ -136,7 +136,7 @@ export class JobsService {
         isPromoted: job.isPromoted || false
       };
 
-      const response = await fetch(`${searchUrl}/search/jobs/index`, {
+      const response = await fetch(`${searchUrl}/api/search/jobs/index`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(indexedJob),

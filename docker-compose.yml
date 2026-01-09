@@ -132,12 +132,13 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=users
       - PORT=3000
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - KEYCLOAK_CLIENT_ID=freelance-client
+      - SEARCH_SERVICE_URL=http://search-service:3010
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
@@ -169,7 +170,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
       - PORT=3002
       - SEARCH_SERVICE_URL=http://search-service:3010
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -206,13 +207,15 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=proposals&options=-c%20search_path%3Dproposals
       - PORT=3003
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - JOB_SERVICE_URL=http://job-service:3002/api/jobs
       - USER_SERVICE_URL=http://user-service:3000/api/users
       - NODE_OPTIONS=--max-old-space-size=1536
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - postgres
     volumes:
@@ -240,7 +243,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=contracts&options=-c%20search_path%3Dcontracts
       - PORT=3004
       - PAYMENT_SERVICE_URL=http://payment-service:3005
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -328,7 +331,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=reviews&options=-c%20search_path%3Dreviews
       - PORT=3008
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000/api/users
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -364,7 +367,7 @@ services:
       - JOB_SERVICE_URL=http://job-service:3002
       - USER_SERVICE_URL=http://user-service:3000
       - PAYMENT_SERVICE_URL=http://payment-service:3005
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -403,7 +406,6 @@ services:
       - elasticsearch
     volumes:
       - ./services/search-service:/app
-      - /app/node_modules
     command: sh -c "npm run start:dev"
     restart: always
     networks:
@@ -425,7 +427,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=community&options=-c%20search_path%3Dcommunity
       - PORT=3015
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -556,7 +558,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=payments&options=-c%20search_path%3Dpayments
       - PORT=3005
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -662,7 +664,6 @@ services:
       - NODE_OPTIONS=--max-old-space-size=1536
     volumes:
       - ./services/email-service:/app
-      - /app/node_modules
     command: sh -c "npm run start:dev"
     restart: always
     networks:
@@ -692,7 +693,6 @@ services:
       - minio
     volumes:
       - ./services/storage-service:/app
-      - /app/node_modules
     command: sh -c "npm run start:dev"
     restart: always
     networks:
@@ -719,7 +719,6 @@ services:
       - postgres
     volumes:
       - ./services/common-service:/app
-      - /app/node_modules
     command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
@@ -767,7 +766,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=developer&options=-c%20search_path%3Ddeveloper
       - PORT=3016
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin

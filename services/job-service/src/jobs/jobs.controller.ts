@@ -87,7 +87,6 @@ export class JobsController {
   }
 
   @Public()
-  @Roles({ roles: ['ADMIN'] })
   @Get('categories')
   findAllCategories() {
     return this.jobsService.findAllCategories();
