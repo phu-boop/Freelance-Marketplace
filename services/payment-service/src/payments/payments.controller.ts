@@ -66,8 +66,14 @@ export class PaymentsController {
   }
 
   @Post('withdraw')
-  withdraw(@Body() body: { userId: string; amount: number }) {
-    return this.paymentsService.withdraw(body.userId, body.amount);
+  withdraw(
+    @Body() body: { userId: string; amount: number; instant?: boolean },
+  ) {
+    return this.paymentsService.withdraw(
+      body.userId,
+      body.amount,
+      body.instant,
+    );
   }
 
   @Get('withdrawal-methods')
@@ -94,6 +100,12 @@ export class PaymentsController {
     return this.paymentsService.setDefaultWithdrawalMethod(req.user.sub, id);
   }
 
+  @Post('withdrawal-methods/:id/verify-instant')
+  @Roles({ roles: ['realm:FREELANCER'] })
+  verifyInstantPay(@Request() req, @Param('id') id: string) {
+    return this.paymentsService.verifyInstantCapability(req.user.sub, id);
+  }
+
   @Get('transactions/:id/invoice')
   getInvoice(@Param('id') id: string) {
     return this.paymentsService.getInvoiceData(id);
@@ -108,6 +120,8 @@ export class PaymentsController {
       amount: number;
       description: string;
       referenceId?: string;
+      teamId?: string;
+      departmentId?: string;
     },
   ) {
     return this.paymentsService.transfer(
@@ -116,7 +130,15 @@ export class PaymentsController {
       body.amount,
       body.description,
       body.referenceId,
+      body.teamId,
+      body.departmentId,
     );
+  }
+
+  @Get('departments/:id/spend')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  getDepartmentSpend(@Param('id') id: string) {
+    return this.paymentsService.getDepartmentSpend(id);
   }
 
   @Get('transactions/reference/:id')
@@ -126,7 +148,10 @@ export class PaymentsController {
 
   @Get('transactions')
   // @Roles({ roles: ['realm:ADMIN'] }) // In prod, protect this
-  getAllTransactions(@Query('limit') limit: number, @Query('offset') offset: number) {
+  getAllTransactions(
+    @Query('limit') limit: number,
+    @Query('offset') offset: number,
+  ) {
     return this.paymentsService.getAllTransactions(limit, offset);
   }
 
@@ -136,9 +161,17 @@ export class PaymentsController {
     return this.paymentsService.processChargeback(id);
   }
 
+  @Post('transactions/:id/approve')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  approvePayment(@Param('id') id: string, @Request() req) {
+    return this.paymentsService.approvePayment(id, req.user.sub);
+  }
+
   @Post('taxes')
   // @Roles({ roles: ['realm:ADMIN'] })
-  createTaxSetting(@Body() body: { countryCode: string; taxRate: number; name: string }) {
+  createTaxSetting(
+    @Body() body: { countryCode: string; taxRate: number; name: string },
+  ) {
     return this.paymentsService.createTaxSetting(body);
   }
 
@@ -149,7 +182,10 @@ export class PaymentsController {
 
   @Put('taxes/:id')
   // @Roles({ roles: ['realm:ADMIN'] })
-  updateTaxSetting(@Param('id') id: string, @Body() body: { taxRate?: number; isActive?: boolean }) {
+  updateTaxSetting(
+    @Param('id') id: string,
+    @Body() body: { taxRate?: number; isActive?: boolean },
+  ) {
     return this.paymentsService.updateTaxSetting(id, body);
   }
 
@@ -227,18 +263,90 @@ export class PaymentsController {
 
   @Post('auto-deposit/config')
   @Roles({ roles: ['realm:CLIENT'] })
-  updateAutoDepositConfig(@Request() req, @Body() body: { enabled: boolean; threshold?: number; amount?: number; paymentMethodId?: string }) {
+  updateAutoDepositConfig(
+    @Request() req,
+    @Body()
+    body: {
+      enabled: boolean;
+      threshold?: number;
+      amount?: number;
+      paymentMethodId?: string;
+    },
+  ) {
     return this.paymentsService.updateAutoDepositConfig(req.user.sub, body);
   }
 
   @Get('tax-documents/:year')
   @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
-  async getTaxDocument(@Request() req, @Param('year') year: string, @Res({ passthrough: true }) res) {
-    const buffer = await this.paymentsService.generateTaxDocumentPdf(req.user.sub, parseInt(year));
+  async getTaxDocument(
+    @Request() req,
+    @Param('year') year: string,
+    @Res({ passthrough: true }) res,
+  ) {
+    const buffer = await this.paymentsService.generateTaxDocumentPdf(
+      req.user.sub,
+      parseInt(year),
+    );
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="tax-summary-${year}.pdf"`,
     });
     return new StreamableFile(buffer);
+  }
+
+  @Post('subscriptions')
+  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  createSubscription(
+    @Request() req,
+    @Body() body: { planId: string; price: number },
+  ) {
+    return this.paymentsService.createSubscription(req.user.sub, body);
+  }
+
+  // Escrow
+  @Post('escrow/fund')
+  @Roles({ roles: ['realm:CLIENT'] })
+  fundEscrow(
+    @Request() req,
+    @Body() body: { contractId: string; milestoneId: string; amount: number },
+  ) {
+    return this.paymentsService.fundEscrow(req.user.sub, body);
+  }
+
+  @Post('escrow/release')
+  @Roles({ roles: ['realm:CLIENT'] }) // Only client can release? Or maybe system? Let's assume client for now.
+  releaseEscrow(
+    @Body()
+    body: {
+      contractId: string;
+      milestoneId: string;
+      freelancerId: string;
+    },
+  ) {
+    return this.paymentsService.releaseEscrow(
+      body.contractId,
+      body.milestoneId,
+      body.freelancerId,
+    );
+  }
+
+  // EOR
+  @Post('payroll/process')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] }) // Admin triggers payroll? Or automated system
+  processPayroll(
+    @Body()
+    body: {
+      contractId: string;
+      periodStart: string;
+      periodEnd: string;
+      grossAmount: number;
+      employeeId: string;
+    },
+  ) {
+    return this.paymentsService.processPayroll(body.contractId, {
+      ...body,
+      periodStart: new Date(body.periodStart),
+      periodEnd: new Date(body.periodEnd),
+    });
   }
 }

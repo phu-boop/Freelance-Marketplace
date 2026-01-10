@@ -14,6 +14,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "1.0"
 
   # Keycloak - IAM
   keycloak:
@@ -28,6 +33,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HOSTNAME_URL: http://localhost:8080
       KC_HOSTNAME_STRICT: "false"
+      KC_THEME_CACHE: "false"
     command: start-dev
     ports:
       - "8080:8080"
@@ -38,6 +44,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "1.0"
 
   # Redis - Cache
   redis:
@@ -48,6 +59,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.3"
 
   # MongoDB - Chat & Notifications
   mongo:
@@ -63,6 +79,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "1.0"
 
   # Kong - API Gateway (DB-less mode for simplicity initially, or with DB)
   # Using DB-less for quick start, or we can use Postgres. Let's use DB-less for now or standard.
@@ -95,6 +116,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # User Service
   user-service:
@@ -107,12 +133,14 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=users
       - PORT=3000
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - KEYCLOAK_CLIENT_ID=freelance-client
+      - SEARCH_SERVICE_URL=http://search-service:3010
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -120,11 +148,17 @@ services:
     volumes:
       - ./services/user-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
-
+    deploy:
+      resources:
+        limits:
+          memory: 2048m  # Tăng lên ít nhất 512m
+          cpus: "0.5"   # Có thể tăng nhẹ CPU để khởi động nhanh hơn
+        reservations:
+          memory: 2048m  # Đảm bảo hệ thống luôn dành ra 256m cho Kong
   # Job Service
   job-service:
     build:
@@ -137,7 +171,7 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=jobs&options=-c%20search_path%3Djobs
       - PORT=3002
       - SEARCH_SERVICE_URL=http://search-service:3010
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
@@ -145,6 +179,7 @@ services:
       - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
       - GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -152,10 +187,15 @@ services:
     volumes:
       - ./services/job-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Proposal Service
   proposal-service:
@@ -168,21 +208,29 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=proposals&options=-c%20search_path%3Dproposals
       - PORT=3003
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - JOB_SERVICE_URL=http://job-service:3002/api/jobs
       - USER_SERVICE_URL=http://user-service:3000/api/users
+      - NODE_OPTIONS=--max-old-space-size=1536
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - postgres
     volumes:
       - ./services/proposal-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Contract Service
   contract-service:
@@ -196,10 +244,11 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=contracts&options=-c%20search_path%3Dcontracts
       - PORT=3004
       - PAYMENT_SERVICE_URL=http://payment-service:3005
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -207,10 +256,15 @@ services:
     volumes:
       - ./services/contract-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Chat Service
   chat-service:
@@ -223,15 +277,21 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_chat?authSource=admin
       - PORT=3006
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - mongo
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Notification Service
   notification-service:
@@ -244,15 +304,21 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_notifications?authSource=admin
       - PORT=3007
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - mongo
     volumes:
       - ./services/notification-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Review Service
   review-service:
@@ -266,10 +332,11 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=reviews&options=-c%20search_path%3Dreviews
       - PORT=3008
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000/api/users
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -277,10 +344,15 @@ services:
     volumes:
       - ./services/review-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Admin Service
   admin-service:
@@ -296,10 +368,11 @@ services:
       - JOB_SERVICE_URL=http://job-service:3002
       - USER_SERVICE_URL=http://user-service:3000
       - PAYMENT_SERVICE_URL=http://payment-service:3005
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -307,10 +380,15 @@ services:
     volumes:
       - ./services/admin-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Search Service
   search-service:
@@ -324,15 +402,20 @@ services:
       - ELASTICSEARCH_NODE=http://elasticsearch:9200
       - PORT=3010
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - elasticsearch
     volumes:
       - ./services/search-service:/app
-      - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Community Service
   community-service:
@@ -345,10 +428,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=community&options=-c%20search_path%3Dcommunity
       - PORT=3015
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -356,10 +440,15 @@ services:
     volumes:
       - ./services/community-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Elasticsearch
   elasticsearch:
@@ -377,6 +466,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.5"
 
   # Kibana
   kibana:
@@ -391,6 +485,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "1.0"
 
   # Analytics Service
   analytics-service:
@@ -411,10 +510,15 @@ services:
       - clickhouse
     volumes:
       - ./services/analytics-service:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload
+    command: sh -c "until python -c 'import urllib.request; urllib.request.urlopen(\"http://clickhouse:8123/ping\")'; do echo 'Waiting for ClickHouse...'; sleep 3; done && uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
   clickhouse:
     image: clickhouse/clickhouse-server:23.8
     container_name: freelance_clickhouse
@@ -432,6 +536,17 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   # Payment Service
   payment-service:
@@ -444,12 +559,13 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=payments&options=-c%20search_path%3Dpayments
       - PORT=3005
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - ADMIN_SERVICE_URL=http://admin-service:3009
       - AUDIT_SERVICE_URL=http://audit-service:3011
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -457,10 +573,15 @@ services:
     volumes:
       - ./services/payment-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   audit-service:
     build:
@@ -473,15 +594,21 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=audit&options=-c%20search_path%3Daudit
       - PORT=3011
       - AUDIT_SECRET=super-secret-integrity-key
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - postgres
     volumes:
       - ./services/audit-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # MinIO - Object Storage (S3 Compatible)
   minio:
@@ -499,6 +626,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Mailhog - Email Testing
   mailhog:
@@ -510,6 +642,11 @@ services:
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.3"
 
   # Email Service
   email-service:
@@ -525,13 +662,18 @@ services:
       - EMAIL_PASS=password
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
+      - NODE_OPTIONS=--max-old-space-size=1536
     volumes:
       - ./services/email-service:/app
-      - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Storage Service
   storage-service:
@@ -540,22 +682,27 @@ services:
       dockerfile: Dockerfile
     container_name: freelance_storage_service
     ports:
-      - "3011:3011"
+      - "3018:3018"
     environment:
-      - PORT=3011
+      - PORT=3018
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=admin
       - MINIO_SECRET_KEY=password
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - minio
     volumes:
       - ./services/storage-service:/app
-      - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Common Service
   common-service:
@@ -568,15 +715,20 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=common&options=-c%20search_path%3Dcommon
       - PORT=3013
+      - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - postgres
     volumes:
       - ./services/common-service:/app
-      - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
   # Frontend
   # frontend:
@@ -615,10 +767,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=developer&options=-c%20search_path%3Ddeveloper
       - PORT=3016
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://localhost:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
+      - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -627,10 +780,45 @@ services:
     volumes:
       - ./services/developer-service:/app
       - /app/node_modules
-    command: npm run start:dev
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
       - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
+
+  # Talent Cloud Service
+  talent-cloud-service:
+    build:
+      context: ./services/talent-cloud-service
+      dockerfile: Dockerfile
+    container_name: freelance_talent_cloud_service
+    ports:
+      - "3017:3017"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=talent_clouds&options=-c%20search_path%3Dtalent_clouds
+      - PORT=3017
+      - USER_SERVICE_URL=http://user-service:3000
+      - NODE_OPTIONS=--max-old-space-size=1536
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      - postgres
+    volumes:
+      - ./services/talent-cloud-service:/app
+      - /app/node_modules
+    command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
+    restart: always
+    networks:
+      - freelance_network
+    deploy:
+      resources:
+        limits:
+          memory: 2048m
+          cpus: "0.5"
 
 networks:
   freelance_network:

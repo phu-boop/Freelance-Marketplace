@@ -3,10 +3,19 @@ import { HttpModule } from '@nestjs/axios';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { CurrencyConverterService } from './currency-converter.service';
+import { WithdrawalSchedulerService } from './withdrawal-scheduler.service';
+import { SubscriptionSchedulerService } from './subscription-scheduler.service';
+import { RegionalGatewayService } from './regional-gateway.service';
 
 @Module({
   imports: [HttpModule],
   controllers: [PaymentsController],
-  providers: [PaymentsService, WithdrawalSchedulerService, CurrencyConverterService],
+  providers: [
+    PaymentsService,
+    WithdrawalSchedulerService,
+    SubscriptionSchedulerService,
+    CurrencyConverterService,
+    RegionalGatewayService,
+  ],
 })
 export class PaymentsModule { }

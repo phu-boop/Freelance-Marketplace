@@ -203,6 +203,112 @@ export class AiService {
         }
     }
 
+    async autoScreenProposal(proposalId: string) {
+        const proposal = await this.prisma.proposal.findUnique({
+            where: { id: proposalId },
+            include: { job: { include: { skills: { include: { skill: true } } } } },
+        });
+
+        if (!proposal) {
+            this.logger.error(`Proposal ${proposalId} not found for AI screening`);
+            return;
+        }
+
+        const job = proposal.job;
+        let freelancerProfile: any = null;
+        try {
+            const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000/api/users');
+            const { data } = await firstValueFrom(
+                this.httpService.get(`${userServiceUrl}/${proposal.freelancerId}`)
+            );
+            freelancerProfile = data;
+        } catch (error) {
+            this.logger.error(`Failed to fetch freelancer profile ${proposal.freelancerId}: ${error.message}`);
+        }
+
+        if (!this.genAI) {
+            const mock = this.mockScreening(job, proposal, freelancerProfile);
+            await this.prisma.proposal.update({
+                where: { id: proposalId },
+                data: mock,
+            });
+            return;
+        }
+
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+        const prompt = `
+      You are an AI recruiter for a freelance marketplace.
+      Analyze the following job and proposal to determine the match quality.
+      
+      JOB:
+      Title: ${job.title}
+      Description: ${job.description}
+      Preferred Communication Style: ${job.preferredCommunicationStyle || 'Not specified'}
+      Required Skills: ${job.skills.map(s => s.skill.name).join(', ')}
+      
+      PROPOSAL:
+      Cover Letter: ${proposal.coverLetter}
+      Bid Amount: $${proposal.bidAmount}
+      Timeline: ${proposal.timeline}
+      
+      FREELANCER:
+      Skills: ${freelancerProfile?.skills?.join(', ') || 'N/A'}
+      Bio: ${freelancerProfile?.overview || 'N/A'}
+      
+      Instructions:
+      1. Rate the match from 0 to 100 based on skill overlap, proposal quality, and alignment with job requirements.
+      2. Provide a 2-3 sentence analysis of why this freelancer is or isn't a good fit.
+      
+      Return the result EXCLUSIVELY as a JSON object:
+      {
+        "aiScore": number,
+        "aiAnalysis": "string"
+      }
+    `;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+
+            const jsonMatch = text.match(/\{.*\}/s);
+            const cleanJson = jsonMatch ? jsonMatch[0] : text;
+            const screeningData = JSON.parse(cleanJson);
+
+            await this.prisma.proposal.update({
+                where: { id: proposalId },
+                data: {
+                    aiScore: screeningData.aiScore,
+                    aiAnalysis: screeningData.aiAnalysis,
+                },
+            });
+        } catch (error) {
+            this.logger.error(`Gemini Error in auto-screening: ${error.message}`);
+            const mock = this.mockScreening(job, proposal, freelancerProfile);
+            await this.prisma.proposal.update({
+                where: { id: proposalId },
+                data: mock,
+            });
+        }
+    }
+
+    private mockScreening(job: any, proposal: any, user: any) {
+        // Simple logic: if user has some of the job skills, score is higher
+        const jobSkills = job.skills.map(s => s.skill.name.toLowerCase());
+        const userSkills = (user?.skills || []).map(s => s.toLowerCase());
+        const overlap = jobSkills.filter(s => userSkills.includes(s));
+
+        let score = 50; // default
+        if (overlap.length > 0) score += (overlap.length / jobSkills.length) * 40;
+        if (proposal.coverLetter.length > 100) score += 10;
+
+        return {
+            aiScore: Math.round(Math.min(100, score)),
+            aiAnalysis: `(Mocked) Good fit based on ${overlap.length} matching skills. The cover letter is detailed.`,
+        };
+    }
+
     private mockDetectFraud(content: string) {
         const lowerContent = content.toLowerCase();
         const offPlatformKeywords = ['whatsapp', 'telegram', 'paypal', 'direct pay', 'bank transfer', 'outside the platform'];

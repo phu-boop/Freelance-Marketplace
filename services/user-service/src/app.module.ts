@@ -15,7 +15,7 @@ import {
   ResourceGuard,
   RoleGuard,
   AuthGuard,
-  TokenValidation
+  TokenValidation,
 } from 'nest-keycloak-connect';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -24,15 +24,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   imports: [
     LoggerModule.forRoot({
       pinoHttp: {
-        transport: process.env.NODE_ENV !== 'production'
-          ? { target: 'pino-pretty', options: { colorize: true } }
-          : undefined,
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? { target: 'pino-pretty', options: { colorize: true } }
+            : undefined,
       },
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     TerminusModule,
     PrismaModule,
     UsersModule,
@@ -42,9 +45,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
-        realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
-        clientId: configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-client'),
+        authServerUrl: configService.get<string>(
+          'KEYCLOAK_URL',
+          'http://keycloak:8080',
+        ),
+        realm: configService.get<string>(
+          'KEYCLOAK_REALM',
+          'freelance-marketplace',
+        ),
+        clientId: configService.get<string>(
+          'KEYCLOAK_CLIENT_ID',
+          'freelance-client',
+        ),
         secret: configService.get<string>('KEYCLOAK_SECRET', ''),
         tokenValidation: TokenValidation.OFFLINE,
       }),
@@ -68,4 +80,4 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

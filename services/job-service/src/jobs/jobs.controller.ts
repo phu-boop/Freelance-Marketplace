@@ -169,6 +169,18 @@ export class JobsController {
     return this.jobsService.closeJob(id);
   }
 
+  @Post(':id/pause')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  pauseJob(@Param('id') id: string, @Request() req) {
+    return this.jobsService.pauseJob(id, req.user.sub);
+  }
+
+  @Post(':id/resume')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  resumeJob(@Param('id') id: string, @Request() req) {
+    return this.jobsService.resumeJob(id, req.user.sub);
+  }
+
   @Post(':id/lock')
   lockJob(@Param('id') id: string) {
     return this.jobsService.lockJob(id);

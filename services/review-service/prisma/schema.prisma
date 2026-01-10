@@ -1,12 +1,20 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
   binaryTargets   = ["native", "linux-musl"]
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
   schemas  = ["reviews"]
+}
+
+enum ReviewStatus {
+  PENDING
+  RELEASED
+
+  @@schema("reviews")
 }
 
 model Review {
@@ -23,6 +31,8 @@ model Review {
   comment       String?
   reply         String?
   repliedAt     DateTime?
+  status        ReviewStatus @default(PENDING)
+  revealedAt    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

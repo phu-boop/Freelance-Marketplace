@@ -25,10 +25,12 @@ import { ConfigService } from '@nestjs/config';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     ScheduleModule.forRoot(),
     TerminusModule,
     ContractsModule,
@@ -37,9 +39,18 @@ import { ConfigService } from '@nestjs/config';
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
-        realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
-        clientId: configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-client'),
+        authServerUrl: configService.get<string>(
+          'KEYCLOAK_URL',
+          'http://keycloak:8080',
+        ),
+        realm: configService.get<string>(
+          'KEYCLOAK_REALM',
+          'freelance-marketplace',
+        ),
+        clientId: configService.get<string>(
+          'KEYCLOAK_CLIENT_ID',
+          'freelance-client',
+        ),
         secret: configService.get<string>('KEYCLOAK_SECRET', ''),
         tokenValidation: TokenValidation.OFFLINE,
       }),
@@ -63,4 +74,4 @@ import { ConfigService } from '@nestjs/config';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

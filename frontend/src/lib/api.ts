@@ -8,45 +8,53 @@ const api = axios.create({
     },
 });
 
-const PUBLIC_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/login/2fa'];
+const PUBLIC_ENDPOINTS = [
+    '/auth/login',
+    '/auth/register',
+    '/auth/login/2fa',
+    '/jobs/categories',
+    '/jobs/skills',
+    '/search/jobs',
+    '/payments/exchange-rates'
+];
 
 api.interceptors.request.use(
     async (config) => {
-        console.log('DEBUG: API Interceptor called for', config.url);
-
-        // Skip token attachment for public endpoints
+        // Skip token attachment for public endpoints if needed, 
+        // but it's better to always attach if token exists
         const isPublic = config.url && PUBLIC_ENDPOINTS.some(path => config.url?.includes(path));
-        if (isPublic) {
-            console.log('DEBUG: Public endpoint detected, skipping token.');
-            return config;
+
+        if (keycloak && keycloak.token) {
+            try {
+                // Update token if it expires in less than 30 seconds
+                await keycloak.updateToken(30);
+                config.headers.Authorization = `Bearer ${keycloak.token}`;
+            } catch (error) {
+                console.error('Failed to refresh token', error);
+                // If refreshing fails, clear tokens
+                localStorage.removeItem('kc_token');
+                localStorage.removeItem('kc_refreshToken');
+            }
         }
 
-        if (keycloak) {
-            console.log('DEBUG: Keycloak instance exists. Token present:', !!keycloak.token);
-            if (keycloak.token) {
-                try {
-                    // Update token if it expires in less than 30 seconds
-                    await keycloak.updateToken(30);
-                    config.headers.Authorization = `Bearer ${keycloak.token}`;
-                    console.log(`DEBUG: Token attached to header for: ${config.url}. Token prefix: ${keycloak.token.substring(0, 20)}...`);
-                } catch (error) {
-                    console.error('DEBUG: Failed to update token', error);
-                    // Redirect to login if token is invalid/expired
-                    keycloak.login();
-                }
-            } else {
-                console.warn(`DEBUG: Keycloak token is missing for protected route: ${config.url}`);
-                // Only trigger login if we're not already on a login/auth page
-                if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-                    keycloak.login();
-                }
-            }
-        } else {
-            console.error('DEBUG: Keycloak instance is missing in interceptor!');
-        }
         return config;
     },
     (error) => Promise.reject(error)
+);
+
+// Add response interceptor to handle session expiration
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            // Only redirect to login if it's a 401 on a non-public route
+            const isPublic = error.config.url && PUBLIC_ENDPOINTS.some(path => error.config.url.includes(path));
+            if (!isPublic && typeof window !== 'undefined') {
+                keycloak?.login();
+            }
+        }
+        return Promise.reject(error);
+    }
 );
 
 export default api;

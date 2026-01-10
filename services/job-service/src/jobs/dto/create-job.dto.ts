@@ -59,4 +59,8 @@ export class CreateJobDto {
     @IsString({ each: true })
     @IsOptional()
     attachments?: string[];
+
+    @IsString()
+    @IsOptional()
+    preferredCommunicationStyle?: string;
 }
