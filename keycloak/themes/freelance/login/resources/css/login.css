@@ -1,129 +1,246 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+:root {
+    --primary: #3b82f6;
+    --primary-hover: #60a5fa;
+    --bg-gradient: radial-gradient(ellipse at top, #0f172a, #020617, #000000);
+    --card-bg: rgba(15, 23, 42, 0.5);
+    --card-border: rgba(30, 41, 59, 0.5);
+    --input-bg: rgba(30, 41, 59, 0.5);
+    --input-border: rgba(51, 65, 85, 0.5);
+    --text-slate-400: #94a3b8;
+    --text-slate-500: #64748b;
+}
+
 body {
-    background-color: #020617 !important;
-    background-image: radial-gradient(ellipse at top, #0f172a, #020617, #000000) !important;
+    background: var(--bg-gradient) !important;
     font-family: 'Inter', sans-serif !important;
     color: #f8fafc !important;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
 }
 
-#kc-header-wrapper {
-    display: none !important;
+.kc-login-wrapper {
+    width: 100% !important;
+    max-width: 448px !important;
+    padding: 24px !important;
+    box-sizing: border-box;
 }
 
-.card-pf {
-    background: rgba(15, 23, 42, 0.6) !important;
-    backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(51, 65, 85, 0.5) !important;
-    border-radius: 24px !important;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
-    padding: 40px !important;
+.kc-header {
+    text-align: center;
+    margin-bottom: 40px;
 }
 
-#kc-page-title {
+.kc-title {
     color: #ffffff !important;
-    font-size: 32px !important;
+    font-size: 36px !important;
     font-weight: 700 !important;
     letter-spacing: -0.025em !important;
     margin-bottom: 8px !important;
-    text-align: center !important;
 }
 
-.login-pf-page .login-pf-signup {
-    text-align: center !important;
-    color: #94a3b8 !important;
+.kc-subtitle {
+    color: var(--text-slate-400) !important;
+    font-size: 16px !important;
 }
 
-.login-pf-page .login-pf-signup a {
-    color: #3b82f6 !important;
-    font-weight: 600 !important;
-    text-decoration: none !important;
+.kc-card {
+    background: var(--card-bg) !important;
+    backdrop-filter: blur(24px) !important;
+    border: 1px solid var(--card-border) !important;
+    border-radius: 24px !important;
+    padding: 32px !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
 }
 
-.login-pf-page .login-pf-signup a:hover {
-    color: #60a5fa !important;
+.kc-form-group {
+    margin-bottom: 24px !important;
 }
 
-label {
-    color: #94a3b8 !important;
+.kc-form-group label {
+    display: block !important;
+    color: #f8fafc !important;
     font-size: 14px !important;
     font-weight: 500 !important;
     margin-bottom: 8px !important;
 }
 
-input {
-    background: rgba(30, 41, 59, 0.5) !important;
-    border: 1px solid rgba(51, 65, 85, 0.5) !important;
+.kc-form-group input {
+    width: 100% !important;
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
     border-radius: 12px !important;
     color: #ffffff !important;
     padding: 12px 16px !important;
     font-size: 16px !important;
-    transition: all 0.2s !important;
+    box-sizing: border-box;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-input:focus {
-    border-color: #3b82f6 !important;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+.kc-form-group input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
     outline: none !important;
 }
 
-.btn-primary {
-    background-color: #2563eb !important;
-    background-image: linear-gradient(to right, #2563eb, #4f46e5) !important;
+.kc-button-primary {
+    width: 100% !important;
+    background: var(--primary) !important;
     border: none !important;
-    border-radius: 9999px !important;
+    border-radius: 12px !important;
     color: #ffffff !important;
+    font-size: 16px !important;
     font-weight: 600 !important;
     padding: 14px 24px !important;
-    text-transform: none !important;
-    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3) !important;
+    cursor: pointer !important;
     transition: all 0.2s !important;
-}
-
-.btn-primary:hover {
-    background-color: #1d4ed8 !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.4) !important;
-}
-
-#kc-form-options {
-    margin-top: 16px !important;
-}
-
-.login-pf-settings {
-    color: #94a3b8 !important;
-}
-
-/* Social Login Buttons */
-#kc-social-providers {
-    border-top: 1px solid rgba(51, 65, 85, 0.5) !important;
-    margin-top: 24px !important;
-    padding-top: 24px !important;
-}
-
-#kc-social-providers ul {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 16px !important;
-}
-
-#kc-social-providers li {
-    display: block !important;
-}
-
-#kc-social-providers a {
-    background: rgba(30, 41, 59, 0.5) !important;
-    border: 1px solid rgba(51, 65, 85, 0.5) !important;
-    border-radius: 12px !important;
-    color: #f8fafc !important;
     display: flex !important;
+    align-items: center !important;
     justify-content: center !important;
+    gap: 8px !important;
+}
+
+.kc-button-primary:hover {
+    background: var(--primary-hover) !important;
+}
+
+.kc-button-primary:active {
+    transform: scale(0.98) !important;
+}
+
+.kc-message-wrapper {
+    margin-bottom: 24px;
+}
+
+.kc-feedback {
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.alert-error {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
+    color: #f87171 !important;
+}
+
+/* Social Divider */
+.kc-social-divider {
+    position: relative !important;
+    margin: 32px 0 24px !important;
+    text-align: center !important;
+}
+
+.kc-social-divider::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 1px !important;
+    background: rgba(30, 41, 59, 1) !important;
+}
+
+.kc-social-divider span {
+    position: relative !important;
+    background: #0b1120 !important;
+    padding: 0 12px !important;
+    color: var(--text-slate-500) !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+}
+
+/* Social Buttons Grid */
+.kc-social-providers {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 24px !important;
+}
+
+.kc-social-providers a {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: 1px solid var(--input-border) !important;
+    border-radius: 12px !important;
     padding: 10px !important;
+    color: #ffffff !important;
     text-decoration: none !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
     transition: all 0.2s !important;
 }
 
-#kc-social-providers a:hover {
-    background: rgba(51, 65, 85, 0.8) !important;
-    border-color: #94a3b8 !important;
+.kc-social-providers a:hover {
+    background: rgba(30, 41, 59, 0.8) !important;
+    border-color: var(--text-slate-400) !important;
+}
+
+/* Icons Colors (Simplified) */
+.kc-social-google {
+    color: #ef4444 !important;
+}
+
+.kc-social-github {
+    color: #ffffff !important;
+}
+
+.kc-social-facebook {
+    color: #3b82f6 !important;
+}
+
+/* Footer Links */
+.kc-footer {
+    text-align: center !important;
+    margin-top: 24px !important;
+    color: var(--text-slate-500) !important;
+    font-size: 14px !important;
+}
+
+.kc-footer a {
+    color: var(--primary) !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    transition: color 0.2s !important;
+}
+
+.kc-footer a:hover {
+    color: var(--primary-hover) !important;
+}
+
+/* Remember Me Checkbox */
+.kc-form-options {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 24px !important;
+}
+
+.kc-checkbox {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+}
+
+.kc-checkbox input {
+    width: 16px !important;
+    height: 16px !important;
+    accent-color: var(--primary) !important;
+}
+
+.kc-forgot-password {
+    font-size: 12px !important;
+    color: var(--primary) !important;
+    text-decoration: none !important;
 }

@@ -33,6 +33,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HOSTNAME_URL: http://localhost:8080
       KC_HOSTNAME_STRICT: "false"
+      KC_THEME_CACHE: "false"
     command: start-dev
     ports:
       - "8080:8080"
@@ -509,7 +510,7 @@ services:
       - clickhouse
     volumes:
       - ./services/analytics-service:/app
-    command: sh -c "until curl -s http://clickhouse:8123/ping; do echo 'Waiting for ClickHouse...'; sleep 3; done && uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload"
+    command: sh -c "until python -c 'import urllib.request; urllib.request.urlopen(\"http://clickhouse:8123/ping\")'; do echo 'Waiting for ClickHouse...'; sleep 3; done && uvicorn app.main:app --host 0.0.0.0 --port 3014 --reload"
     restart: always
     networks:
       - freelance_network
