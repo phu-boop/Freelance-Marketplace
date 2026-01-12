@@ -32,7 +32,7 @@ export class ContractsController {
   }
 
   @Post()
-  @Roles({ roles: ['realm:CLIENT', 'realm:ADMIN'] })
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:ADMIN', 'ADMIN'] })
   create(@Body() createContractDto: CreateContractDto, @Request() req) {
     const authHeader = req.headers.authorization;
     return this.contractsService.create(createContractDto, authHeader);
@@ -61,15 +61,13 @@ export class ContractsController {
   }
 
   @Post('milestones/auto-release')
-  // In production, this should be protected by a special system role or API key
-  // For MVP demo, allowing any authenticated user to trigger the cron-like job
-  @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   triggerAutoRelease() {
     return this.contractsService.autoReleaseMilestones();
   }
 
   @Post('disputes/check-timeouts')
-  @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   triggerDisputeTimeouts() {
     return this.contractsService.handleDisputeTimeouts();
   }
@@ -105,13 +103,13 @@ export class ContractsController {
   }
 
   @Post(':id/check-ins')
-  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'FREELANCER'] })
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   createCheckIn(@Param('id') id: string, @Body() data: any) {
     return this.contractsService.createCheckIn(id, data);
   }
 
   @Post(':id/check-ins/suggest')
-  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'FREELANCER'] })
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   suggestMeetingTimes(@Param('id') id: string) {
     return this.contractsService.suggestMeetingTimes(id);
   }

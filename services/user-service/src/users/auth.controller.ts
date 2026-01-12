@@ -11,7 +11,7 @@ import { Public } from 'nest-keycloak-connect';
 
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Public()
   @Post('register')
@@ -35,6 +35,14 @@ export class AuthController {
   @Post('forgot-password')
   forgotPassword(@Body() data: { email: string }) {
     return this.usersService.forgotPassword(data.email);
+  }
+
+  @Post('sync')
+  async sync(@Request() req, @Body() data: { role?: string }) {
+    if (req.user && req.user.sub) {
+      return this.usersService.syncUser(req.user, data.role);
+    }
+    throw new UnauthorizedException('User not authenticated');
   }
 
   @Post('social-onboarding')

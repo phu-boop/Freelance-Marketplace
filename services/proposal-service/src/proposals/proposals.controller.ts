@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
-import { Public } from 'nest-keycloak-connect';
+import { Public, Roles } from 'nest-keycloak-connect';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 import { UpdateProposalDto } from './dto/update-proposal.dto';
@@ -19,6 +19,7 @@ export class ProposalsController {
   }
 
   @Post()
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   create(@Body() createProposalDto: CreateProposalDto) {
     return this.proposalsService.create(createProposalDto);
   }

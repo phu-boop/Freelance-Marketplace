@@ -16,17 +16,20 @@ interface CurrencyContextType {
 const CurrencyContext = createContext<CurrencyContextType | null>(null);
 
 export const CurrencyProvider = ({ children }: { children: React.ReactNode }) => {
-    const { authenticated, token } = useKeycloak();
+    const { authenticated, token, initialized, roles } = useKeycloak();
     const [currency, setCurrencyState] = useState('USD');
     const [rates, setRates] = useState<Record<string, number>>({ USD: 1 });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchRates();
-        if (authenticated && token) {
+        // Only fetch wallet if initialized, authenticated, and has a valid role
+        // This avoids 403 errors for users who are new (no roles yet)
+        const hasRole = roles.includes('FREELANCER') || roles.includes('CLIENT');
+        if (initialized && authenticated && token && hasRole) {
             fetchUserPreference();
         }
-    }, [authenticated, token]);
+    }, [initialized, authenticated, token, roles]);
 
     const fetchRates = async () => {
         try {
@@ -47,8 +50,10 @@ export const CurrencyProvider = ({ children }: { children: React.ReactNode }) =>
             if (res.data?.preferredCurrency) {
                 setCurrencyState(res.data.preferredCurrency);
             }
-        } catch (err) {
-            console.error('Failed to fetch user currency preference', err);
+        } catch (err: any) {
+            if (err.response?.status !== 403) {
+                console.error('Failed to fetch user currency preference', err);
+            }
         }
     };
 

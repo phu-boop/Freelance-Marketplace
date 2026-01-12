@@ -35,13 +35,13 @@
       </button>
     </form>
 
-    <#if socialProviders?? && socialProviders?size gt 0>
+    <#if social.providers?? && social.providers?size gt 0>
       <div class="kc-social-divider">
         <span>Or continue with</span>
       </div>
 
       <div class="kc-social-providers">
-        <#list socialProviders as provider>
+        <#list social.providers as provider>
           <a href="${provider.loginUrl}" id="social-${provider.alias}" class="kc-social-${provider.alias}">
             <#if provider.alias = "google">Google
             <#elseif provider.alias = "github">Github
@@ -54,10 +54,10 @@
     </#if>
 
   <#elseif section = "footer">
-    <#if realm.password && realm.registrationAllowed && !registrationDisabled??>
+    <#if realm.password>
         <p>
             Don't have an account? 
-            <a href="${url.registrationUrl}">Create one</a>
+            <a href="http://localhost:3000/register">Create one</a>
         </p>
     </#if>
   </#if>

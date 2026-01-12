@@ -325,19 +325,19 @@ export class UsersController {
   }
 
   @Post('me/subscription')
-  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
   upgradeSubscription(@Request() req, @Body('planId') planId: string) {
     return this.usersService.upgradeSubscription(req.user.sub, planId);
   }
 
   @Post('me/employee-profile')
-  @Roles({ roles: ['realm:FREELANCER'] })
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   updateEmployeeProfile(@Request() req, @Body() body: any) {
     return this.usersService.createEmployeeProfile(req.user.sub, body);
   }
 
   @Get('me/employee-profile')
-  @Roles({ roles: ['realm:FREELANCER'] })
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   getEmployeeProfile(@Request() req) {
     return this.usersService.getEmployeeProfile(req.user.sub);
   }
@@ -352,7 +352,7 @@ export class UsersController {
   }
 
   @Post(':id/portfolio/ai-generate')
-  @Roles({ roles: ['realm:FREELANCER'] })
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   generateAiPortfolio(@Param('id') id: string, @Body('contractId') contractId: string) {
     return this.aiService.generatePortfolioItem(id, contractId);
   }

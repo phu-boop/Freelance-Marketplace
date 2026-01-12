@@ -13,13 +13,14 @@ import {
   Put,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { Roles } from 'nest-keycloak-connect';
+import { Roles, Public } from 'nest-keycloak-connect';
 import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
 
 @Controller('api/payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) { }
 
+  @Public()
   @Get('exchange-rates')
   getExchangeRates(@Query('base') base?: string) {
     return this.paymentsService.getExchangeRates(base);
@@ -38,7 +39,7 @@ export class PaymentsController {
   }
 
   @Get('wallet')
-  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
   getWalletMe(@Request() req) {
     return this.paymentsService.getWallet(req.user.sub);
   }

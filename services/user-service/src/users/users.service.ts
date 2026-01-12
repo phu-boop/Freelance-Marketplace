@@ -71,10 +71,11 @@ export class UsersService {
         userData.firstName || 'USER',
       );
 
-      const user = await this.prisma.user.create({
+      const user = await (this.prisma.user.create as any)({
         data: {
           ...userData,
           id: keycloakId, // Use Keycloak UUID as our DB primary key
+          keycloakId: keycloakId, // Also store it in our specific field
           status: 'ACTIVE',
           referralCode,
         },
@@ -1001,6 +1002,45 @@ export class UsersService {
     const totalFields = fields.length + 3; // +3 for education, experience, portfolio
 
     return Math.round((filled / totalFields) * 100);
+  }
+
+  async syncUser(kcUser: any, pendingRole?: string) {
+    const userId = kcUser.sub;
+
+    // findOne already handles JIT creation if the user doesn't exist
+    const user = await this.findOne(userId);
+
+    // If a role was passed (from pending_role in frontend), update it
+    // If no role provided and none exists in DB, we need onboarding later
+
+    // If we have a pending role, apply it now
+    if (pendingRole) {
+      await (this.prisma.user.update as any)({
+        where: { id: userId },
+        data: {
+          roles: [pendingRole],
+          keycloakId: userId
+        }
+      });
+      try {
+        await this.keycloakService.assignRole(userId, pendingRole);
+      } catch (e) {
+        console.error(`Failed to assign role ${pendingRole} in Keycloak:`, e.message);
+      }
+      user.roles = [pendingRole];
+    } else if (!user.roles || user.roles.length === 0) {
+      // If no role provided and none exists in DB, we need onboarding
+      return { ...user, requiresOnboarding: true };
+    }
+
+    if (!(user as any).keycloakId) {
+      await (this.prisma.user.update as any)({
+        where: { id: userId },
+        data: { keycloakId: userId }
+      });
+    }
+
+    return { ...user, requiresOnboarding: false };
   }
 
   async socialOnboarding(userId: string, role: string) {

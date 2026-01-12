@@ -153,6 +153,7 @@ let PaymentsController = class PaymentsController {
 };
 exports.PaymentsController = PaymentsController;
 __decorate([
+    (0, nest_keycloak_connect_1.Public)(),
     (0, common_1.Get)('exchange-rates'),
     __param(0, (0, common_1.Query)('base')),
     __metadata("design:type", Function),
@@ -179,7 +180,7 @@ __decorate([
 ], PaymentsController.prototype, "updatePreferredCurrency", null);
 __decorate([
     (0, common_1.Get)('wallet'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
     __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),

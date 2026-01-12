@@ -66,6 +66,7 @@ model User {
   referralCode           String?                @unique
   facebookId             String?                @unique
   githubId               String?                @unique
+  keycloakId             String?                @unique
   isEmailVerified        Boolean                @default(false)
   taxId                  String?
   taxIdType              String?                // SSN, EIN, VAT

@@ -154,7 +154,7 @@ export class JobsController {
   }
 
   @Post(':id/approve')
-  @Roles({ roles: ['realm:ADMIN'] })
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
   approve(@Param('id') id: string) {
     return this.jobsService.approveJob(id);
   }
