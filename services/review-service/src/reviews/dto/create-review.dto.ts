@@ -20,7 +20,27 @@ export class CreateReviewDto {
     @IsInt()
     @Min(1)
     @Max(5)
-    rating: number;
+    ratingOverall: number;
+
+    @IsInt()
+    @Min(1)
+    @Max(5)
+    ratingCommunication: number;
+
+    @IsInt()
+    @Min(1)
+    @Max(5)
+    ratingQuality: number;
+
+    @IsInt()
+    @Min(1)
+    @Max(5)
+    ratingValue: number;
+
+    @IsInt()
+    @Min(1)
+    @Max(5)
+    ratingSchedule: number;
 
     @IsString()
     @IsOptional()

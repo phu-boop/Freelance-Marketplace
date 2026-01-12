@@ -1,11 +1,7 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 
 async function seed() {
-    const pool = new Pool({ connectionString: 'postgresql://admin:password@postgres:5432/freelance_db?schema=reviews' });
-    const adapter = new PrismaPg(pool);
-    const prisma = new PrismaClient({ adapter });
+    const prisma = new PrismaClient();
 
     console.log('--- Seeding Test Review ---');
 
@@ -30,7 +26,6 @@ async function seed() {
         console.error('❌ Failed to seed review:', error);
     } finally {
         await prisma.$disconnect();
-        await pool.end();
     }
 }
 

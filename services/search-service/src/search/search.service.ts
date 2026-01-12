@@ -18,57 +18,67 @@ export class SearchService implements OnModuleInit {
     ) { }
 
     async onModuleInit() {
-        await this.initializeIndices();
+        this.initializeWithRetry();
+    }
+
+    private async initializeWithRetry(retries = 10, delay = 5000) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                await this.initializeIndices();
+                this.logger.log('Search indices initialized successfully');
+                return;
+            } catch (error) {
+                this.logger.warn(`Elasticsearch initialization attempt ${i + 1} failed. Retrying in ${delay / 1000}s...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        this.logger.error('Failed to initialize Elasticsearch indices after multiple retries.');
     }
 
     private async initializeIndices() {
         const indices = ['jobs', 'users'];
         for (const index of indices) {
-            try {
-                const exists = await this.elasticsearchService.indices.exists({ index });
-                if (!exists) {
-                    const body: any = { index };
-                    if (index === 'jobs') {
-                        body.mappings = {
-                            properties: {
-                                id: { type: 'keyword' },
-                                categoryId: { type: 'keyword' },
-                                status: { type: 'keyword' },
-                                type: { type: 'keyword' },
-                                experienceLevel: { type: 'keyword' },
-                                budget: { type: 'integer' },
-                                skills: { type: 'keyword' },
-                                createdAt: { type: 'date' },
-                                title: { type: 'text' },
-                                description: { type: 'text' },
-                                location: { type: 'text' },
-                                category: { type: 'text' },
-                                isPromoted: { type: 'boolean' },
-                                preferredCommunicationStyle: { type: 'keyword' }
-                            }
-                        };
-                    } else if (index === 'users') {
-                        body.mappings = {
-                            properties: {
-                                id: { type: 'keyword' },
-                                firstName: { type: 'text' },
-                                lastName: { type: 'text' },
-                                title: { type: 'text' },
-                                overview: { type: 'text' },
-                                skills: { type: 'keyword' },
-                                communicationStyle: { type: 'keyword' },
-                                avgResponseTime: { type: 'float' },
-                                reliabilityScore: { type: 'float' },
-                                rating: { type: 'float' },
-                                isPromoted: { type: 'boolean' }
-                            }
-                        };
-                    }
-                    await this.elasticsearchService.indices.create(body);
-                    this.logger.log(`Created index: ${index}`);
+            const exists = await this.elasticsearchService.indices.exists({ index });
+            if (!exists) {
+                const body: any = { index };
+                if (index === 'jobs') {
+                    body.mappings = {
+                        properties: {
+                            id: { type: 'keyword' },
+                            categoryId: { type: 'keyword' },
+                            status: { type: 'keyword' },
+                            type: { type: 'keyword' },
+                            experienceLevel: { type: 'keyword' },
+                            budget: { type: 'integer' },
+                            skills: { type: 'keyword' },
+                            createdAt: { type: 'date' },
+                            title: { type: 'text' },
+                            description: { type: 'text' },
+                            location: { type: 'text' },
+                            category: { type: 'text' },
+                            isPromoted: { type: 'boolean' },
+                            preferredCommunicationStyle: { type: 'keyword' }
+                        }
+                    };
+                } else if (index === 'users') {
+                    body.mappings = {
+                        properties: {
+                            id: { type: 'keyword' },
+                            firstName: { type: 'text' },
+                            lastName: { type: 'text' },
+                            title: { type: 'text' },
+                            overview: { type: 'text' },
+                            skills: { type: 'keyword' },
+                            communicationStyle: { type: 'keyword' },
+                            avgResponseTime: { type: 'float' },
+                            reliabilityScore: { type: 'float' },
+                            rating: { type: 'float' },
+                            isPromoted: { type: 'boolean' }
+                        }
+                    };
                 }
-            } catch (error) {
-                this.logger.error(`Error initializing index ${index}:`, error);
+                await this.elasticsearchService.indices.create(body);
+                this.logger.log(`Created index: ${index}`);
             }
         }
     }
@@ -514,7 +524,10 @@ export class SearchService implements OnModuleInit {
             await this.redis.set(cacheKey, JSON.stringify(response), 'EX', 600);
             return response;
         } catch (error) {
-            this.logger.error(`Failed to get recommendations for job ${jobId}:`, error.message);
+            this.logger.error(`Failed to get recommendations for job ${jobId}: ${error.message}`);
+            if (error.response) {
+                this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+            }
             return { total: 0, results: [] };
         }
     }

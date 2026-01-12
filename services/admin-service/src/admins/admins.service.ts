@@ -98,6 +98,18 @@ export class AdminsService {
         return res.data;
     }
 
+    async verifyKyc(userId: string, data: { status: 'APPROVED' | 'REJECTED', reason?: string }, token?: string) {
+        const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
+        const res = await firstValueFrom(
+            this.httpService.post(`${userServiceUrl}/${userId}/kyc/verify`, data, {
+                headers: token ? { Authorization: token } : undefined
+            })
+        );
+
+        await this.logAction('INFO', 'ADMIN', `KYC ${data.status} for user ${userId}`, { reason: data.reason });
+        return res.data;
+    }
+
     // Job Moderation
     async lockJob(jobId: string, token?: string) {
         const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');

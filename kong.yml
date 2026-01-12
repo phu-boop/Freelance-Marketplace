@@ -133,7 +133,7 @@ services:
         strip_path: false
 
   - name: storage-service
-    url: http://freelance_storage_service:3011
+    url: http://freelance_storage_service:3018
     routes:
       - name: storage-routes
         paths:
@@ -170,6 +170,14 @@ services:
       - name: developer-routes
         paths:
           - /api/developer
+        strip_path: false
+
+  - name: talent-cloud-service
+    url: http://freelance_talent_cloud_service:3017
+    routes:
+      - name: talent-cloud-routes
+        paths:
+          - /api/clouds
         strip_path: false
 
 consumers:

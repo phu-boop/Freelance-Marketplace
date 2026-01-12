@@ -6,6 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
   schemas  = ["users", "sync"]
 }
 
@@ -56,6 +57,8 @@ model User {
   timezone               String?                @default("UTC")
   title                  String?
   trustScore             Int                    @default(100)
+  isCloudMember          Boolean                @default(false)
+  hasCloudOwnership      Boolean                @default(false)
   twoFactorEnabled       Boolean                @default(false)
   twoFactorSecret        String?
   updatedAt              DateTime               @updatedAt
@@ -63,9 +66,28 @@ model User {
   referralCode           String?                @unique
   facebookId             String?                @unique
   githubId               String?                @unique
+  keycloakId             String?                @unique
   isEmailVerified        Boolean                @default(false)
   taxId                  String?
+  taxIdType              String?                // SSN, EIN, VAT
+  taxVerifiedStatus      String                 @default("UNVERIFIED")
+  taxFormType            String?                // W8BEN, W9
+  taxSignatureName       String?
+  taxSignatureDate       DateTime?
+  taxSignatureIp         String?
   billingAddress         String?
+
+  // Advanced KYC
+  kycMethod              String?                // DOCUMENT, VIDEO
+  documentData           Json?                  // Extracted OCR data
+  videoInterviewAt       DateTime?
+  videoInterviewLink     String?
+
+  // Background Check
+  backgroundCheckStatus      String                 @default("UNSTARTED") // UNSTARTED, PENDING, COMPLETED, REJECTED
+  backgroundCheckId          String?
+  backgroundCheckUrl         String?
+  backgroundCheckVerifiedAt  DateTime?
 
   // Portfolio Platform Integration
   githubUsername         String?
@@ -78,6 +100,12 @@ model User {
   communicationStyle     String?                // Proactive, Formal, Concise, etc.
   avgResponseTime        Float?                 // in minutes
   reliabilityScore       Float                  @default(100)
+  metadata               Json?                  // Generic metadata for badges/trust score
+  
+  // Subscription
+  subscriptionTier       String                 @default("FREE") // FREE, PLUS, ENTERPRISE
+  subscriptionStatus     String                 @default("ACTIVE")
+  subscriptionEndsAt     DateTime?
 
   availability           AvailabilityCalendar[]
   education              Education[]
@@ -91,8 +119,44 @@ model User {
 
   savedFreelancers       SavedFreelancer[]      @relation("ClientSaved")
   savedByClients         SavedFreelancer[]      @relation("FreelancerSaved")
+  certifications         Certification[]
+  employeeProfile        EmployeeProfile?
 
   @@map("users")
+  @@schema("users")
+}
+
+model EmployeeProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  jobTitle        String
+  startDate       DateTime
+  taxStatus       String   @default("W2") // W2, 1099, C2C
+  benefitsPackage String   @default("BASIC") // BASIC, PREMIUM, NONE
+  dependentsCount Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@schema("users")
+}
+
+model Certification {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  issuer          String   // Credly, HackerRank, LinkedIn
+  issuerId        String
+  verificationUrl String
+  status          String   @default("PENDING") // PENDING, VERIFIED, REJECTED
+  verifiedAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
   @@schema("users")
 }
 
@@ -183,7 +247,7 @@ model PortfolioItem {
   projectUrl     String?
   skills         String[]
   completionDate DateTime?
-  source         String    @default("MANUAL") // MANUAL, GITHUB, BEHANCE, DRIBBBLE
+  source         String    @default("MANUAL") // MANUAL, GITHUB, BEHANCE, DRIBBBLE, AI_GENERATED
   externalId     String?
   externalUrl    String?
   userId         String
@@ -204,7 +268,66 @@ model Team {
   updatedAt   DateTime     @updatedAt
   owner       User         @relation(fields: [ownerId], references: [id])
   members     TeamMember[]
+  policies    ApprovalPolicy[]
+  departments Department[]
+  ssoConfig   SSOConfig?
+  clauses     ContractClause[]
 
+  @@schema("users")
+}
+
+model ContractClause {
+  id        String   @id @default(uuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  title     String
+  content   String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@schema("users")
+}
+
+model SSOConfig {
+  id        String   @id @default(uuid())
+  teamId    String   @unique
+  team      Team     @relation(fields: [teamId], references: [id])
+  domain    String   @unique // e.g. "acme.com"
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@schema("users")
+}
+
+model ApprovalPolicy {
+  id            String   @id @default(uuid())
+  teamId        String
+  team          Team     @relation(fields: [teamId], references: [id])
+  triggerType   String   // HIRE, PAYMENT
+  minAmount     Decimal? 
+  requiredRoles String[] // e.g. ["MANAGER", "ADMIN"]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([teamId, triggerType])
+  @@schema("users")
+
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id])
+  name        String
+  code        String?
+  budget      Decimal? // Optional budget cap
+  spent       Decimal  @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([teamId, name])
   @@schema("users")
 }
 

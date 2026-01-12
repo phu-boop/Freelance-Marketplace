@@ -1,0 +1,50 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["talent_clouds"]
+}
+
+model TalentCloud {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String   // reference to User (enterprise admin)
+  visibility  Visibility @default(PRIVATE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  members     TalentCloudMember[]
+
+  @@schema("talent_clouds")
+}
+
+model TalentCloudMember {
+  id          String   @id @default(uuid())
+  cloudId     String
+  userId      String   // reference to User (freelancer)
+  joinedAt    DateTime @default(now())
+  role        CloudRole @default(MEMBER)
+  metadata    Json?
+  
+  cloud       TalentCloud @relation(fields: [cloudId], references: [id])
+
+  @@schema("talent_clouds")
+}
+
+enum Visibility {
+  PRIVATE
+  PUBLIC
+  @@schema("talent_clouds")
+}
+
+enum CloudRole {
+  OWNER
+  ADMIN
+  MEMBER
+  @@schema("talent_clouds")
+}

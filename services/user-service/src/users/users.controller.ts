@@ -1,13 +1,28 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  Request,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { Public } from 'nest-keycloak-connect';
+import { Public, Roles } from 'nest-keycloak-connect';
+import { AiService } from './ai.service';
 
 @Controller('api/users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly aiService: AiService,
+  ) { }
 
   @Public()
   @Post()
@@ -17,12 +32,14 @@ export class UsersController {
 
   @Public()
   @Get('sync')
-  sync(
-    @Query('since') since: string,
-    @Query('entities') entities: string,
-  ) {
-    const entityList = entities ? entities.split(',') : ['User', 'Education', 'Experience', 'PortfolioItem'];
-    return this.usersService.sync(since || new Date(0).toISOString(), entityList);
+  sync(@Query('since') since: string, @Query('entities') entities: string) {
+    const entityList = entities
+      ? entities.split(',')
+      : ['User', 'Education', 'Experience', 'PortfolioItem'];
+    return this.usersService.sync(
+      since || new Date(0).toISOString(),
+      entityList,
+    );
   }
 
   @Get()
@@ -60,7 +77,10 @@ export class UsersController {
   }
 
   @Post(':id/change-password')
-  changePassword(@Param('id') id: string, @Body() changePasswordDto: ChangePasswordDto) {
+  changePassword(
+    @Param('id') id: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
     return this.usersService.changePassword(id, changePasswordDto);
   }
 
@@ -119,13 +139,53 @@ export class UsersController {
     return this.usersService.toggleAvailability(id);
   }
 
+  @Patch(':id/tax')
+  updateTaxInfo(
+    @Param('id') id: string,
+    @Body() data: { taxId: string; taxIdType: string; billingAddress: string },
+  ) {
+    return this.usersService.updateTaxInfo(id, data);
+  }
+
   @Post(':id/kyc')
   submitKyc(@Param('id') id: string, @Body() kycData: { idDocument: string }) {
     return this.usersService.submitKyc(id, kycData.idDocument);
   }
 
+  @Post(':id/kyc/document')
+  submitDocumentKyc(
+    @Param('id') id: string,
+    @Body() kycData: { idDocument: string },
+  ) {
+    return this.usersService.submitDocumentKyc(id, kycData.idDocument);
+  }
+
+  @Post(':id/kyc/video')
+  scheduleVideoKyc(
+    @Param('id') id: string,
+    @Body() body: { scheduledDate: string },
+  ) {
+    return this.usersService.scheduleVideoKyc(id, body.scheduledDate);
+  }
+
+  @Public() // Usually internal-only or admin-auth
+  @Post(':id/kyc/verify')
+  verifyKyc(
+    @Param('id') id: string,
+    @Body() data: { status: 'APPROVED' | 'REJECTED'; reason?: string },
+  ) {
+    // In a real app, this would update taxVerifiedStatus too if needed
+    return this.usersService.update(id, {
+      kycStatus: data.status as any,
+      isIdentityVerified: data.status === 'APPROVED',
+    });
+  }
+
   @Patch(':id/client-info')
-  updateClientInfo(@Param('id') id: string, @Body() data: { companyName?: string, companyLogo?: string }) {
+  updateClientInfo(
+    @Param('id') id: string,
+    @Body() data: { companyName?: string; companyLogo?: string },
+  ) {
     return this.usersService.updateClientInfo(id, data);
   }
 
@@ -164,9 +224,10 @@ export class UsersController {
     return this.usersService.banUser(id);
   }
 
-  @Patch(':id/onboarding')
-  completeOnboarding(@Param('id') id: string, @Body() data: any) {
-    return this.usersService.completeOnboarding(id, data);
+  @Public()
+  @Patch(':id/cloud-membership')
+  updateCloudMembership(@Param('id') id: string, @Body() payload: any) {
+    return this.usersService.updateCloudMembership(id, payload);
   }
 
   @Post(':id/activate')
@@ -194,9 +255,59 @@ export class UsersController {
     return this.usersService.getReferrals(id);
   }
 
+  // Certifications
+  @Post(':id/certifications')
+  addCertification(@Param('id') id: string, @Body() data: any) {
+    return this.usersService.addCertification(id, data);
+  }
+
+  @Get(':id/certifications')
+  getCertifications(@Param('id') id: string) {
+    return this.usersService.getCertifications(id);
+  }
+
+  @Post('certifications/:certId/verify')
+  verifyCertification(@Param('certId') certId: string) {
+    return this.usersService.verifyCertification(certId);
+  }
+
+  // Background Checks
+  @Post(':id/background-check/initiate')
+  initiateBackgroundCheck(@Param('id') id: string) {
+    return this.usersService.initiateBackgroundCheck(id);
+  }
+
+  @Post(':id/background-check/verify')
+  verifyBackgroundCheck(
+    @Param('id') id: string,
+    @Body() body: { status: 'COMPLETED' | 'REJECTED' },
+  ) {
+    return this.usersService.verifyBackgroundCheck(id, body.status);
+  }
+
+  // Tax Compliance
+  @Post(':id/tax-form')
+  submitTaxForm(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      taxId: string;
+      taxIdType: string;
+      taxFormType: string;
+      taxSignatureName: string;
+      taxSignatureIp: string;
+      billingAddress: string;
+    },
+  ) {
+    return this.usersService.submitTaxForm(id, body);
+  }
+
   // Talent Pool
   @Post('saved-freelancers')
-  saveFreelancer(@Request() req, @Body() body: { freelancerId: string, note?: string, tags?: string[] }) {
+  saveFreelancer(
+    @Request() req,
+    @Body() body: { freelancerId: string; note?: string; tags?: string[] },
+  ) {
     return this.usersService.saveFreelancer(req.user.sub, body);
   }
 
@@ -206,8 +317,49 @@ export class UsersController {
   }
 
   @Delete('saved-freelancers/:freelancerId')
-  removeSavedFreelancer(@Request() req, @Param('freelancerId') freelancerId: string) {
+  removeSavedFreelancer(
+    @Request() req,
+    @Param('freelancerId') freelancerId: string,
+  ) {
     return this.usersService.removeSavedFreelancer(req.user.sub, freelancerId);
   }
 
+  @Post('me/subscription')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  upgradeSubscription(@Request() req, @Body('planId') planId: string) {
+    return this.usersService.upgradeSubscription(req.user.sub, planId);
+  }
+
+  @Post('me/employee-profile')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  updateEmployeeProfile(@Request() req, @Body() body: any) {
+    return this.usersService.createEmployeeProfile(req.user.sub, body);
+  }
+
+  @Get('me/employee-profile')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  getEmployeeProfile(@Request() req) {
+    return this.usersService.getEmployeeProfile(req.user.sub);
+  }
+
+  @Public()
+  @Patch(':id/subscription-status')
+  updateSubscriptionStatus(
+    @Param('id') id: string,
+    @Body() data: { tier: string; status: string; endsAt: string },
+  ) {
+    return this.usersService.updateSubscriptionStatus(id, data);
+  }
+
+  @Post(':id/portfolio/ai-generate')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  generateAiPortfolio(@Param('id') id: string, @Body('contractId') contractId: string) {
+    return this.aiService.generatePortfolioItem(id, contractId);
+  }
+
+  @Get('contracts/:contractId/risk-analysis')
+  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  getContractRiskAnalysis(@Param('contractId') contractId: string) {
+    return this.aiService.analyzeContractRisk(contractId);
+  }
 }

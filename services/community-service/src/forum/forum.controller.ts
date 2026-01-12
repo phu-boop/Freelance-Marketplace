@@ -30,25 +30,25 @@ export class ForumController {
     }
 
     @Post('posts')
-    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
     createPost(@Request() req, @Body() dto: CreatePostDto) {
         return this.forumService.createPost(req.user.sub, dto);
     }
 
     @Post('posts/:id/comments')
-    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
     createComment(@Request() req, @Param('id') id: string, @Body() dto: CreateCommentDto) {
         return this.forumService.createComment(req.user.sub, id, dto);
     }
 
     @Post('posts/:id/vote')
-    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
     votePost(@Request() req, @Param('id') id: string, @Body('value') value: number) {
         return this.forumService.vote(req.user.sub, id, 'POST', value);
     }
 
     @Post('comments/:id/vote')
-    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
     voteComment(@Request() req, @Param('id') id: string, @Body('value') value: number) {
         return this.forumService.vote(req.user.sub, id, 'COMMENT', value);
     }

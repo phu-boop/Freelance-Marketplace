@@ -2,9 +2,10 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 COPY package*.json ./
+RUN apk add --no-cache python3 make g++
 RUN npm install --legacy-peer-deps
 COPY . .
-RUN npx prisma generate
+RUN npm uninstall -g prisma || true && ./node_modules/.bin/prisma generate
 
 # Build stage
 FROM base AS build
@@ -19,8 +20,7 @@ COPY --from=build /app/package*.json ./
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/src ./src
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/prisma.config.ts ./prisma.config.ts
-COPY --from=build /app/scripts ./scripts
+
 
 EXPOSE 3016
 CMD ["node", "dist/src/main.js"]

@@ -4,8 +4,8 @@ import { ConfigModule } from '@nestjs/config';
 import { KeycloakService } from './keycloak.service';
 
 @Module({
-    imports: [HttpModule, ConfigModule],
-    providers: [KeycloakService],
-    exports: [KeycloakService],
+  imports: [HttpModule, ConfigModule],
+  providers: [KeycloakService],
+  exports: [KeycloakService],
 })
-export class KeycloakModule { }
+export class KeycloakModule {}

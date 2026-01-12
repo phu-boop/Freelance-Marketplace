@@ -6,6 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
   schemas  = ["jobs", "users", "sync"]
 }
 
@@ -79,6 +80,42 @@ model User {
   isPromoted      Boolean  @default(false)
   promotionExpiresAt DateTime?
 
+  isCloudMember          Boolean                @default(false)
+  hasCloudOwnership      Boolean                @default(false)
+  
+  referralCode           String?                @unique
+  taxIdType              String?                // SSN, EIN, VAT
+  taxVerifiedStatus      String                 @default("UNVERIFIED")
+  taxFormType            String?                // W8BEN, W9
+  taxSignatureName       String?
+  taxSignatureDate       DateTime?
+  taxSignatureIp         String?
+
+  kycMethod              String?                // DOCUMENT, VIDEO
+  documentData           Json?                  // Extracted OCR data
+  videoInterviewAt       DateTime?
+  videoInterviewLink     String?
+
+  backgroundCheckStatus      String                 @default("UNSTARTED")
+  backgroundCheckId          String?
+  backgroundCheckUrl         String?
+  backgroundCheckVerifiedAt  DateTime?
+
+  githubUsername         String?
+  behanceUsername        String?
+  dribbbleUsername       String?
+  portfolioSyncEnabled   Boolean                @default(false)
+  lastPortfolioSync      DateTime?
+
+  communicationStyle     String?
+  avgResponseTime        Float?
+  reliabilityScore       Float                  @default(100)
+  metadata               Json?
+
+  subscriptionTier       String                 @default("BASIC")
+  subscriptionStatus     String                 @default("ACTIVE")
+  subscriptionEndsAt     DateTime?
+
   @@map("users")
   @@schema("users")
 }
@@ -135,6 +172,8 @@ model Proposal {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   progress        Int      @default(0)
+  aiScore         Int?
+  aiAnalysis      String?
   
   // Extension Request
   extensionRequestDate   DateTime?

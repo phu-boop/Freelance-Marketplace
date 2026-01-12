@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -8,6 +9,8 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 
 @Injectable()
 export class ReviewsService {
+    private readonly logger = new Logger(ReviewsService.name);
+
     constructor(
         private prisma: PrismaService,
         private httpService: HttpService,
@@ -15,28 +18,75 @@ export class ReviewsService {
     ) { }
 
     async create(createReviewDto: CreateReviewDto) {
-        const review = await this.prisma.review.create({
-            data: createReviewDto,
+        // Check for duplicate
+        const existing = await this.prisma.review.findFirst({
+            where: {
+                reviewer_id: createReviewDto.reviewer_id,
+                contract_id: createReviewDto.contract_id
+            }
+        });
+        if (existing) {
+            throw new Error('You have already submitted a review for this contract');
+        }
+
+        // Look for opposing review (if the other party already reviewed)
+        const opposing = await this.prisma.review.findFirst({
+            where: {
+                reviewer_id: createReviewDto.reviewee_id,
+                reviewee_id: createReviewDto.reviewer_id,
+                contract_id: createReviewDto.contract_id,
+                status: 'PENDING'
+            }
         });
 
-        // Trigger user stats update
-        try {
-            const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000');
-            await firstValueFrom(
-                this.httpService.post(`${userServiceUrl}/${createReviewDto.reviewee_id}/stats`, {
-                    rating: createReviewDto.rating
-                })
-            );
-        } catch (error) {
-            console.error('Failed to update user stats:', error.message);
-            // We don't want to fail the review creation if stats update fails
+        const status = opposing ? 'RELEASED' : 'PENDING';
+        const revealedAt = opposing ? new Date() : null;
+
+        const review = await this.prisma.review.create({
+            data: {
+                ...createReviewDto,
+                status: status as any,
+                revealedAt,
+            },
+        });
+
+        if (opposing) {
+            // Both reviews submitted! Reveal both.
+            await this.prisma.review.update({
+                where: { id: opposing.id },
+                data: {
+                    status: 'RELEASED' as any,
+                    revealedAt: new Date(),
+                },
+            });
+
+            // Trigger user stats update for both parties
+            await Promise.all([
+                this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall),
+                this.triggerStatsUpdate(opposing.reviewee_id, opposing.ratingOverall)
+            ]);
         }
 
         return review;
     }
 
+    private async triggerStatsUpdate(userId: string, rating: number) {
+        try {
+            const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000/api/users');
+            await firstValueFrom(
+                this.httpService.post(`${userServiceUrl}/${userId}/stats`, {
+                    rating
+                })
+            );
+        } catch (error) {
+            console.error(`Failed to update user stats for ${userId}:`, error.message);
+        }
+    }
+
     findAll() {
-        return this.prisma.review.findMany();
+        return this.prisma.review.findMany({
+            where: { status: 'RELEASED' as any }
+        });
     }
 
     findOne(id: string) {
@@ -47,7 +97,11 @@ export class ReviewsService {
 
     findByReviewee(reviewee_id: string) {
         return this.prisma.review.findMany({
-            where: { reviewee_id },
+            where: {
+                reviewee_id,
+                status: 'RELEASED' as any
+            },
+            orderBy: { createdAt: 'desc' }
         });
     }
 
@@ -126,6 +180,38 @@ export class ReviewsService {
         } catch (error) {
             console.error('Failed to send review request notification:', error.message);
             throw new Error('Failed to send request');
+        }
+    }
+
+    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+    async handleAutoRelease() {
+        const fourteenDaysAgo = new Date();
+        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+        const expiredReviews = await this.prisma.review.findMany({
+            where: {
+                status: 'PENDING' as any,
+                createdAt: { lte: fourteenDaysAgo }
+            }
+        });
+
+        this.logger.log(`Found ${expiredReviews.length} expired pending reviews to auto-release`);
+
+        for (const review of expiredReviews) {
+            try {
+                await this.prisma.review.update({
+                    where: { id: review.id },
+                    data: {
+                        status: 'RELEASED' as any,
+                        revealedAt: new Date(),
+                    }
+                });
+
+                await this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall);
+                this.logger.log(`Auto-released review ${review.id} for user ${review.reviewee_id}`);
+            } catch (error) {
+                this.logger.error(`Failed to auto-release review ${review.id}: ${error.message}`);
+            }
         }
     }
 
