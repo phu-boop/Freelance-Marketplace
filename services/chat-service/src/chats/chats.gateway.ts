@@ -23,16 +23,46 @@ export class ChatGateway
 
     constructor(private readonly chatsService: ChatsService) { }
 
+    // userId -> Set<socketId>
+    private onlineUsers = new Map<string, Set<string>>();
+
     afterInit(server: Server) {
         console.log('ChatGateway Initialized');
     }
 
     handleConnection(client: Socket, ...args: any[]) {
-        console.log(`Client connected: ${client.id}`);
+        const userId = client.handshake.query.userId as string;
+        if (userId) {
+            if (!this.onlineUsers.has(userId)) {
+                this.onlineUsers.set(userId, new Set());
+                // Notify everyone that this user is online
+                this.server.emit('userOnline', { userId });
+            }
+            this.onlineUsers.get(userId).add(client.id);
+            console.log(`Client connected: ${client.id} (User: ${userId})`);
+        } else {
+            console.log(`Client connected: ${client.id} (No userId)`);
+        }
     }
 
     handleDisconnect(client: Socket) {
+        const userId = client.handshake.query.userId as string;
+        if (userId && this.onlineUsers.has(userId)) {
+            const userSockets = this.onlineUsers.get(userId);
+            userSockets.delete(client.id);
+
+            if (userSockets.size === 0) {
+                this.onlineUsers.delete(userId);
+                // Notify everyone that this user is offline
+                this.server.emit('userOffline', { userId });
+            }
+        }
         console.log(`Client disconnected: ${client.id}`);
+    }
+
+    @SubscribeMessage('getOnlineUsers')
+    handleGetOnlineUsers(client: Socket) {
+        return Array.from(this.onlineUsers.keys());
     }
 
     @SubscribeMessage('joinRoom')
@@ -111,5 +141,23 @@ export class ChatGateway
     ) {
         const room = [data.senderId, data.receiverId].sort().join('_');
         this.server.to(room).emit('callRejected');
+    }
+
+    @SubscribeMessage('typing')
+    handleTyping(
+        @MessageBody() data: { senderId: string; receiverId: string },
+    ) {
+        const room = [data.senderId, data.receiverId].sort().join('_');
+        // Broadcasts to everyone in the room (including sender, but frontend handles that)
+        // Ideally should check client.to(room) to exclude sender, but server.to works if frontend ignores own ID.
+        this.server.to(room).emit('typing', { senderId: data.senderId });
+    }
+
+    @SubscribeMessage('stopTyping')
+    handleStopTyping(
+        @MessageBody() data: { senderId: string; receiverId: string },
+    ) {
+        const room = [data.senderId, data.receiverId].sort().join('_');
+        this.server.to(room).emit('stopTyping', { senderId: data.senderId });
     }
 }

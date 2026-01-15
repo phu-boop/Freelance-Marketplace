@@ -16,6 +16,7 @@ import api from '@/lib/api';
 
 interface Proposal {
     id: string;
+    freelancerId: string;
     freelancerName: string;
     freelancerTitle: string;
     coverLetter: string;
@@ -53,6 +54,7 @@ export default function JobProposalsPage() {
                     const match = matchData.find((m: any) => m.id === p.freelancer_id);
                     return {
                         ...p,
+                        freelancerId: p.freelancer_id, // Ensure explicit mapping
                         matchScore: match ? match.matchScore : Math.floor(Math.random() * 20) + 70 // Fallback/Mock
                     };
                 });
@@ -64,6 +66,7 @@ export default function JobProposalsPage() {
                 setProposals([
                     {
                         id: 'p1',
+                        freelancerId: 'f1',
                         freelancerName: 'Alice Smith',
                         freelancerTitle: 'Senior Frontend Developer',
                         coverLetter: 'I have 5 years of experience with React and Next.js. I am confident I can deliver this project on time.',
@@ -73,6 +76,7 @@ export default function JobProposalsPage() {
                     },
                     {
                         id: 'p2',
+                        freelancerId: 'f2',
                         freelancerName: 'Bob Jones',
                         freelancerTitle: 'Full Stack Engineer',
                         coverLetter: 'I specialize in building scalable web applications. I have worked on similar projects before.',
@@ -112,6 +116,10 @@ export default function JobProposalsPage() {
         } finally {
             setAcceptingId(null);
         }
+    };
+
+    const handleMessage = (freelancerId: string) => {
+        router.push(`/messages?participantId=${freelancerId}`);
     };
 
     if (loading) {
@@ -208,7 +216,10 @@ export default function JobProposalsPage() {
                                                 </>
                                             )}
                                         </button>
-                                        <button className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all">
+                                        <button
+                                            onClick={() => handleMessage(proposal.freelancerId)}
+                                            className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all"
+                                        >
                                             <MessageSquare className="w-5 h-5" />
                                             Message
                                         </button>

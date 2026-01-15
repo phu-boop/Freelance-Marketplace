@@ -27,6 +27,15 @@ export class Message extends Document {
     @Prop()
     flagReason?: string;
 
+    @Prop({ type: String, ref: 'Message' })
+    replyTo?: string;
+
+    @Prop({ default: false })
+    isEdited: boolean;
+
+    @Prop()
+    deletedAt?: Date;
+
     createdAt: Date;
     updatedAt: Date;
 }

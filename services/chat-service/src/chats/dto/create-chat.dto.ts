@@ -19,4 +19,8 @@ export class CreateChatDto {
 
     @IsOptional()
     attachments?: string[];
+
+    @IsString()
+    @IsOptional()
+    replyTo?: string;
 }

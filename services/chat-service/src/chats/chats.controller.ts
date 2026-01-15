@@ -40,8 +40,12 @@ export class ChatsController {
   }
 
   @Get('history')
-  getHistory(@Query('user1') user1: string, @Query('user2') user2: string) {
-    return this.chatsService.findByUsers(user1, user2);
+  getHistory(
+    @Query('user1') user1: string,
+    @Query('user2') user2: string,
+    @Query('before') before?: string
+  ) {
+    return this.chatsService.findByUsers(user1, user2, before);
   }
 
   @Get('contract/:contractId')
@@ -54,8 +58,15 @@ export class ChatsController {
     return this.chatsService.findOne(id);
   }
 
+  // Edit message content (only updates content and marks as edited)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateChatDto: UpdateChatDto) {
-    return this.chatsService.update(id, updateChatDto);
+  editMessage(@Param('id') id: string, @Body() body: { content: string }) {
+    return this.chatsService.editContent(id, body.content);
+  }
+
+  // Soft delete a message (marks deletedAt)
+  @Delete(':id')
+  deleteMessage(@Param('id') id: string) {
+    return this.chatsService.softDelete(id);
   }
 }

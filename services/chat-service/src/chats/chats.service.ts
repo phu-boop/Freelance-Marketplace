@@ -137,16 +137,25 @@ export class ChatsService {
     return this.messageModel.find().exec();
   }
 
-  async findByUsers(user1: string, user2: string): Promise<Message[]> {
-    return this.messageModel
-      .find({
-        $or: [
-          { senderId: user1, receiverId: user2 },
-          { senderId: user2, receiverId: user1 },
-        ],
-      })
-      .sort({ createdAt: 1 })
+  async findByUsers(user1: string, user2: string, before?: string): Promise<Message[]> {
+    const query: any = {
+      $or: [
+        { senderId: user1, receiverId: user2 },
+        { senderId: user2, receiverId: user1 },
+      ],
+    };
+
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    const messages = await this.messageModel
+      .find(query)
+      .sort({ createdAt: -1 }) // Get newest first
+      .limit(50)
       .exec();
+
+    return messages.reverse(); // Return in chronological order
   }
 
   async findByContract(contractId: string): Promise<Message[]> {
@@ -178,13 +187,22 @@ export class ChatsService {
 
     messages.forEach((msg) => {
       const otherId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+
       if (!conversationsMap.has(otherId)) {
         conversationsMap.set(otherId, {
           otherId,
           lastMessage: msg.content,
           timestamp: msg.createdAt,
           isRead: msg.isRead,
+          unreadCount: 0
         });
+      }
+
+      const conv = conversationsMap.get(otherId);
+
+      // Calculate unread count (if I am the receiver and message is not read)
+      if (msg.receiverId === userId && !msg.isRead) {
+        conv.unreadCount += 1;
       }
     });
 
@@ -205,4 +223,16 @@ export class ChatsService {
       deleted: { messages: [] },
     };
   }
+  async editContent(id: string, content: string): Promise<Message | null> {
+    return this.messageModel
+      .findByIdAndUpdate(id, { content, isEdited: true }, { new: true })
+      .exec();
+  }
+
+  async softDelete(id: string): Promise<Message | null> {
+    return this.messageModel
+      .findByIdAndUpdate(id, { deletedAt: new Date() }, { new: true })
+      .exec();
+  }
 }
+
