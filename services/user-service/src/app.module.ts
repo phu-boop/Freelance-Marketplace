@@ -33,7 +33,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 10,
+        limit: 100,
       },
     ]),
     TerminusModule,
@@ -80,4 +80,4 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

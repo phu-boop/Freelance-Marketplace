@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { PlusCircle, Briefcase, CreditCard, Users, Clock, Building2, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import api from '@/lib/api';
 
 export default function ClientDashboardPage() {
     const { authenticated, token } = useKeycloak();
@@ -20,12 +21,9 @@ export default function ClientDashboardPage() {
 
     const fetchTeams = async () => {
         try {
-            const resp = await fetch('/api/user/teams', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (resp.ok) {
-                const data = await resp.json();
-                setTeams(data);
+            const resp = await api.get('/user/teams');
+            if (resp.status === 200) {
+                setTeams(resp.data);
             }
         } catch (err) {
             console.error('Failed to fetch teams', err);

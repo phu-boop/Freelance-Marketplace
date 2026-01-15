@@ -39,6 +39,15 @@
         <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
             <div class="kc-message-wrapper">
                 <div class="kc-feedback alert-${message.type}">
+                    <#if message.type = 'error'>
+                        <span class="kc-feedback-icon">⚠️</span>
+                    <#elseif message.type = 'warning'>
+                        <span class="kc-feedback-icon">⚠️</span>
+                    <#elseif message.type = 'success'>
+                        <span class="kc-feedback-icon">✅</span>
+                    <#else>
+                        <span class="kc-feedback-icon">ℹ️</span>
+                    </#if>
                     <span class="kc-feedback-text">${kcSanitize(message.summary)?no_esc}</span>
                 </div>
             </div>

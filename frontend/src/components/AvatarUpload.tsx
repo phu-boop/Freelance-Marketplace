@@ -4,7 +4,8 @@ import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { Camera, X, Check, Loader2, Upload } from 'lucide-react';
 import { getCroppedImg } from '@/lib/cropImage';
-import { Button } from '@/components/ui/Button';
+import { getPublicUrl } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AvatarUploadProps {
@@ -58,7 +59,7 @@ export function AvatarUpload({ currentAvatar, onUpload }: AvatarUploadProps) {
         <div className="relative group">
             <div className="w-32 h-32 rounded-full overflow-hidden bg-slate-800 border-4 border-slate-900 shadow-xl relative">
                 {currentAvatar ? (
-                    <img src={currentAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                    <img src={getPublicUrl(currentAvatar)} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
                         <Camera className="w-8 h-8 text-slate-500" />

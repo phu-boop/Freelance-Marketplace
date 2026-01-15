@@ -5,224 +5,252 @@ const prisma = new PrismaClient();
 
 function slugify(text: string) {
     return text.toString().toLowerCase()
-        .replace(/\s+/g, '-')           // Replace spaces with -
-        .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-        .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-        .replace(/^-+/, '')             // Trim - from start of text
-        .replace(/-+$/, '');            // Trim - from end of text
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
 }
 
 async function main() {
-    console.log('Start seeding job service data...');
+    console.log('Start seeding beautiful job and proposal data...');
 
-    const categories = [
-        { name: 'Web Development', parentId: null },
-        { name: 'Mobile Development', parentId: null },
+    // 1. Categories
+    const categoriesSeed = [
+        { name: 'Web, Mobile & Software Dev', parentId: null },
         { name: 'Design & Creative', parentId: null },
-        { name: 'Writing', parentId: null },
-        { name: 'Admin Support', parentId: null },
-        { name: 'Customer Service', parentId: null },
-        { name: 'Marketing', parentId: null },
-        { name: 'Accounting', parentId: null },
+        { name: 'Data Science & Analytics', parentId: null },
+        { name: 'Writing & Translation', parentId: null },
+        { name: 'Sales & Marketing', parentId: null },
     ];
 
-    for (const cat of categories) {
+    for (const cat of categoriesSeed) {
         await prisma.category.upsert({
             where: { name: cat.name },
             update: {},
-            create: {
-                name: cat.name,
-                slug: slugify(cat.name),
-                parentId: cat.parentId
-            }
+            create: { name: cat.name, slug: slugify(cat.name) }
         });
     }
 
-    // Add subcategories
-    const webParent = await prisma.category.findUnique({ where: { name: 'Web Development' } });
-    if (webParent) {
-        const subCategories = ['Frontend', 'Backend', 'Full Stack', 'CMS'];
-        for (const sub of subCategories) {
-            await prisma.category.upsert({
-                where: { name: sub },
-                update: {},
-                create: {
-                    name: sub,
-                    slug: slugify(sub),
-                    parentId: webParent.id
-                }
-            });
-        }
-    }
-
-    const mobileParent = await prisma.category.findUnique({ where: { name: 'Mobile Development' } });
-    if (mobileParent) {
-        const subCategories = ['iOS', 'Android', 'Cross-platform'];
-        for (const sub of subCategories) {
-            await prisma.category.upsert({
-                where: { name: sub },
-                update: {},
-                create: {
-                    name: sub,
-                    slug: slugify(sub),
-                    parentId: mobileParent.id
-                }
-            });
-        }
-    }
-
+    const devParent = await prisma.category.findUnique({ where: { name: 'Web, Mobile & Software Dev' } });
     const designParent = await prisma.category.findUnique({ where: { name: 'Design & Creative' } });
-    if (designParent) {
-        const subCategories = ['Logo Design', 'UI/UX', 'Illustration', 'Video Editing'];
-        for (const sub of subCategories) {
+    const dataParent = await prisma.category.findUnique({ where: { name: 'Data Science & Analytics' } });
+
+    if (devParent) {
+        const subs = ['E-commerce Development', 'Frontend Development', 'Backend Development', 'Mobile App Development', 'Full Stack Development', 'DevOps & Systems'];
+        for (const sub of subs) {
             await prisma.category.upsert({
                 where: { name: sub },
                 update: {},
-                create: {
-                    name: sub,
-                    slug: slugify(sub),
-                    parentId: designParent.id
-                }
+                create: { name: sub, slug: slugify(sub), parentId: devParent.id }
+            });
+        }
+    }
+
+    if (designParent) {
+        const subs = ['UI/UX Design', 'Brand Identity', 'Illustration', 'Video Production', 'Graphic Design'];
+        for (const sub of subs) {
+            await prisma.category.upsert({
+                where: { name: sub },
+                update: {},
+                create: { name: sub, slug: slugify(sub), parentId: designParent.id }
+            });
+        }
+    }
+
+    if (dataParent) {
+        const subs = ['Machine Learning', 'Data Visualization', 'Big Data Engineering', 'Statistical Analysis'];
+        for (const sub of subs) {
+            await prisma.category.upsert({
+                where: { name: sub },
+                update: {},
+                create: { name: sub, slug: slugify(sub), parentId: dataParent.id }
             });
         }
     }
 
     console.log('Categories seeded!');
 
-    // Seed Skills
+    // 2. Skills
     const skills = [
-        'React', 'Node.js', 'TypeScript', 'Next.js', 'PostgreSQL',
-        'Flutter', 'Swift', 'Kotlin', 'React Native',
-        'Figma', 'Adobe XD', 'Photoshop', 'Illustrator',
-        'Python', 'Django', 'FastAPI', 'AWS', 'Docker'
+        'React', 'Node.js', 'Next.js', 'Go', 'AWS', 'Kubernetes', 'Terraform', 'PostgreSQL', 'Redis',
+        'Figma', 'UI/UX Design', 'Design Systems', 'Adobe Creative Suite',
+        'Python', 'PyTorch', 'TensorFlow', 'MLOps', 'Scikit-learn',
+        'Content Strategy', 'SEO', 'Technical Writing', 'Copywriting', 'TypeScript'
     ];
 
     const skillMap: Record<string, string> = {};
-    for (const skillName of skills) {
-        const skill = await prisma.skill.upsert({
-            where: { name: skillName },
+    for (const sName of skills) {
+        const s = await prisma.skill.upsert({
+            where: { name: sName },
             update: {},
-            create: { name: skillName }
+            create: { name: sName }
         });
-        skillMap[skillName] = skill.id;
+        skillMap[sName] = s.id;
     }
     console.log('Skills seeded!');
 
-    // Seed Jobs
-    const clientId = '901f6a31-3e22-4cb9-8dbb-2ad1b3a42040'; // Existing User ID
-    const frontendCat = await prisma.category.findUnique({ where: { name: 'Frontend' } });
-    const backendCat = await prisma.category.findUnique({ where: { name: 'Backend' } });
-    const mobileCat = await prisma.category.findUnique({ where: { name: 'Cross-platform' } });
-    const uiuxCat = await prisma.category.findUnique({ where: { name: 'UI/UX' } });
+    // 3. Jobs
+    const clientId = '901f6a31-3e22-4cb9-8dbb-2ad1b3a42040'; // Sarah Horizon
+    const catDevOps = await prisma.category.findUnique({ where: { name: 'DevOps & Systems' } });
+    const catUIUX = await prisma.category.findUnique({ where: { name: 'UI/UX Design' } });
+    const catML = await prisma.category.findUnique({ where: { name: 'Machine Learning' } });
+    const catFullStack = await prisma.category.findUnique({ where: { name: 'Full Stack Development' } });
 
-    const jobSeeds = [
+    const jobs = [
         {
-            title: 'Senior React Developer for Fintech Startup',
-            description: 'We are looking for a senior React developer to build a modern fintech dashboard. Experience with TypeScript and high-performance charting is required.',
-            budget: 5000,
-            type: 'FIXED',
+            title: 'Build a Scalable Microservices Architecture for Fintech',
+            description: 'We are looking for an expert Cloud Architect to design and implement a multi-region, auto-scaling Kubernetes infrastructure. Must have experience with high-traffic fintech systems.',
+            budget: 12000,
+            type: 'FIXED_PRICE',
             experienceLevel: 'EXPERT',
-            location: 'Remote',
-            categoryId: frontendCat?.id,
-            skills: ['React', 'TypeScript', 'PostgreSQL']
+            locationType: 'REMOTE',
+            categoryId: catDevOps?.id,
+            status: 'OPEN',
+            duration: '3 months',
+            tags: ['AWS', 'Kubernetes', 'Terraform']
         },
         {
-            title: 'Node.js Backend Engineer for E-commerce Platform',
-            description: 'Scale our backend using Node.js and PostgreSQL. Focus on performance and security.',
-            budget: 4500,
-            type: 'FIXED',
-            experienceLevel: 'INTERMEDIATE',
-            location: 'Remote',
-            categoryId: backendCat?.id,
-            skills: ['Node.js', 'PostgreSQL', 'Docker']
+            title: 'Lead Designer for SaaS Product Redesign',
+            description: 'Total overhaul of our B2B SaaS dashboard. We need a design visionary who understands design systems and advanced user workflows.',
+            budget: 8500,
+            type: 'FIXED_PRICE',
+            experienceLevel: 'EXPERT',
+            locationType: 'REMOTE',
+            categoryId: catUIUX?.id,
+            status: 'OPEN',
+            duration: '2 months',
+            tags: ['Figma', 'UI/UX Design', 'Design Systems']
         },
         {
-            title: 'Mobile App Developer (Flutter)',
-            description: 'Build a beautiful, fast cross-platform app for our fitness brand. Design is ready, we need implementation.',
-            budget: 3500,
-            type: 'FIXED',
-            experienceLevel: 'INTERMEDIATE',
-            location: 'Remote',
-            categoryId: mobileCat?.id,
-            skills: ['Flutter', 'FastAPI']
-        },
-        {
-            title: 'Creative UI/UX Designer',
-            description: 'Design a clean and intuitive user interface for our new social media platform.',
-            budget: 40,
+            title: 'AI Data Pipeline for E-commerce Recommendations',
+            description: 'Build an end-to-end ML pipeline to process millions of user events and serve real-time product recommendations. Python and PyTorch preferred.',
+            budget: 150,
             type: 'HOURLY',
             experienceLevel: 'EXPERT',
-            location: 'Remote',
-            categoryId: uiuxCat?.id,
-            skills: ['Figma', 'Adobe XD', 'Illustrator']
+            locationType: 'REMOTE',
+            categoryId: catML?.id,
+            status: 'IN_PROGRESS',
+            duration: 'Ongoing',
+            tags: ['Python', 'PyTorch', 'MLOps']
         },
         {
-            title: 'Python/Django Developer for Data Mining',
-            description: 'Help us extract and process data from various web sources using Python and Django.',
-            budget: 3000,
-            type: 'FIXED',
-            experienceLevel: 'EXPERT',
-            location: 'Remote',
-            categoryId: backendCat?.id,
-            skills: ['Python', 'Django', 'PostgreSQL']
+            title: 'Full Stack Next.js Developer for Web3 Marketplace',
+            description: 'Help us build a premium marketplace for high-end digital assets. Focus on performance and security.',
+            budget: 5000,
+            type: 'FIXED_PRICE',
+            experienceLevel: 'INTERMEDIATE',
+            locationType: 'REMOTE',
+            categoryId: catFullStack?.id,
+            status: 'OPEN',
+            duration: '1 month',
+            tags: ['Next.js', 'TypeScript', 'PostgreSQL']
         }
     ];
 
     const searchUrl = process.env.SEARCH_SERVICE_URL || 'http://search-service:3010';
 
-    for (const jobSeed of jobSeeds) {
-        const { skills: jobSkills, ...jobData } = jobSeed;
+    for (const jSeed of jobs) {
+        const { tags, ...jData } = jSeed;
         const job = await prisma.job.create({
             data: {
-                ...jobData,
+                ...jData,
                 client_id: clientId,
-                status: 'OPEN',
                 skills: {
-                    create: jobSkills.map(name => ({
-                        skill: { connect: { id: skillMap[name] } }
+                    create: tags.filter(t => skillMap[t]).map(t => ({
+                        skill: { connect: { id: skillMap[t] } }
                     }))
                 }
             },
-            include: {
-                category: true,
-                skills: {
-                    include: { skill: true }
-                }
-            }
+            include: { category: true, skills: { include: { skill: true } } }
         });
 
-        console.log(`Job created: ${job.title}`);
+        console.log(`Job Created: ${job.title}`);
 
-        // Sync to Search Service
+        // Sync to search
         try {
-            const indexedJob = {
-                id: job.id,
-                title: job.title,
-                description: job.description,
-                budget: job.budget,
-                location: job.location,
-                type: job.type,
-                experienceLevel: job.experienceLevel,
-                category: job.category?.name,
-                categoryId: job.categoryId,
-                skills: job.skills.map((s: any) => s.skill.name),
-                createdAt: job.createdAt,
-                status: job.status
-            };
-
-            const response = await fetch(`${searchUrl}/search/jobs/index`, {
+            await fetch(`${searchUrl}/api/search/jobs/index`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(indexedJob),
+                body: JSON.stringify({
+                    id: job.id,
+                    title: job.title,
+                    description: job.description,
+                    budget: job.budget,
+                    location: job.location,
+                    type: job.type,
+                    experienceLevel: job.experienceLevel,
+                    category: job.category?.name,
+                    categoryId: job.categoryId,
+                    skills: job.skills.map((s: any) => s.skill.name),
+                    createdAt: job.createdAt,
+                    status: job.status
+                }),
+            });
+        } catch (e) { }
+
+        // 4. Proposals
+        if (job.title.includes('Microservices')) {
+            // Alex applies
+            await prisma.proposal.create({
+                data: {
+                    jobId: job.id,
+                    freelancerId: '801f6a31-3e22-4cb9-8dbb-2ad1b3a42039',
+                    bidAmount: 11500,
+                    timeline: '10 weeks',
+                    status: 'NEGOTIATION',
+                    coverLetter: 'I have built similar systems for 3 Fortune 500 companies. My approach uses blue-green deployments with zero downtime.'
+                }
+            });
+        }
+
+        if (job.title.includes('Design')) {
+            // Sarah applies
+            await prisma.proposal.create({
+                data: {
+                    jobId: job.id,
+                    freelancerId: '701f6a31-3e22-4cb9-8dbb-2ad1b3a42038',
+                    bidAmount: 8500,
+                    timeline: '8 weeks',
+                    status: 'OFFERED',
+                    coverLetter: 'I love your companies vision. I have several design systems in my portfolio that align well with what you are looking for.'
+                }
+            });
+        }
+
+        if (job.title.includes('AI Data Pipeline')) {
+            // Elena is hired
+            const proposal = await prisma.proposal.create({
+                data: {
+                    jobId: job.id,
+                    freelancerId: '501f6a31-3e22-4cb9-8dbb-2ad1b3a42036',
+                    bidAmount: 150,
+                    timeline: 'Ongoing',
+                    status: 'HIRED',
+                    coverLetter: 'I specialize in real-time recommendation engines. I can implement this using a Lambda architecture on AWS.'
+                }
             });
 
-            if (response.ok) {
-                console.log(`Job ${job.id} indexed in search service`);
-            } else {
-                console.error(`Failed to index job ${job.id}: ${response.statusText}`);
-            }
-        } catch (error) {
-            console.error(`Error syncing job ${job.id} to search:`, error.message);
+            // Add some milestones
+            await prisma.milestone.create({
+                data: {
+                    proposalId: proposal.id,
+                    description: 'Architecture Design and Data Modeling',
+                    amount: 3000,
+                    status: 'PAID',
+                    dueDate: new Date()
+                }
+            });
+
+            await prisma.milestone.create({
+                data: {
+                    proposalId: proposal.id,
+                    description: 'Pipeline Implementation (Phase 1)',
+                    amount: 5000,
+                    status: 'SUBMITTED',
+                    dueDate: new Date(Date.now() + 86400000 * 7)
+                }
+            });
         }
     }
 

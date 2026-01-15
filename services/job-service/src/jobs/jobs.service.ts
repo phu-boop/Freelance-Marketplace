@@ -1023,11 +1023,16 @@ export class JobsService {
     return updated;
   }
 
-  async getContracts(userId: string, status: string[] = ['HIRED']) {
+  async getContracts(userId: string, roles: string[] = [], status: string[] = ['HIRED']) {
+    const isClient = roles.includes('CLIENT');
+
     return this.prisma.proposal.findMany({
       where: {
-        freelancerId: userId,
-        status: { in: status }
+        status: { in: status },
+        OR: [
+          { freelancerId: userId },
+          { job: { client_id: userId } }
+        ]
       },
       include: {
         job: true
@@ -1380,6 +1385,38 @@ export class JobsService {
       where: { jobId },
       orderBy: { createdAt: 'desc' }
     });
+  }
+
+  async getProposalsByFreelancer(freelancerId: string, userId: string, userRoles: string[]) {
+    // If the freelancer is requesting their own proposals
+    if (userId === freelancerId) {
+      return this.getMyProposals(freelancerId);
+    }
+
+    // If a client is requesting proposals, only show proposals sent to THIS client's jobs
+    if (userRoles.includes('CLIENT') || userRoles.includes('realm:CLIENT')) {
+      return this.prisma.proposal.findMany({
+        where: {
+          freelancerId,
+          job: {
+            client_id: userId
+          }
+        },
+        include: {
+          job: {
+            select: {
+              title: true,
+              status: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+    }
+
+    throw new ForbiddenException('You are not authorized to view these proposals');
   }
 
   async negotiateProposal(userId: string, proposalId: string, dto: { amount?: number, timeline?: string }) {
@@ -1737,5 +1774,51 @@ export class JobsService {
     }
 
     return result;
+  }
+
+  // Invitations
+  async createInvitation(clientId: string, dto: any) {
+    const job = await this.prisma.job.findUnique({ where: { id: dto.jobId } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.client_id !== clientId) throw new ForbiddenException('You can only invite to your own jobs');
+
+    // Check if already invited
+    const existing = await this.prisma.jobInvitation.findFirst({
+      where: {
+        jobId: dto.jobId,
+        freelancerId: dto.freelancerId
+      }
+    });
+
+    if (existing) throw new BadRequestException('Freelancer already invited to this job');
+
+    const invitation = await this.prisma.jobInvitation.create({
+      data: {
+        jobId: dto.jobId,
+        freelancerId: dto.freelancerId,
+        clientId,
+        message: dto.message,
+        status: 'PENDING'
+      }
+    });
+
+    // Notify Freelancer
+    await this.sendNotification(
+      dto.freelancerId,
+      'JOB_INVITATION',
+      'New Job Invitation',
+      `You have been invited to apply for job: ${job.title}`,
+      { invitationId: invitation.id, jobId: job.id }
+    );
+
+    return invitation;
+  }
+
+  async getFreelancerInvitations(freelancerId: string) {
+    return this.prisma.jobInvitation.findMany({
+      where: { freelancerId, status: 'PENDING' },
+      include: { job: true },
+      orderBy: { createdAt: 'desc' }
+    });
   }
 }

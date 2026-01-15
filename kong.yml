@@ -34,6 +34,7 @@ services:
           - /api/users
           - /api/user/teams
         methods:
+          - GET
           - POST
           - PUT
           - PATCH

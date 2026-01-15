@@ -18,13 +18,13 @@ import {
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Card } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { cn, getPublicUrl } from '@/lib/utils';
 
 const passwordSchema = z.object({
     currentPassword: z.string().min(1, 'Current password is required'),
@@ -282,7 +282,7 @@ function TwoFactorSection({ userId, onStatusChange }: { userId: string | undefin
                         <div className="mt-4 p-6 bg-slate-950 rounded-xl border border-slate-800 inline-block animate-in fade-in zoom-in-95 duration-200">
                             <div className="flex flex-col md:flex-row gap-8 items-center">
                                 <div className="bg-white p-2 rounded-lg">
-                                    <img src={qrCode} alt="2FA QR Code" className="w-40 h-40" />
+                                    <img src={getPublicUrl(qrCode)} alt="2FA QR Code" className="w-40 h-40" />
                                 </div>
                                 <div className="space-y-4">
                                     <h4 className="font-semibold text-white">Scan this QR Code</h4>

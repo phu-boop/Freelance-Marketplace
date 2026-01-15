@@ -68,7 +68,7 @@ export default function MessagesPage() {
     const fetchConversations = async () => {
         if (!userId) return;
         try {
-            const res = await api.get(`http://localhost:3006/chats/conversations/${userId}`);
+            const res = await api.get(`/chat/conversations/${userId}`);
             const convs = res.data;
 
             // Enrich with user details (mock or fetch from user-service)
@@ -101,7 +101,7 @@ export default function MessagesPage() {
         const fetchHistory = async () => {
             setChatLoading(true);
             try {
-                const res = await api.get(`http://localhost:3006/chats/history?user1=${userId}&user2=${selectedChat.otherId}`);
+                const res = await api.get(`/chat/history?user1=${userId}&user2=${selectedChat.otherId}`);
                 setMessages(res.data);
                 scrollToBottom();
 

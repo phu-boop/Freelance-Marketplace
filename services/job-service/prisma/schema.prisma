@@ -19,6 +19,7 @@ model User {
   firstName String?
   lastName  String?
   avatarUrl String?
+  coverImageUrl String?
   phone     String?
   address   String?
   country   String?
@@ -62,6 +63,8 @@ model User {
   resetPasswordExpiresAt DateTime?
   facebookId             String?                @unique
   githubId               String?                @unique
+  keycloakId             String?                @unique
+  languages              Json?
   isEmailVerified        Boolean                @default(false)
   taxId                  String?
   billingAddress         String?

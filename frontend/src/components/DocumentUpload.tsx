@@ -4,7 +4,8 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, X, FileText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
-import { Button } from '@/components/ui/Button';
+import { getPublicUrl } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface DocumentUploadProps {
     onUploadComplete: (url: string) => void;
@@ -22,7 +23,7 @@ export function DocumentUpload({
     initialUrl
 }: DocumentUploadProps) {
     const [file, setFile] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl || null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl ? getPublicUrl(initialUrl) : null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);

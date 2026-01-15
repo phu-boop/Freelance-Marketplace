@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Plus, Pencil, Trash2, CheckCircle2, Loader2, BookOpen } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import api from '@/lib/api';
 import { useKeycloak } from '@/components/KeycloakProvider';
 

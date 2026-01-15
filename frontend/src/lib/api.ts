@@ -20,9 +20,8 @@ const PUBLIC_ENDPOINTS = [
 
 api.interceptors.request.use(
     async (config) => {
-        // Skip token attachment for public endpoints if needed, 
-        // but it's better to always attach if token exists
-        const isPublic = config.url && PUBLIC_ENDPOINTS.some(path => config.url?.includes(path));
+        const url = config.url || '';
+        const isPublic = PUBLIC_ENDPOINTS.some(path => url.endsWith(path) || url.includes(path));
 
         if (keycloak && keycloak.token) {
             try {
@@ -46,11 +45,25 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
-            // Only redirect to login if it's a 401 on a non-public route
-            const isPublic = error.config.url && PUBLIC_ENDPOINTS.some(path => error.config.url.includes(path));
-            if (!isPublic && typeof window !== 'undefined') {
-                keycloak?.login();
+        const url = error.config?.url || '';
+        const status = error.response?.status;
+        const isAuthRequest = url.includes('/auth/');
+        const isPublic = PUBLIC_ENDPOINTS.some(path => url.includes(path));
+
+        if (status === 401) {
+            console.warn(`[API] 401 Error at ${url}. isAuthRequest: ${isAuthRequest}, isPublic: ${isPublic}`);
+
+            // Do NOT redirect if:
+            // 1. It's an Auth request (login/register)
+            // 2. It's a Public endpoint
+            // 3. We are ALREADY on the login page (to prevent loops)
+            if (!isAuthRequest && !isPublic && typeof window !== 'undefined') {
+                if (window.location.pathname !== '/login') {
+                    console.info('[API] Redirecting to login due to unauthorized protected request');
+                    keycloak?.login();
+                } else {
+                    console.info('[API] Suppressing redirect because we are already on /login');
+                }
             }
         }
         return Promise.reject(error);

@@ -4,6 +4,7 @@ import {
   Body,
   UnauthorizedException,
   Request,
+  Logger,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -11,6 +12,7 @@ import { Public } from 'nest-keycloak-connect';
 
 @Controller('api/auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
   constructor(private readonly usersService: UsersService) { }
 
   @Public()
@@ -22,6 +24,7 @@ export class AuthController {
   @Public()
   @Post('login')
   login(@Body() credentials: { email: string; password: string }) {
+    this.logger.log(`Login attempt for email: ${credentials.email}`);
     return this.usersService.login(credentials);
   }
 
@@ -39,6 +42,7 @@ export class AuthController {
 
   @Post('sync')
   async sync(@Request() req, @Body() data: { role?: string }) {
+    this.logger.log(`Sync attempt for sub: ${req.user?.sub}`);
     if (req.user && req.user.sub) {
       return this.usersService.syncUser(req.user, data.role);
     }

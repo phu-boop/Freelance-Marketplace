@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { DownloadCloud, ShieldAlert, Loader2, FileJson, Lock } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 export default function PrivacySettingsPage() {
     const { userId } = useKeycloak();

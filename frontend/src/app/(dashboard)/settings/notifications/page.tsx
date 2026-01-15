@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Bell, Mail, Smartphone, Globe, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Card } from '@/components/ui/Card';
+import { Card } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 
 interface NotificationState {

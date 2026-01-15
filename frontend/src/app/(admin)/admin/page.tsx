@@ -35,7 +35,7 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         const fetchMetrics = async () => {
             try {
-                const res = await api.get('/admin/metrics');
+                const res = await api.get('/admins/metrics');
                 setMetrics(res.data);
             } catch (error) {
                 console.error('Failed to fetch metrics', error);

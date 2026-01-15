@@ -317,6 +317,7 @@ export class UsersService {
         education: true,
         experience: true,
         portfolio: true,
+        certifications: true,
       },
     });
 
@@ -328,6 +329,31 @@ export class UsersService {
         throw new NotFoundException(
           `User with ID ${id} not found in database or Keycloak`,
         );
+      }
+
+      // Check for email collision (seeded users vs keycloak users)
+      if (kcUser.email) {
+        const existingUser = await this.prisma.user.findUnique({
+          where: { email: kcUser.email },
+          include: {
+            education: true,
+            experience: true,
+            portfolio: true,
+            certifications: true,
+          },
+        });
+
+        if (existingUser) {
+          console.warn(`User collision by email: ${kcUser.email}. Mapping Keycloak ID ${id} to existing User ID ${existingUser.id}`);
+          if (existingUser.keycloakId !== id) {
+            await this.prisma.user.update({
+              where: { id: existingUser.id },
+              data: { keycloakId: id }
+            });
+            (existingUser as any).keycloakId = id;
+          }
+          return existingUser;
+        }
       }
 
       const federated = await this.keycloakService.getFederatedIdentities(id);
@@ -362,14 +388,23 @@ export class UsersService {
           avatarUrl: avatarUrl,
           isEmailVerified: kcUser.emailVerified || false,
           status: 'ACTIVE',
+          roles: ['FREELANCER'], // Default role for social login
           ...socialIds,
         },
         include: {
           education: true,
           experience: true,
           portfolio: true,
+          certifications: true,
         },
       });
+
+      // Sync role to Keycloak immediately
+      try {
+        await this.keycloakService.assignRole(user.id, 'FREELANCER');
+      } catch (error) {
+        console.error(`Failed to assign default role to Keycloak user ${id}:`, error.message);
+      }
 
       // SSO JIT: Auto-join team if domain matches
       if (user.email) {
@@ -403,9 +438,13 @@ export class UsersService {
 
   async update(id: string, updateUserDto: UpdateUserDto) {
     console.log('UPDATING USER:', id, JSON.stringify(updateUserDto));
+
+    // Sanitize data for Prisma
+    const { baseVersion, ...data } = updateUserDto;
+
     const user = await this.prisma.user.update({
       where: { id },
-      data: updateUserDto,
+      data: data as any,
     });
     console.log('UPDATE RESULT:', JSON.stringify(user));
 
@@ -830,6 +869,12 @@ export class UsersService {
     });
   }
 
+  deleteCertification(certId: string) {
+    return this.prisma.certification.delete({
+      where: { id: certId },
+    });
+  }
+
   async initiateBackgroundCheck(userId: string) {
     const backgroundCheckId = `BCK_${userId.slice(0, 8)}_${Date.now()}`;
     const backgroundCheckUrl = `https://backgroundchecker.io/portal/${backgroundCheckId}`;
@@ -1016,7 +1061,7 @@ export class UsersService {
     // If we have a pending role, apply it now
     if (pendingRole) {
       await (this.prisma.user.update as any)({
-        where: { id: userId },
+        where: { id: user.id }, // Use actual user ID from DB
         data: {
           roles: [pendingRole],
           keycloakId: userId
@@ -1033,15 +1078,17 @@ export class UsersService {
       return { ...user, requiresOnboarding: true };
     }
 
-    if (!(user as any).keycloakId) {
+    if (!(user as any).keycloakId && user.id !== userId) {
       await (this.prisma.user.update as any)({
-        where: { id: userId },
+        where: { id: user.id },
         data: { keycloakId: userId }
       });
     }
 
     return { ...user, requiresOnboarding: false };
   }
+
+
 
   async socialOnboarding(userId: string, role: string) {
     const user = await this.findOne(userId);

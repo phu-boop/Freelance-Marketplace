@@ -12,9 +12,20 @@ export class ProposalsController {
     ) { }
 
     @Get()
-    @Roles({ roles: ['realm:CLIENT'] })
-    async findAllByJob(@Request() req, @Query('jobId') jobId: string) {
-        return this.jobsService.getProposalsByJobId(jobId, req.user.sub);
+    @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
+    async findAll(
+        @Request() req: any,
+        @Query('jobId') jobId?: string,
+        @Query('freelancerId') freelancerId?: string
+    ) {
+        if (jobId) {
+            return this.jobsService.getProposalsByJobId(jobId, req.user.sub);
+        }
+        if (freelancerId) {
+            const roles = req.user.realm_access?.roles || [];
+            return this.jobsService.getProposalsByFreelancer(freelancerId, req.user.sub, roles);
+        }
+        return [];
     }
 
     @Get('generate-ai')
@@ -91,10 +102,12 @@ export class ProposalsController {
     }
 
     @Get('my/contracts')
-    @Roles({ roles: ['realm:FREELANCER'] })
-    async getContracts(@Request() req) {
+    @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+    async getContracts(@Request() req, @Query('status') status?: string) {
         const userId = req.user.sub;
-        return this.jobsService.getContracts(userId);
+        const roles = req.user.realm_access?.roles || [];
+        const statusList = status ? status.split(',') : ['HIRED'];
+        return this.jobsService.getContracts(userId, roles, statusList);
     }
 
     @Get('contracts/:id')

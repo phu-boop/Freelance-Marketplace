@@ -271,6 +271,11 @@ export class UsersController {
     return this.usersService.verifyCertification(certId);
   }
 
+  @Delete('certifications/:certId')
+  deleteCertification(@Param('certId') certId: string) {
+    return this.usersService.deleteCertification(certId);
+  }
+
   // Background Checks
   @Post(':id/background-check/initiate')
   initiateBackgroundCheck(@Param('id') id: string) {

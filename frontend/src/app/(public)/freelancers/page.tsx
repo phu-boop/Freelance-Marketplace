@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { getPublicUrl } from '@/lib/utils';
 import { useKeycloak } from '@/components/KeycloakProvider';
 
 interface Freelancer {
@@ -190,7 +191,7 @@ export default function FreelancerListPage() {
                                             <div className="relative shrink-0">
                                                 <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl overflow-hidden bg-slate-800 ring-4 ring-slate-800/50">
                                                     <img
-                                                        src={user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
+                                                        src={getPublicUrl(user.avatarUrl) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`}
                                                         alt={user.firstName}
                                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                                     />
@@ -284,8 +285,8 @@ export default function FreelancerListPage() {
                                                     key={i + 1}
                                                     onClick={() => setCurrentPage(i + 1)}
                                                     className={`w-12 h-12 rounded-2xl font-bold transition-all ${currentPage === i + 1
-                                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                                                            : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30'
+                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                                                        : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-blue-500/30'
                                                         }`}
                                                 >
                                                     {i + 1}

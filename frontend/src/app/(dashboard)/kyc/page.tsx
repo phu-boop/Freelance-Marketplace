@@ -22,7 +22,7 @@ export default function KycPage() {
             // Assuming API Gateway routes /storage to Storage Service
             // For now, we might need to use the direct URL or ensure Gateway is configured
             // Let's assume we have a proxy or direct access for MVP
-            const uploadRes = await api.post('http://localhost:3000/storage/upload', formData, {
+            const uploadRes = await api.post('/storage/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 

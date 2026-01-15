@@ -64,12 +64,9 @@ export default function ClientJobsPage() {
 
     const fetchTeams = async () => {
         try {
-            const resp = await fetch('/api/user/teams', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (resp.ok) {
-                const data = await resp.json();
-                setTeams(data);
+            const resp = await api.get('/user/teams');
+            if (resp.status === 200) {
+                setTeams(resp.data);
             }
         } catch (err) {
             console.error('Failed to fetch teams', err);

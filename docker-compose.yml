@@ -106,6 +106,7 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+      KONG_CLIENT_MAX_BODY_SIZE: 50m
     volumes:
       - ./kong.yml:/usr/local/kong/declarative/kong.yml
     ports:
@@ -689,6 +690,7 @@ services:
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=admin
       - MINIO_SECRET_KEY=password
+      - MINIO_EXTERNAL_URL=http://localhost:9000
       - NODE_OPTIONS=--max-old-space-size=1536
     depends_on:
       - minio
