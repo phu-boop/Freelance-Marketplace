@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Subject } from 'rxjs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateChatDto } from './dto/create-chat.dto';
@@ -20,6 +21,7 @@ import { ConversationMetadata } from './schemas/conversation-metadata.schema';
 
 @Injectable()
 export class ChatsService {
+  public messageUpdated$ = new Subject<Message>();
   constructor(
     @InjectModel(Message.name) private messageModel: Model<Message>,
     @InjectModel(ConversationMetadata.name) private metadataModel: Model<ConversationMetadata>,
@@ -144,10 +146,13 @@ export class ChatsService {
       const { isFlagged, reason } = fraudRes.data;
 
       if (isFlagged) {
-        await this.messageModel.findByIdAndUpdate(message._id, {
+        const updated = await this.messageModel.findByIdAndUpdate(message._id, {
           isFlagged: true,
           flagReason: reason
-        });
+        }, { new: true });
+        if (updated) {
+          this.messageUpdated$.next(updated);
+        }
       }
     } catch (err) {
       console.error(`Failed to analyze fraud for message ${message._id}:`, err.message);
@@ -359,6 +364,85 @@ export class ChatsService {
       .sort({ createdAt: -1 })
       .limit(50)
       .exec();
+  }
+
+  async togglePin(messageId: string): Promise<Message | null> {
+    const msg = await this.messageModel.findById(messageId);
+    if (!msg) return null;
+
+    return this.messageModel
+      .findByIdAndUpdate(
+        messageId,
+        {
+          isPinned: !msg.isPinned,
+          pinnedAt: !msg.isPinned ? new Date() : null,
+        },
+        { new: true },
+      )
+      .exec();
+  }
+
+  async getPinnedMessages(userId: string): Promise<Message[]> {
+    return this.messageModel
+      .find({
+        isPinned: true,
+        $or: [{ senderId: userId }, { receiverId: userId }],
+      })
+      .sort({ pinnedAt: -1 })
+      .exec();
+  }
+
+  async getPinnedByConversation(user1: string, user2: string): Promise<Message[]> {
+    return this.messageModel
+      .find({
+        isPinned: true,
+        $or: [
+          { senderId: user1, receiverId: user2 },
+          { senderId: user2, receiverId: user1 },
+        ],
+      })
+      .sort({ pinnedAt: -1 })
+      .exec();
+  }
+
+  async toggleReaction(
+    messageId: string,
+    userId: string,
+    emoji: string,
+  ): Promise<Message | null> {
+    const msg = await this.messageModel.findById(messageId);
+    if (!msg) return null;
+
+    const reactions = msg.reactions || [];
+    const reactionIndex = reactions.findIndex((r) => r.emoji === emoji);
+
+    if (reactionIndex > -1) {
+      const userIndex = reactions[reactionIndex].userIds.indexOf(userId);
+      if (userIndex > -1) {
+        // Remove user from reaction
+        reactions[reactionIndex].userIds.splice(userIndex, 1);
+        // If no users left for this emoji, remove the emoji entry
+        if (reactions[reactionIndex].userIds.length === 0) {
+          reactions.splice(reactionIndex, 1);
+        }
+      } else {
+        // Add user to existing emoji reaction
+        reactions[reactionIndex].userIds.push(userId);
+      }
+    } else {
+      // Add new emoji reaction
+      reactions.push({ emoji, userIds: [userId] });
+    }
+
+    const updated = await this.messageModel
+      .findByIdAndUpdate(messageId, { reactions }, { new: true })
+      .exec();
+
+    if (updated) {
+      this.messageUpdated$.next(updated);
+    }
+
+    return updated;
   }
 }
 

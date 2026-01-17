@@ -25,7 +25,9 @@ import {
     CheckCheck,
     Reply,
     CornerUpLeft,
-    Flag // Add Flag icon
+    Flag,
+    AlertTriangle,
+    Pin
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react';
@@ -45,6 +47,11 @@ interface Message {
     isEdited?: boolean;
     deletedAt?: string;
     replyTo?: Message;
+    isFlagged?: boolean;
+    flagReason?: string;
+    isPinned?: boolean;
+    pinnedAt?: string;
+    reactions?: { emoji: string; userIds: string[] }[];
 }
 
 interface Conversation {
@@ -136,11 +143,15 @@ const MessagesPage = () => {
     const [lastSeen, setLastSeen] = useState<string | null>(null);
     const [myStatus, setMyStatus] = useState<'online' | 'dnd'>('online');
     const [userStatuses, setUserStatuses] = useState<Map<string, string>>(new Map());
+    const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
 
     const [viewArchived, setViewArchived] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, chat: Conversation } | null>(null);
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchMode, setSearchMode] = useState<'PEOPLE' | 'MESSAGES'>('PEOPLE');
+    const [globalSearchResults, setGlobalSearchResults] = useState<Message[]>([]);
+    const [isGlobalSearching, setIsGlobalSearching] = useState(false);
     const [chatSearchTerm, setChatSearchTerm] = useState(''); // Search within chat
 
     const [isConnected, setIsConnected] = useState(false); // Connection status
@@ -153,6 +164,7 @@ const MessagesPage = () => {
 
     // Report State
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [showPinnedList, setShowPinnedList] = useState(false);
     const [reportType, setReportType] = useState('SPAM');
     const [reportReason, setReportReason] = useState('');
     const [reporting, setReporting] = useState(false);
@@ -296,6 +308,20 @@ const MessagesPage = () => {
             }
         });
 
+        newSocket.on('messagePinned', (message: Message) => {
+            setMessages(prev => prev.map(m => m._id === message._id ? message : m));
+            if (message.isPinned) {
+                setPinnedMessages(prev => [message, ...prev.filter(p => p._id !== message._id)]);
+            } else {
+                setPinnedMessages(prev => prev.filter(p => p._id !== message._id));
+            }
+        });
+
+        newSocket.on('messageUpdated', (updated: Message) => {
+            setMessages(prev => prev.map(m => m._id === updated._id ? updated : m));
+            setPinnedMessages(prev => prev.map(p => p._id === updated._id ? updated : p));
+        });
+
         return () => {
             newSocket.disconnect();
         };
@@ -354,6 +380,29 @@ const MessagesPage = () => {
         fetchConversations();
     }, [userId, participantId]);
 
+    // Global Search Logic
+    useEffect(() => {
+        if (searchMode !== 'MESSAGES' || searchTerm.length < 3 || !userId) {
+            setGlobalSearchResults([]);
+            return;
+        }
+
+        const runGlobalSearch = async () => {
+            setIsGlobalSearching(true);
+            try {
+                const res = await api.get(`/chat/search?q=${searchTerm}`);
+                setGlobalSearchResults(res.data);
+            } catch (err) {
+                console.error('Global search failed', err);
+            } finally {
+                setIsGlobalSearching(false);
+            }
+        };
+
+        const timeoutId = setTimeout(runGlobalSearch, 500);
+        return () => clearTimeout(timeoutId);
+    }, [searchTerm, searchMode, userId]);
+
     // Fetch Chat History & Contract context
     useEffect(() => {
         if (!selectedChat || !userId) return;
@@ -376,6 +425,11 @@ const MessagesPage = () => {
                 setMessages(data);
 
                 if (!chatSearchTerm) {
+                    // Fetch Pinned Messages
+                    socket?.emit('getPinnedMessages', { senderId: userId, receiverId: selectedChat.otherId }, (pinned: Message[]) => {
+                        setPinnedMessages(pinned);
+                    });
+
                     // Join socket room only if not searching (or keep it joined)
                     socket?.emit('joinRoom', { senderId: userId, receiverId: selectedChat.otherId });
 
@@ -433,6 +487,15 @@ const MessagesPage = () => {
         } catch (error) {
             console.error('Failed to load more messages', error);
         }
+    };
+
+    const handleTogglePin = (message: Message) => {
+        if (!socket || !selectedChat) return;
+        socket.emit('pinMessage', {
+            messageId: message._id,
+            senderId: userId,
+            receiverId: selectedChat.otherId
+        });
     };
 
     const handleScroll = () => {
@@ -529,6 +592,16 @@ const MessagesPage = () => {
         } catch (err) {
             console.error('Failed to delete message', err);
         }
+    };
+
+    const handleToggleReaction = (msgId: string, emoji: string) => {
+        if (!socket || !userId || !selectedChat) return;
+        socket.emit('toggleReaction', {
+            messageId: msgId,
+            userId,
+            emoji,
+            receiverId: selectedChat.otherId,
+        });
     };
 
     const handleReply = (msg: Message) => {
@@ -749,62 +822,125 @@ const MessagesPage = () => {
                                 <Archive className="w-5 h-5" />
                             </button>
                         </div>
+                        <div className="flex gap-1 mb-3 p-1 bg-slate-900 rounded-lg">
+                            <button
+                                onClick={() => setSearchMode('PEOPLE')}
+                                className={`flex-1 py-1 px-2 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${searchMode === 'PEOPLE' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                People
+                            </button>
+                            <button
+                                onClick={() => setSearchMode('MESSAGES')}
+                                className={`flex-1 py-1 px-2 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${searchMode === 'MESSAGES' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                Messages
+                            </button>
+                        </div>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                             <input
                                 type="text"
-                                placeholder="Search messages..."
+                                placeholder={searchMode === 'PEOPLE' ? "Search people..." : "Search in all messages..."}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
                             />
+                            {isGlobalSearching && (
+                                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500 animate-spin" />
+                            )}
                         </div>
                     </div>
 
-                    {/* Conversations List */}
+                    {/* Filtered Content */}
                     <div className="flex-1 overflow-y-auto">
-                        {filteredConversations.map((chat) => (
-                            <div
-                                key={chat.id}
-                                onClick={() => {
-                                    setSelectedChat(chat);
-                                }}
-                                onContextMenu={(e) => handleContextMenu(e, chat)}
-                                className={`p-4 border-b border-slate-800/50 cursor-pointer hover:bg-slate-800/50 transition-colors ${selectedChat?.id === chat.id ? 'bg-slate-800/80 border-l-2 border-l-blue-500' : 'border-l-2 border-l-transparent'
-                                    }`}
-                            >
-                                <div className="flex gap-3">
-                                    <div className="relative">
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-                                            {chat.user?.firstName?.[0]}{chat.user?.lastName?.[0]}
+                        {searchMode === 'MESSAGES' && searchTerm.length >= 3 ? (
+                            <div className="py-2">
+                                {globalSearchResults.length === 0 && !isGlobalSearching ? (
+                                    <div className="p-8 text-center text-slate-500 text-xs">No messages found matching "{searchTerm}"</div>
+                                ) : (
+                                    globalSearchResults.map((msg) => {
+                                        const otherId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+                                        const chat = conversations.find(c => c.otherId === otherId);
+                                        return (
+                                            <div
+                                                key={msg._id}
+                                                onClick={() => {
+                                                    if (chat) {
+                                                        setSelectedChat(chat);
+                                                    } else {
+                                                        // Fallback: create temporary chat if not found in recent convs
+                                                        api.get(`/users/${otherId}`).then(u => {
+                                                            setSelectedChat({
+                                                                otherId,
+                                                                lastMessage: msg.content,
+                                                                timestamp: msg.createdAt,
+                                                                isRead: true,
+                                                                user: u.data,
+                                                                id: `temp-${otherId}`
+                                                            });
+                                                        });
+                                                    }
+                                                }}
+                                                className="p-4 border-b border-slate-800/50 cursor-pointer hover:bg-slate-800/40 transition-all"
+                                            >
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+                                                        {chat?.user?.firstName} {chat?.user?.lastName}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500">
+                                                        {new Date(msg.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-300 line-clamp-2 italic">"{msg.content}"</p>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        ) : (
+                            filteredConversations.map((chat) => (
+                                <div
+                                    key={chat.id}
+                                    onClick={() => {
+                                        setSelectedChat(chat);
+                                    }}
+                                    onContextMenu={(e) => handleContextMenu(e, chat)}
+                                    className={`p-4 border-b border-slate-800/50 cursor-pointer hover:bg-slate-800/50 transition-colors ${selectedChat?.id === chat.id ? 'bg-slate-800/80 border-l-2 border-l-blue-500' : 'border-l-2 border-l-transparent'
+                                        }`}
+                                >
+                                    <div className="flex gap-3">
+                                        <div className="relative">
+                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                                                {chat.user?.firstName?.[0]}{chat.user?.lastName?.[0]}
+                                            </div>
+                                            {onlineUsers.has(chat.otherId) && (
+                                                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0B0F19] rounded-full"></div>
+                                            )}
                                         </div>
-                                        {onlineUsers.has(chat.otherId) && (
-                                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0B0F19] rounded-full"></div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <h3 className="font-semibold text-white truncate">
+                                                    {chat.user?.firstName} {chat.user?.lastName}
+                                                </h3>
+                                                <span className="text-xs text-slate-400 whitespace-nowrap ml-2">
+                                                    {new Date(chat.timestamp).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <p className={`text-sm truncate ${(chat.unreadCount || 0) > 0 ? 'text-white font-medium' : 'text-slate-400'}`}>
+                                                {chat.lastMessage}
+                                            </p>
+                                        </div>
+                                        {(chat.unreadCount || 0) > 0 && (
+                                            <div className="flex flex-col justify-center">
+                                                <span className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold">
+                                                    {chat.unreadCount}
+                                                </span>
+                                            </div>
                                         )}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-start mb-1">
-                                            <h3 className="font-semibold text-white truncate">
-                                                {chat.user?.firstName} {chat.user?.lastName}
-                                            </h3>
-                                            <span className="text-xs text-slate-400 whitespace-nowrap ml-2">
-                                                {new Date(chat.timestamp).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                        <p className={`text-sm truncate ${(chat.unreadCount || 0) > 0 ? 'text-white font-medium' : 'text-slate-400'}`}>
-                                            {chat.lastMessage}
-                                        </p>
-                                    </div>
-                                    {(chat.unreadCount || 0) > 0 && (
-                                        <div className="flex flex-col justify-center">
-                                            <span className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold">
-                                                {chat.unreadCount}
-                                            </span>
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -922,6 +1058,53 @@ const MessagesPage = () => {
                                     onDrop={handleDrop}
                                     className="flex-1 overflow-y-auto p-4 space-y-4 pt-20 pb-4 relative"
                                 >
+                                    {pinnedMessages.length > 0 && (
+                                        <div className="sticky top-0 left-0 right-0 z-20 mx-2 mb-4">
+                                            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-xl p-3 flex items-center justify-between shadow-lg">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                                                        <Pin className="w-4 h-4 rotate-45" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">Pinned Message</p>
+                                                        <p className="text-xs text-slate-200 truncate font-medium italic">"{pinnedMessages[0].content}"</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 shrink-0 ml-4">
+                                                    <button
+                                                        onClick={() => {
+                                                            const el = document.getElementById(`msg-${pinnedMessages[0]._id}`);
+                                                            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                            // Optional: briefly highlight
+                                                            el?.classList.add('bg-indigo-500/20');
+                                                            setTimeout(() => el?.classList.remove('bg-indigo-500/20'), 2000);
+                                                        }}
+                                                        className="text-[10px] font-bold text-slate-400 hover:text-white px-2 py-1 transition-colors"
+                                                    >
+                                                        GOTO
+                                                    </button>
+                                                    <span className="text-slate-800">|</span>
+                                                    <button
+                                                        onClick={() => handleTogglePin(pinnedMessages[0])}
+                                                        className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                                                        title="Unpin"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {pinnedMessages.length > 1 && (
+                                                <div className="mt-1 flex justify-center">
+                                                    <button
+                                                        onClick={() => setShowPinnedList(true)}
+                                                        className="text-[10px] text-slate-500 font-bold uppercase tracking-widest hover:text-indigo-400 transition-colors"
+                                                    >
+                                                        + {pinnedMessages.length - 1} more pinned
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                     {isDragging && (
                                         <div className="absolute inset-0 z-50 bg-indigo-600/20 backdrop-blur-sm flex flex-col items-center justify-center border-2 border-dashed border-indigo-500 rounded-xl m-4 pointer-events-none">
                                             <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-white mb-4 animate-bounce">
@@ -949,7 +1132,7 @@ const MessagesPage = () => {
                                                 const showDateSeparator = idx === 0 || new Date(messages[idx - 1].createdAt).toDateString() !== new Date(msg.createdAt).toDateString();
 
                                                 return (
-                                                    <div key={idx}>
+                                                    <div key={idx} id={`msg-${msg._id}`}>
                                                         {showDateSeparator && (
                                                             <div className="flex justify-center my-4">
                                                                 <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full">
@@ -962,6 +1145,12 @@ const MessagesPage = () => {
                                                                 ? 'bg-blue-600 text-white rounded-br-none'
                                                                 : 'bg-slate-800 text-slate-200 rounded-bl-none'
                                                                 }`}>
+                                                                {msg.isPinned && (
+                                                                    <div className={`mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${isMe ? 'text-blue-100' : 'text-blue-400'}`}>
+                                                                        <Pin className="w-3 h-3 rotate-45" />
+                                                                        Pinned
+                                                                    </div>
+                                                                )}
                                                                 {msg.replyTo && (
                                                                     <div className={`mb-2 p-2 rounded-lg text-xs border-l-4 ${isMe ? 'bg-white/10 border-white/30 text-white/80' : 'bg-slate-900/50 border-blue-500/50 text-slate-400'}`}>
                                                                         <div className="font-bold mb-1 flex items-center gap-1">
@@ -998,7 +1187,59 @@ const MessagesPage = () => {
                                                                         {msg.content?.match(/(https?:\/\/[^\s]+)/g)?.map((url, i) => (
                                                                             <LinkPreview key={i} url={url} />
                                                                         ))}
+
+                                                                        {msg.isFlagged && !isMe && (
+                                                                            <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 animate-pulse">
+                                                                                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                                                                <div>
+                                                                                    <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider mb-1">Safety Warning</p>
+                                                                                    <p className="text-xs text-amber-200/80 leading-relaxed font-medium">
+                                                                                        {msg.flagReason || "This message was flagged as suspicious. Please avoid sharing sensitive info or moving off-platform."}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Reactions Display */}
+                                                                        {msg.reactions && msg.reactions.length > 0 && (
+                                                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                                                {msg.reactions.map((r, i) => (
+                                                                                    <button
+                                                                                        key={i}
+                                                                                        onClick={() => handleToggleReaction(msg._id, r.emoji)}
+                                                                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all ${r.userIds.includes(userId!)
+                                                                                                ? 'bg-blue-500/30 text-blue-200 border border-blue-500/50'
+                                                                                                : 'bg-slate-700/50 text-slate-400 border border-white/5'
+                                                                                            }`}
+                                                                                        title={r.userIds.length > 0 ? "Users: " + r.userIds.join(', ') : ""}
+                                                                                    >
+                                                                                        <span>{r.emoji}</span>
+                                                                                        <span className="font-bold">{r.userIds.length}</span>
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+
                                                                         <div className="flex gap-2 mt-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <div className="relative group/react">
+                                                                                <button
+                                                                                    className={`p-1 hover:text-white ${isMe ? 'text-blue-200' : 'text-slate-400'}`}
+                                                                                    title="React"
+                                                                                >
+                                                                                    <Smile className="w-3 h-3" />
+                                                                                </button>
+                                                                                <div className="absolute bottom-full right-0 mb-1 hidden group-hover/react:flex bg-slate-800 border border-slate-700 rounded-full p-1 shadow-xl gap-1 z-50 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                                                                                    {['👍', '❤️', '😂', '😮', '😢', '🔥'].map(emoji => (
+                                                                                        <button
+                                                                                            key={emoji}
+                                                                                            onClick={() => handleToggleReaction(msg._id, emoji)}
+                                                                                            className="hover:scale-125 transition-transform px-1 py-0.5 text-sm"
+                                                                                        >
+                                                                                            {emoji}
+                                                                                        </button>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => handleReply(msg)}
@@ -1009,6 +1250,14 @@ const MessagesPage = () => {
                                                                             </button>
                                                                             {isMe && (
                                                                                 <>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleTogglePin(msg)}
+                                                                                        className={`p-1 hover:text-white ${isMe ? 'text-blue-200' : 'text-slate-400'}`}
+                                                                                        title={msg.isPinned ? "Unpin Message" : "Pin Message"}
+                                                                                    >
+                                                                                        <Pin className={`w-3 h-3 ${msg.isPinned ? 'text-blue-300 fill-blue-300' : ''}`} />
+                                                                                    </button>
                                                                                     <button
                                                                                         type="button"
                                                                                         onClick={() => handleEditMessage(msg._id, msg.content)}
@@ -1209,6 +1458,67 @@ const MessagesPage = () => {
                 </div>
             )}
 
+            {/* Pinned Messages List Modal */}
+            {showPinnedList && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Pin className="w-4 h-4 text-indigo-400 rotate-45" />
+                                <h3 className="text-sm font-bold text-white uppercase tracking-widest">Pinned Messages</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowPinnedList(false)}
+                                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
+                            {pinnedMessages.map((msg) => (
+                                <div
+                                    key={msg._id}
+                                    className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 group hover:border-indigo-500/30 transition-all"
+                                >
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-slate-300 line-clamp-3 italic mb-2">"{msg.content}"</p>
+                                            <p className="text-[10px] text-slate-500 font-medium">
+                                                {new Date(msg.pinnedAt || msg.createdAt).toLocaleDateString()} at {new Date(msg.pinnedAt || msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                                onClick={() => {
+                                                    setShowPinnedList(false);
+                                                    const el = document.getElementById(`msg-${msg._id}`);
+                                                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                    el?.classList.add('bg-indigo-500/20');
+                                                    setTimeout(() => el?.classList.remove('bg-indigo-500/20'), 2000);
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
+                                                title="Go to message"
+                                            >
+                                                <Search className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleTogglePin(msg)}
+                                                className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                                                title="Unpin"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="p-4 bg-slate-800/20 border-t border-slate-800 flex justify-center">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{pinnedMessages.length} total pinned items</p>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Report Modal */}
             {isReportModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">

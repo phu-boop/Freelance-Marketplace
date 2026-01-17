@@ -13,7 +13,8 @@ import {
     Briefcase,
     Tags,
     Terminal,
-    DollarSign
+    DollarSign,
+    History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useKeycloak } from '@/components/KeycloakProvider';
@@ -24,6 +25,7 @@ const adminMenuItems = [
     { icon: Briefcase, label: 'Job Approval', href: '/admin/jobs' },
     { icon: ShieldAlert, label: 'Disputes', href: '/admin/disputes' },
     { icon: DollarSign, label: 'Payments & Escrow', href: '/admin/payments' },
+    { icon: History, label: 'Transaction Audit', href: '/admin/transactions' },
     { icon: Tags, label: 'Taxonomy', href: '/admin/taxonomy' },
     { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
     { icon: Terminal, label: 'System Logs', href: '/admin/logs' },

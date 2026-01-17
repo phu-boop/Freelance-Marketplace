@@ -418,4 +418,29 @@ export class ContractsController {
   getArbitration(@Param('caseId') caseId: string) {
     return this.contractsService.getArbitrationCase(caseId);
   }
+
+  @Get('approvals/pending')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:ADMIN', 'ADMIN'] })
+  listPendingApprovals(@Request() req, @Query('teamId') teamId?: string) {
+    const userId = req.user.sub;
+    return this.contractsService.listPendingApprovals(userId, teamId);
+  }
+
+  @Post(':id/approve-hire')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:ADMIN', 'ADMIN'] })
+  approveHire(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.contractsService.approveContract(id, userId);
+  }
+
+  @Post(':id/reject-hire')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:ADMIN', 'ADMIN'] })
+  rejectHire(
+    @Param('id') id: string,
+    @Body() data: { reason: string },
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.contractsService.rejectContract(id, userId, data.reason);
+  }
 }

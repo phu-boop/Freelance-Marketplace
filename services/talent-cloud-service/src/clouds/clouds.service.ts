@@ -28,11 +28,31 @@ export class CloudsService {
     }
 
     async addMember(cloudId: string, userId: string, role: 'ADMIN' | 'MEMBER' = 'MEMBER') {
-        const member = await this.prisma.talentCloudMember.create({
-            data: { cloudId, userId, role },
+        const member = await this.prisma.talentCloudMember.upsert({
+            where: { cloudId_userId: { cloudId, userId } },
+            update: { role },
+            create: { cloudId, userId, role },
         });
-        await this.notifyUserService(userId, { isCloudMember: true, cloudId });
+        await this.notifyUserService(userId, { isCloudMember: true, cloudId }).catch(() => { });
         return member;
+    }
+
+    async addMembersBulk(cloudId: string, userIds: string[], role: 'ADMIN' | 'MEMBER' = 'MEMBER') {
+        const operations = userIds.map(userId =>
+            this.prisma.talentCloudMember.upsert({
+                where: { cloudId_userId: { cloudId, userId } },
+                update: { role },
+                create: { cloudId, userId, role }
+            })
+        );
+        const results = await Promise.all(operations);
+
+        // Notify all in parallel
+        await Promise.all(userIds.map(userId =>
+            this.notifyUserService(userId, { isCloudMember: true, cloudId }).catch(() => { })
+        ));
+
+        return { count: results.length };
     }
 
     async removeMember(cloudId: string, userId: string) {

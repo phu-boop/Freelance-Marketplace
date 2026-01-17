@@ -8,6 +8,7 @@ import {
     OnGatewayConnection,
     OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { OnModuleInit } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { ChatsService } from './chats.service';
 import { CreateChatDto } from './dto/create-chat.dto';
@@ -18,7 +19,7 @@ import { CreateChatDto } from './dto/create-chat.dto';
     },
 })
 export class ChatGateway
-    implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+    implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
     @WebSocketServer() server: Server;
 
     constructor(private readonly chatsService: ChatsService) { }
@@ -32,6 +33,18 @@ export class ChatGateway
 
     afterInit(server: Server) {
         console.log('ChatGateway Initialized');
+    }
+
+    onModuleInit() {
+        this.chatsService.messageUpdated$.subscribe(message => {
+            const room = [message.senderId, message.receiverId].sort().join('_');
+            this.server.to(room).emit('messageUpdated', message);
+
+            // Also emit if there's a contract room
+            if ((message as any).contractId) {
+                this.server.to((message as any).contractId).emit('messageUpdated', message);
+            }
+        });
     }
 
     handleConnection(client: Socket, ...args: any[]) {
@@ -249,5 +262,47 @@ export class ChatGateway
     ) {
         const room = [data.senderId, data.receiverId].sort().join('_');
         this.server.to(room).emit('stopTyping', { senderId: data.senderId });
+    }
+
+    @SubscribeMessage('pinMessage')
+    async handlePinMessage(
+        @MessageBody() data: { messageId: string; senderId: string; receiverId: string },
+    ) {
+        const message = await this.chatsService.togglePin(data.messageId);
+        const room = [data.senderId, data.receiverId].sort().join('_');
+        this.server.to(room).emit('messagePinned', message);
+        return message;
+    }
+
+    @SubscribeMessage('getPinnedMessages')
+    async handleGetPinnedMessages(
+        @MessageBody() data: { senderId: string; receiverId: string },
+    ) {
+        return this.chatsService.getPinnedByConversation(data.senderId, data.receiverId);
+    }
+
+    @SubscribeMessage('toggleReaction')
+    async handleToggleReaction(
+        @MessageBody()
+        data: {
+            messageId: string;
+            userId: string;
+            emoji: string;
+            receiverId: string;
+        },
+    ) {
+        const message = await this.chatsService.toggleReaction(
+            data.messageId,
+            data.userId,
+            data.emoji,
+        );
+        if (message) {
+            const room = [data.userId, data.receiverId].sort().join('_');
+            this.server.to(room).emit('messageUpdated', message);
+            if ((message as any).contractId) {
+                this.server.to((message as any).contractId).emit('messageUpdated', message);
+            }
+        }
+        return message;
     }
 }

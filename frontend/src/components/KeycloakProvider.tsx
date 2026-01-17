@@ -99,6 +99,11 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
         initRef.current = true;
 
         if (typeof window !== 'undefined' && keycloak) {
+            console.log('[AUTH] Initializing Keycloak with config:', {
+                url: keycloak.authServerUrl,
+                realm: keycloak.realm,
+                clientId: keycloak.clientId
+            });
             keycloak
                 .init({
                     onLoad: 'check-sso',

@@ -9,8 +9,6 @@ import {
     OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { NotificationsService } from './notifications.service';
-
 @WebSocketGateway({
     cors: {
         origin: '*',
@@ -20,7 +18,7 @@ export class NotificationGateway
     implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
     @WebSocketServer() server: Server;
 
-    constructor(private readonly notificationsService: NotificationsService) { }
+    constructor() { }
 
     afterInit(server: Server) {
         console.log('NotificationGateway Initialized');

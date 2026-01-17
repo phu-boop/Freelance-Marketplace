@@ -1911,6 +1911,48 @@ export class JobsService {
     return invitation;
   }
 
+  async createInvitationsBulk(clientId: string, dto: { jobId: string; freelancerIds: string[]; message?: string }) {
+    const job = await this.prisma.job.findUnique({ where: { id: dto.jobId } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.client_id !== clientId) throw new ForbiddenException('You can only invite to your own jobs');
+
+    const createdInvitations: any[] = [];
+    for (const freelancerId of dto.freelancerIds) {
+      // Check if already invited
+      const existing = await this.prisma.jobInvitation.findFirst({
+        where: {
+          jobId: dto.jobId,
+          freelancerId
+        }
+      });
+
+      if (!existing) {
+        const invitation = await this.prisma.jobInvitation.create({
+          data: {
+            jobId: dto.jobId,
+            freelancerId,
+            clientId,
+            message: dto.message || `Hi, I'd like to invite you to apply for my job: ${job.title}`,
+            status: 'PENDING'
+          }
+        });
+        createdInvitations.push(invitation);
+
+        // Notify Freelancer
+        await this.sendNotification(
+          freelancerId,
+          'JOB_INVITATION',
+          'New Job Invitation',
+          `You have been invited to apply for job: ${job.title}`,
+          `/jobs/${job.id}?invited=${invitation.id}`,
+          { invitationId: invitation.id, jobId: job.id }
+        ).catch(err => this.logger.error(`Failed to notify freelancer ${freelancerId}: ${err.message}`));
+      }
+    }
+
+    return { count: createdInvitations.length, invitations: createdInvitations };
+  }
+
   async getFreelancerInvitations(freelancerId: string) {
     return this.prisma.jobInvitation.findMany({
       where: { freelancerId, status: 'PENDING' },

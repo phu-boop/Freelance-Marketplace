@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,6 +26,8 @@ import {
     BadgeCheck,
     Settings,
     CreditCard,
+    Clock,
+    Sparkles,
     DollarSign as BudgetIcon
 } from 'lucide-react';
 import axios from 'axios';
@@ -68,6 +70,7 @@ export default function CloudDetailPage() {
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
+    const [spendData, setSpendData] = useState<{ totalSpend: number; monthlySpend: any[] } | null>(null);
 
     // Invite Talent State
     const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -92,6 +95,16 @@ export default function CloudDetailPage() {
                 costCenter: cloudRes.data.costCenter || '',
                 budget: cloudRes.data.budget || 0
             });
+
+            // Fetch Financials if cost center exists
+            if (cloudRes.data.costCenter) {
+                try {
+                    const spendRes = await axios.get(`/api/analytics/cost-center/${cloudRes.data.costCenter}/spend`);
+                    setSpendData(spendRes.data);
+                } catch (sErr) {
+                    console.error('Failed to fetch spend data:', sErr);
+                }
+            }
         } catch (err) {
             console.error('Failed to fetch cloud details:', err);
             toast.error('Failed to load talent cloud details');
@@ -159,6 +172,13 @@ export default function CloudDetailPage() {
         m.userProfile?.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.userId.includes(searchQuery)
     );
+
+    const projectedBurnRate = useMemo(() => {
+        return members.reduce((acc, m) => {
+            const rate = (m as any).userProfile?.hourlyRate || 0;
+            return acc + (Number(rate) * 160); // Standard 160h month
+        }, 0);
+    }, [members]);
 
     if (loading) {
         return <div className="p-8 text-center text-slate-400">Loading Cloud details...</div>;
@@ -363,6 +383,78 @@ export default function CloudDetailPage() {
                         </Dialog>
                     </div>
                 </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="bg-slate-900 border-slate-800 shadow-xl overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Users className="w-16 h-16 text-blue-500" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardDescription className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Total Members</CardDescription>
+                        <CardTitle className="text-3xl text-white font-extrabold">{members.length}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-xs text-blue-400 font-medium flex items-center gap-1">
+                            <BadgeCheck className="w-3 h-3" />
+                            100% Vetted Talent
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-slate-900 border-slate-800 shadow-xl overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <CreditCard className="w-16 h-16 text-purple-500" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardDescription className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Cost Center</CardDescription>
+                        <CardTitle className="text-3xl text-white font-extrabold">{cloud.costCenter || 'N/A'}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-xs text-purple-400 font-medium flex items-center gap-1">
+                            <Shield className="w-3 h-3" />
+                            Financial Metadata Linked
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-slate-900 border-slate-800 shadow-xl overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <BudgetIcon className="w-16 h-16 text-emerald-500" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardDescription className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Annual Budget</CardDescription>
+                        <CardTitle className="text-3xl text-white font-extrabold">${(cloud.budget || 0).toLocaleString()}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full mt-1 overflow-hidden">
+                            <div
+                                className="bg-emerald-500 h-full transition-all duration-1000"
+                                style={{ width: `${Math.min(100, (spendData?.totalSpend || 0) / (cloud.budget || 1) * 100)}%` }}
+                            />
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-2 flex justify-between font-bold">
+                            <span>${(spendData?.totalSpend || 0).toLocaleString()} SPENT</span>
+                            <span>{Math.round((spendData?.totalSpend || 0) / (cloud.budget || 1) * 100)}% UTILIZED</span>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-slate-900 border-slate-800 shadow-xl overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Clock className="w-16 h-16 text-amber-500" />
+                    </div>
+                    <CardHeader className="pb-2">
+                        <CardDescription className="text-slate-500 uppercase text-[10px] font-bold tracking-widest">Monthly Burn (est.)</CardDescription>
+                        <CardTitle className="text-3xl text-white font-extrabold">${projectedBurnRate.toLocaleString()}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-xs text-amber-400 font-medium flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            Based on 160h/month per member
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="flex items-center justify-between bg-slate-900/50 p-4 rounded-2xl border border-slate-800 backdrop-blur-sm">

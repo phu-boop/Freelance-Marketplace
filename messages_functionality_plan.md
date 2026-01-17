@@ -106,3 +106,4 @@ This document outlines the comprehensive plan for enhancing the messaging functi
 2.  **Phase 2: Media:** File uploads and emoji picker. [x] DONE
 3.  **Phase 3: Experience:** Message editing, replying, and read receipts. [x] DONE
 4.  **Phase 4: Advanced:** Video/Voice calls and global search. [x] DONE (Calls implemented, Global search inside chat done)
+5.  **Phase 5: Productivity & Safety:** Global message content search, message pinning, and automated safety warnings. [x] DONE

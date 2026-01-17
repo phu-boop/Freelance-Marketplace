@@ -289,6 +289,7 @@ export class PaymentsService {
     referenceId?: string,
     teamId?: string,
     departmentId?: string,
+    costCenter?: string,
   ) {
     const fromWallet = await this.getWallet(fromUserId);
     const toWallet = await this.getWallet(toUserId);
@@ -335,6 +336,7 @@ export class PaymentsService {
           description: `Payment to ${toUserId}: ${description}`,
           referenceId,
           departmentId,
+          costCenter,
         },
       });
 
@@ -362,7 +364,20 @@ export class PaymentsService {
         netAmount,
         description,
         referenceId,
+        costCenter,
       );
+
+      // Log to Analytics Service for Dashboarding
+      await this.logToAnalytics({
+        userId: toUserId, // Freelancer
+        counterpartyId: fromUserId, // Client
+        amount: Number(netAmount),
+        currency: 'USD',
+        category: 'Earnings',
+        jobId: referenceId || '',
+        transactionId: senderTx.id,
+        costCenter: costCenter,
+      });
 
       await this.logFinancialEvent({
         service: 'payment-service',
@@ -382,6 +397,77 @@ export class PaymentsService {
 
       return { success: true, invoiceId: invoice.id };
     });
+  }
+
+  async getTransactionById(id: string) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id },
+      include: {
+        wallet: true,
+        invoice: true,
+      },
+    });
+
+    if (!transaction) throw new NotFoundException('Transaction not found');
+    return transaction;
+  }
+
+  async listTransactions(
+    userId?: string,
+    opts: { limit?: number; offset?: number; type?: string; status?: string } = {},
+  ) {
+    const { limit = 20, offset = 0, type, status } = opts;
+
+    const where: any = {};
+    if (userId) {
+      where.wallet = { userId };
+    }
+
+    if (type) where.type = type;
+    if (status) where.status = status;
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.findMany({
+        where,
+        take: Number(limit),
+        skip: Number(offset),
+        include: {
+          invoice: true,
+          wallet: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return { total, data };
+  }
+
+  async updateTransactionStatus(id: string, status: string) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id },
+    });
+
+    if (!transaction) throw new NotFoundException('Transaction not found');
+
+    const updated = await this.prisma.transaction.update({
+      where: { id },
+      data: { status },
+    });
+
+    await this.logFinancialEvent({
+      service: 'payment-service',
+      eventType: 'TRANSACTION_STATUS_UPDATED',
+      actorId: 'admin', // Should potentially pass the admin ID
+      amount: Number(transaction.amount),
+      referenceId: transaction.id,
+      metadata: {
+        previousStatus: transaction.status,
+        newStatus: status,
+      },
+    });
+
+    return updated;
   }
 
   async getTransactionsByReference(referenceId: string) {
@@ -787,7 +873,7 @@ export class PaymentsService {
   // Escrow Logic
   async fundEscrow(
     userId: string,
-    data: { contractId: string; milestoneId: string; amount: number },
+    data: { contractId: string; milestoneId: string; amount: number; costCenter?: string },
   ) {
     const wallet = await this.getWallet(userId);
     if (Number(wallet.balance) < data.amount) {
@@ -808,6 +894,7 @@ export class PaymentsService {
           amount: new Decimal(data.amount),
           type: 'DESCROW_FUND',
           status: 'COMPLETED',
+          costCenter: data.costCenter,
           description: `Escrow Fund for Contract ${data.contractId} Milestone ${data.milestoneId}`,
         },
       });
@@ -820,6 +907,7 @@ export class PaymentsService {
           contractId: data.contractId,
           milestoneId: data.milestoneId,
           amount: new Decimal(data.amount),
+          costCenter: data.costCenter,
           status: 'HELD',
         },
       });
@@ -902,6 +990,7 @@ export class PaymentsService {
           amount: hold.amount,
           type: 'ESCROW_RELEASE',
           status: 'COMPLETED',
+          costCenter: (hold as any).costCenter,
           description: `Escrow Release for Contract ${contractId} Milestone ${milestoneId}`,
         },
       });
@@ -1495,6 +1584,7 @@ export class PaymentsService {
     netAmount: number,
     description: string,
     referenceId?: string,
+    costCenter?: string,
   ) {
     const toWallet = await this.getWallet(toUserId);
     const clearingDate = new Date();
@@ -1538,6 +1628,7 @@ export class PaymentsService {
         clearedAt: clearingDate,
         description: `Payment from ${fromUserId}: ${description}`,
         referenceId,
+        costCenter,
         invoiceId: invoice.id,
       } as any,
     });
@@ -1639,6 +1730,7 @@ export class PaymentsService {
         category: 'Earnings',
         jobId: tx.referenceId || '', // Assuming referenceId links to job/contract
         transactionId: transactionId,
+        costCenter: tx.costCenter || '',
       });
 
       return { success: true, status: 'APPROVED', invoiceId: invoice.id };
@@ -1665,6 +1757,7 @@ export class PaymentsService {
     category: string;
     jobId: string;
     transactionId: string;
+    costCenter?: string;
   }) {
     const analyticsUrl = this.configService.get<string>(
       'ANALYTICS_SERVICE_URL',
@@ -1672,7 +1765,10 @@ export class PaymentsService {
     );
     try {
       await firstValueFrom(
-        this.httpService.post(`${analyticsUrl}/api/analytics/financials`, data),
+        this.httpService.post(`${analyticsUrl}/api/analytics/financials`, {
+          ...data,
+          cost_center: data.costCenter, // Map camelCase to snake_case for Python API
+        }),
       );
     } catch (error) {
       this.logger.error(

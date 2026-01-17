@@ -15,6 +15,9 @@ import {
 import { PaymentsService } from './payments.service';
 import { Roles, Public } from 'nest-keycloak-connect';
 import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
+import { GetTransactionDto } from './dto/get-transaction.dto';
+import { ListTransactionsDto } from './dto/list-transactions.dto';
+import { UpdateTransactionStatusDto } from './dto/update-transaction-status.dto';
 
 @Controller('api/payments')
 export class PaymentsController {
@@ -71,13 +74,31 @@ export class PaymentsController {
     return this.paymentsService.withdraw(req.user.sub, body.amount, body.instant || false);
   }
 
-  @Get('transactions')
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
-  getTransactions(@Request() req) {
-    // Assuming we want transactions for the logged in user
-    // The service has getAllTransactions(limit, offset) but doesn't seem to have getTransactionsByUserId on first glance
-    // Let's check wallet transactions
-    return this.paymentsService.getWallet(req.user.sub).then((wallet: any) => wallet.transactions);
+  @Get('transactions')
+  async getTransactions(@Query() query: ListTransactionsDto, @Request() req) {
+    return this.paymentsService.listTransactions(req.user.sub, query);
+  }
+
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  @Get('transactions/:id')
+  async getTransaction(@Param('id') id: string) {
+    return this.paymentsService.getTransactionById(id);
+  }
+
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Patch('transactions/:id')
+  async updateTransactionStatus(
+    @Param('id') id: string,
+    @Body() body: UpdateTransactionStatusDto,
+  ) {
+    return this.paymentsService.updateTransactionStatus(id, body.status);
+  }
+
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Get('admin/transactions')
+  async getAllTransactionsAdmin(@Query() query: ListTransactionsDto) {
+    return this.paymentsService.listTransactions(undefined, query);
   }
 
   @Post('methods')
@@ -190,5 +211,32 @@ export class PaymentsController {
       periodStart: new Date(body.periodStart),
       periodEnd: new Date(body.periodEnd),
     });
+  }
+
+  @Post('transfer')
+  @Public() // Internal or restricted, but contract-service needs it
+  transfer(
+    @Body()
+    body: {
+      fromUserId: string;
+      toUserId: string;
+      amount: number;
+      description: string;
+      referenceId?: string;
+      teamId?: string;
+      departmentId?: string;
+      costCenter?: string;
+    },
+  ) {
+    return this.paymentsService.transfer(
+      body.fromUserId,
+      body.toUserId,
+      body.amount,
+      body.description,
+      body.referenceId,
+      body.teamId,
+      body.departmentId,
+      body.costCenter,
+    );
   }
 }

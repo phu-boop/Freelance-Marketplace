@@ -34,7 +34,8 @@ model TalentCloudMember {
   metadata    Json?
   
   cloud       TalentCloud @relation(fields: [cloudId], references: [id])
-
+  
+  @@unique([cloudId, userId])
   @@schema("talent_clouds")
 }
 

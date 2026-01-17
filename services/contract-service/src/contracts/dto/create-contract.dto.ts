@@ -47,6 +47,9 @@ export class CreateContractDto {
   departmentId?: string;
 
   @IsOptional()
+  costCenter?: string;
+
+  @IsOptional()
   customClauses?: any; // JSON array
 
   @IsString()

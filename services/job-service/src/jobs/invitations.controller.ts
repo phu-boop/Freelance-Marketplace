@@ -14,6 +14,13 @@ export class InvitationsController {
         return this.jobsService.createInvitation(clientId, createInvitationDto);
     }
 
+    @Post('bulk')
+    @Roles({ roles: ['realm:CLIENT'] })
+    async createBulk(@Request() req, @Body() body: { jobId: string; freelancerIds: string[]; message?: string }) {
+        const clientId = req.user.sub;
+        return this.jobsService.createInvitationsBulk(clientId, body);
+    }
+
     @Get('freelancer')
     @Roles({ roles: ['realm:FREELANCER'] })
     async getForFreelancer(@Request() req) {

@@ -146,6 +146,7 @@ export class ContractsService {
 
       agencyId: agencyId as string,
       departmentId: departmentId as string,
+      costCenter: rest.costCenter as string,
       customClauses: customClauses || undefined,
       status,
       ...rest,
@@ -491,6 +492,7 @@ export class ContractsService {
             contractId,
             milestoneId: milestone.id,
             amount: Number(milestone.amount),
+            costCenter: (contract as any).costCenter,
           },
           {
             headers: { Authorization: token },
@@ -1763,5 +1765,53 @@ export class ContractsService {
       this.logger.error(`Timezone suggestion failed: ${err.message}`);
       return { suggestedSlots: [] };
     }
+  }
+
+  async rejectContract(contractId: string, userId: string, reason: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+      include: { approvalParams: true },
+    });
+    if (!contract) throw new NotFoundException('Contract not found');
+    if (contract.status !== 'PENDING_APPROVAL')
+      throw new ConflictException('Contract is not pending approval');
+
+    await this.prisma.contract.update({
+      where: { id: contractId },
+      data: { status: 'REJECTED' },
+    });
+
+    if (contract.approvalParams) {
+      await this.prisma.contractApprovalRequest.update({
+        where: { id: contract.approvalParams.id },
+        data: {
+          status: 'REJECTED',
+          decidedBy: userId,
+          decidedAt: new Date(),
+          reason,
+        },
+      });
+    }
+
+    return { message: 'Contract rejected' };
+  }
+
+  async listPendingApprovals(userId: string, teamId?: string) {
+    const where: any = {
+      status: 'PENDING',
+    };
+
+    if (teamId) {
+      where.contract = {
+        agencyId: teamId,
+      };
+    }
+
+    return this.prisma.contractApprovalRequest.findMany({
+      where,
+      include: {
+        contract: true,
+      },
+    });
   }
 }

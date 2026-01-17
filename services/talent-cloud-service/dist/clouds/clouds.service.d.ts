@@ -30,6 +30,9 @@ export declare class CloudsService {
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
         cloudId: string;
     }>;
+    addMembersBulk(cloudId: string, userIds: string[], role?: 'ADMIN' | 'MEMBER'): Promise<{
+        count: number;
+    }>;
     removeMember(cloudId: string, userId: string): Promise<{
         success: boolean;
     }>;

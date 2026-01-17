@@ -18,6 +18,7 @@ model Contract {
   proposal_id   String   // Proposal ID from Proposal Service
   agencyId      String?  // Optional: linked agency ID
   departmentId  String?  // Optional: linked department ID
+  costCenter    String?  // Optional: linked cost center for budgeting
   attachments   String[] // Array of file names
   progress      Int      @default(0)
   totalAmount   Decimal
@@ -66,8 +67,10 @@ model ContractApprovalRequest {
   decidedBy   String?  // User ID
   decidedAt   DateTime?
   reason      String?  // Rejection reason
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  requiredRoles String[] @default([]) // Roles needed for approval
+  approvals     Json?    @default("[]") // Array of { role, userId, approvedAt }
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@schema("contracts")
 }

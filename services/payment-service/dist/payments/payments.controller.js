@@ -17,6 +17,8 @@ const common_1 = require("@nestjs/common");
 const payments_service_1 = require("./payments.service");
 const nest_keycloak_connect_1 = require("nest-keycloak-connect");
 const update_auto_withdrawal_dto_1 = require("./dto/update-auto-withdrawal.dto");
+const list_transactions_dto_1 = require("./dto/list-transactions.dto");
+const update_transaction_status_dto_1 = require("./dto/update-transaction-status.dto");
 let PaymentsController = class PaymentsController {
     paymentsService;
     constructor(paymentsService) {
@@ -46,8 +48,17 @@ let PaymentsController = class PaymentsController {
     withdraw(req, body) {
         return this.paymentsService.withdraw(req.user.sub, body.amount, body.instant || false);
     }
-    getTransactions(req) {
-        return this.paymentsService.getWallet(req.user.sub).then((wallet) => wallet.transactions);
+    async getTransactions(query, req) {
+        return this.paymentsService.listTransactions(req.user.sub, query);
+    }
+    async getTransaction(id) {
+        return this.paymentsService.getTransactionById(id);
+    }
+    async updateTransactionStatus(id, body) {
+        return this.paymentsService.updateTransactionStatus(id, body.status);
+    }
+    async getAllTransactionsAdmin(query) {
+        return this.paymentsService.listTransactions(undefined, query);
     }
     addWithdrawalMethod(req, body) {
         return this.paymentsService.addWithdrawalMethod(req.user.sub, body);
@@ -85,6 +96,9 @@ let PaymentsController = class PaymentsController {
             periodStart: new Date(body.periodStart),
             periodEnd: new Date(body.periodEnd),
         });
+    }
+    transfer(body) {
+        return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description, body.referenceId, body.teamId, body.departmentId, body.costCenter);
     }
 };
 exports.PaymentsController = PaymentsController;
@@ -154,13 +168,39 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "withdraw", null);
 __decorate([
-    (0, common_1.Get)('transactions'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
+    (0, common_1.Get)('transactions'),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [list_transactions_dto_1.ListTransactionsDto, Object]),
+    __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getTransactions", null);
+__decorate([
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
+    (0, common_1.Get)('transactions/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "getTransaction", null);
+__decorate([
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
+    (0, common_1.Patch)('transactions/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_transaction_status_dto_1.UpdateTransactionStatusDto]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "updateTransactionStatus", null);
+__decorate([
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
+    (0, common_1.Get)('admin/transactions'),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [list_transactions_dto_1.ListTransactionsDto]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "getAllTransactionsAdmin", null);
 __decorate([
     (0, common_1.Post)('methods'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
@@ -253,6 +293,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "processPayroll", null);
+__decorate([
+    (0, common_1.Post)('transfer'),
+    (0, nest_keycloak_connect_1.Public)(),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "transfer", null);
 exports.PaymentsController = PaymentsController = __decorate([
     (0, common_1.Controller)('api/payments'),
     __metadata("design:paramtypes", [payments_service_1.PaymentsService])

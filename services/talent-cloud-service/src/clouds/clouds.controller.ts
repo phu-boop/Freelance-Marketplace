@@ -15,6 +15,11 @@ export class CloudsController {
         return this.cloudsService.addMember(cloudId, dto.userId, dto.role);
     }
 
+    @Post(':cloudId/members/bulk')
+    async addMembersBulk(@Param('cloudId') cloudId: string, @Body() dto: { userIds: string[]; role?: 'ADMIN' | 'MEMBER' }) {
+        return this.cloudsService.addMembersBulk(cloudId, dto.userIds, dto.role);
+    }
+
     @Delete(':cloudId/members/:userId')
     async removeMember(@Param('cloudId') cloudId: string, @Param('userId') userId: string) {
         return this.cloudsService.removeMember(cloudId, userId);
