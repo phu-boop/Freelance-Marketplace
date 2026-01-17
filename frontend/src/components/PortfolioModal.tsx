@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Upload, Image as ImageIcon } from 'lucide-react';
 import api from '@/lib/api';
+import { getPublicUrl } from '@/lib/utils';
 
 interface PortfolioModalProps {
     isOpen: boolean;
@@ -23,6 +24,7 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
         imageUrl: '',
         projectUrl: ''
     });
+    const [previewUrl, setPreviewUrl] = useState('');
 
     useEffect(() => {
         if (initialData) {
@@ -32,6 +34,7 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
                 imageUrl: initialData.imageUrl || '',
                 projectUrl: initialData.projectUrl || ''
             });
+            setPreviewUrl(initialData.imageUrl ? getPublicUrl(initialData.imageUrl) : '');
         } else {
             setFormData({
                 title: '',
@@ -39,6 +42,7 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
                 imageUrl: '',
                 projectUrl: ''
             });
+            setPreviewUrl('');
         }
     }, [initialData, isOpen]);
 
@@ -46,19 +50,28 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Create local preview
+        const localUrl = URL.createObjectURL(file);
+        setPreviewUrl(localUrl);
+
         setUploading(true);
-        const formData = new FormData();
-        formData.append('file', file);
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', file);
 
         try {
-            const response = await api.post('/storage/upload', formData, {
+            const response = await api.post('/storage/upload', uploadFormData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             const { fileName } = response.data;
             const urlResponse = await api.get(`/storage/url/${fileName}`);
-            setFormData(prev => ({ ...prev, imageUrl: urlResponse.data.url }));
+            const absoluteUrl = urlResponse.data.url;
+            setFormData(prev => ({ ...prev, imageUrl: absoluteUrl }));
+            // Update preview to the public URL once uploaded
+            setPreviewUrl(getPublicUrl(absoluteUrl));
         } catch (error) {
             console.error('Upload failed', error);
+            alert('Upload failed. Please try again.');
+            setPreviewUrl(initialData?.imageUrl ? getPublicUrl(initialData.imageUrl) : '');
         } finally {
             setUploading(false);
         }
@@ -121,9 +134,9 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
                                 onClick={() => fileInputRef.current?.click()}
                                 className="relative h-48 rounded-2xl border-2 border-dashed border-slate-800 hover:border-blue-500/50 bg-slate-800/50 flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden group"
                             >
-                                {formData.imageUrl ? (
+                                {previewUrl ? (
                                     <>
-                                        <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                        <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
                                         <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
                                             <Upload className="w-8 h-8 text-white" />
                                         </div>

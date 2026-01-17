@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
     Briefcase,
@@ -48,29 +48,41 @@ interface Job {
 export default function JobDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
-    const { authenticated, login } = useKeycloak();
+    const searchParams = useSearchParams();
+    const invitationId = searchParams.get('invited');
+    const { authenticated, login, userId } = useKeycloak();
     const [job, setJob] = useState<Job | null>(null);
+    const [invitation, setInvitation] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
-        const fetchJob = async () => {
+        const fetchData = async () => {
             try {
-                // Use /api/jobs/:id if /jobs/:id doesn't match
-                const response = await api.get(`/jobs/${id}`);
-                setJob(response.data);
+                const [jobRes, invRes] = await Promise.all([
+                    api.get(`/jobs/${id}`),
+                    invitationId ? api.get(`/invitations/freelancer`) : Promise.resolve({ data: [] })
+                ]);
+
+                setJob(jobRes.data);
+
+                if (invitationId && invRes.data) {
+                    const inv = invRes.data.find((i: any) => i.id === invitationId);
+                    setInvitation(inv);
+                }
+
                 setError(null);
             } catch (err) {
-                console.error('Failed to fetch job details', err);
+                console.error('Failed to fetch details', err);
                 setError('Could not find the job you are looking for.');
             } finally {
                 setLoading(false);
             }
         };
 
-        if (id) fetchJob();
-    }, [id]);
+        if (id) fetchData();
+    }, [id, invitationId]);
 
     const handleApply = () => {
         if (!authenticated) {
@@ -134,6 +146,28 @@ export default function JobDetailsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-8">
+                        {invitation && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="p-6 rounded-3xl bg-blue-600/10 border border-blue-500/20 flex items-start gap-4 mb-8"
+                            >
+                                <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                                    <Info className="w-6 h-6 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="text-lg font-bold text-white">You're Invited!</h4>
+                                    <p className="text-blue-100/70 text-sm mt-1">
+                                        The client has invited you to apply for this job.
+                                        {invitation.message && (
+                                            <span className="block mt-2 p-3 bg-blue-500/5 rounded-xl italic text-blue-200">
+                                                "{invitation.message}"
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+                            </motion.div>
+                        )}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -215,7 +249,10 @@ export default function JobDetailsPage() {
                                 onClick={handleApply}
                                 className="w-full py-4 bg-white text-blue-600 rounded-2xl font-bold text-lg hover:bg-blue-50 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
                             >
-                                {authenticated ? 'Apply for this Job' : 'Sign in to Apply'}
+                                {authenticated
+                                    ? (invitationId ? 'Accept Invitation & Apply' : 'Apply for this Job')
+                                    : 'Sign in to Apply'
+                                }
                                 <CheckCircle2 className="w-5 h-5" />
                             </button>
 
@@ -266,6 +303,7 @@ export default function JobDetailsPage() {
                 onClose={() => setIsModalOpen(false)}
                 jobId={job.id}
                 jobTitle={job.title}
+                invitationId={invitationId || undefined}
             />
         </div>
     );

@@ -234,7 +234,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             userId: transaction.wallet.userId,
         };
     }
-    async transfer(fromUserId, toUserId, amount, description, referenceId, teamId, departmentId) {
+    async transfer(fromUserId, toUserId, amount, description, referenceId, teamId, departmentId, costCenter) {
         const fromWallet = await this.getWallet(fromUserId);
         const toWallet = await this.getWallet(toUserId);
         if (!fromWallet || !toWallet) {
@@ -268,6 +268,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     description: `Payment to ${toUserId}: ${description}`,
                     referenceId,
                     departmentId,
+                    costCenter,
                 },
             });
             if (status === 'PENDING_APPROVAL') {
@@ -284,7 +285,17 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     transactionId: senderTx.id,
                 };
             }
-            const invoice = await this.processRecipientCredit(prisma, fromUserId, toUserId, amount, feeAmount, netAmount, description, referenceId);
+            const invoice = await this.processRecipientCredit(prisma, fromUserId, toUserId, amount, feeAmount, netAmount, description, referenceId, costCenter);
+            await this.logToAnalytics({
+                userId: toUserId,
+                counterpartyId: fromUserId,
+                amount: Number(netAmount),
+                currency: 'USD',
+                category: 'Earnings',
+                jobId: referenceId || '',
+                transactionId: senderTx.id,
+                costCenter: costCenter,
+            });
             await this.logFinancialEvent({
                 service: 'payment-service',
                 eventType: 'TRANSFER_COMPLETED',
@@ -302,6 +313,66 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             });
             return { success: true, invoiceId: invoice.id };
         });
+    }
+    async getTransactionById(id) {
+        const transaction = await this.prisma.transaction.findUnique({
+            where: { id },
+            include: {
+                wallet: true,
+                invoice: true,
+            },
+        });
+        if (!transaction)
+            throw new common_1.NotFoundException('Transaction not found');
+        return transaction;
+    }
+    async listTransactions(userId, opts = {}) {
+        const { limit = 20, offset = 0, type, status } = opts;
+        const where = {};
+        if (userId) {
+            where.wallet = { userId };
+        }
+        if (type)
+            where.type = type;
+        if (status)
+            where.status = status;
+        const [total, data] = await this.prisma.$transaction([
+            this.prisma.transaction.count({ where }),
+            this.prisma.transaction.findMany({
+                where,
+                take: Number(limit),
+                skip: Number(offset),
+                include: {
+                    invoice: true,
+                    wallet: true,
+                },
+                orderBy: { createdAt: 'desc' },
+            }),
+        ]);
+        return { total, data };
+    }
+    async updateTransactionStatus(id, status) {
+        const transaction = await this.prisma.transaction.findUnique({
+            where: { id },
+        });
+        if (!transaction)
+            throw new common_1.NotFoundException('Transaction not found');
+        const updated = await this.prisma.transaction.update({
+            where: { id },
+            data: { status },
+        });
+        await this.logFinancialEvent({
+            service: 'payment-service',
+            eventType: 'TRANSACTION_STATUS_UPDATED',
+            actorId: 'admin',
+            amount: Number(transaction.amount),
+            referenceId: transaction.id,
+            metadata: {
+                previousStatus: transaction.status,
+                newStatus: status,
+            },
+        });
+        return updated;
     }
     async getTransactionsByReference(referenceId) {
         return this.prisma.transaction.findMany({
@@ -585,6 +656,16 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             catch (error) {
                 this.logger.error(`Failed to sync subscription status with user-service for user ${userId}: ${error.message}`);
             }
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'SUBSCRIPTION_FEE_PAID',
+                actorId: userId,
+                amount: data.price,
+                referenceId: sub.id,
+                metadata: {
+                    planId: data.planId,
+                },
+            });
             return sub;
         });
     }
@@ -604,19 +685,33 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     amount: new Decimal(data.amount),
                     type: 'DESCROW_FUND',
                     status: 'COMPLETED',
+                    costCenter: data.costCenter,
                     description: `Escrow Fund for Contract ${data.contractId} Milestone ${data.milestoneId}`,
                 },
             });
-            return prisma.escrowHold.create({
+            const hold = await prisma.escrowHold.create({
                 data: {
                     walletId: wallet.id,
                     transactionId: transaction.id,
                     contractId: data.contractId,
                     milestoneId: data.milestoneId,
                     amount: new Decimal(data.amount),
+                    costCenter: data.costCenter,
                     status: 'HELD',
                 },
             });
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'ESCROW_FUNDED',
+                actorId: userId,
+                amount: data.amount,
+                referenceId: data.milestoneId,
+                metadata: {
+                    contractId: data.contractId,
+                    holdId: hold.id,
+                },
+            });
+            return hold;
         });
     }
     async releaseEscrow(contractId, milestoneId, freelancerId) {
@@ -650,15 +745,69 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 where: { id: hold.id },
                 data: { status: 'RELEASED' },
             });
-            return prisma.transaction.create({
+            const tx = await prisma.transaction.create({
                 data: {
                     walletId: freelancerWallet.id,
                     amount: hold.amount,
                     type: 'ESCROW_RELEASE',
                     status: 'COMPLETED',
+                    costCenter: hold.costCenter,
                     description: `Escrow Release for Contract ${contractId} Milestone ${milestoneId}`,
                 },
             });
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'ESCROW_RELEASED',
+                actorId: freelancerId,
+                amount: Number(hold.amount),
+                referenceId: milestoneId,
+                metadata: {
+                    contractId,
+                    holdId: hold.id,
+                    transactionId: tx.id,
+                },
+            });
+            return tx;
+        });
+    }
+    async refundEscrow(contractId, milestoneId) {
+        const hold = await this.prisma.escrowHold.findFirst({
+            where: { contractId, milestoneId, status: 'HELD' },
+        });
+        if (!hold) {
+            throw new common_1.NotFoundException('No active escrow hold found for this milestone');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            await prisma.wallet.update({
+                where: { id: hold.walletId },
+                data: { balance: { increment: hold.amount } },
+            });
+            await prisma.escrowHold.update({
+                where: { id: hold.id },
+                data: { status: 'REFUNDED' },
+            });
+            const tx = await prisma.transaction.create({
+                data: {
+                    walletId: hold.walletId,
+                    amount: hold.amount,
+                    type: 'ESCROW_REFUND',
+                    status: 'COMPLETED',
+                    description: `Escrow Refund for Contract ${contractId} Milestone ${milestoneId}`,
+                },
+            });
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'ESCROW_REFUNDED',
+                actorId: hold.walletId,
+                amount: Number(hold.amount),
+                referenceId: milestoneId,
+                metadata: {
+                    contractId,
+                    holdId: hold.id,
+                    transactionId: tx.id,
+                },
+            });
+            return tx;
         });
     }
     async processPayroll(contractId, data) {
@@ -903,8 +1052,11 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
     }
     async logFinancialEvent(data) {
         const auditServiceUrl = this.configService.get('AUDIT_SERVICE_URL', 'http://audit-service:3011');
+        const auditSecret = this.configService.get('AUDIT_SECRET', 'fallback-secret');
         try {
-            await (0, rxjs_1.firstValueFrom)(this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data));
+            await (0, rxjs_1.firstValueFrom)(this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data, {
+                headers: { 'x-audit-secret': auditSecret }
+            }));
         }
         catch (error) {
             this.logger.error(`Failed to log financial event to audit-service: ${error.message}`);
@@ -1014,7 +1166,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 .map(([month, amount]) => ({ month, amount })),
         };
     }
-    async processRecipientCredit(prisma, fromUserId, toUserId, grossAmount, feeAmount, netAmount, description, referenceId) {
+    async processRecipientCredit(prisma, fromUserId, toUserId, grossAmount, feeAmount, netAmount, description, referenceId, costCenter) {
         const toWallet = await this.getWallet(toUserId);
         const clearingDate = new Date();
         clearingDate.setDate(clearingDate.getDate() + 5);
@@ -1054,6 +1206,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 clearedAt: clearingDate,
                 description: `Payment from ${fromUserId}: ${description}`,
                 referenceId,
+                costCenter,
                 invoiceId: invoice.id,
             },
         });
@@ -1118,6 +1271,16 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     transactionId,
                 },
             });
+            await this.logToAnalytics({
+                userId: toUserId,
+                counterpartyId: tx.wallet.userId,
+                amount: Number(netAmount),
+                currency: 'USD',
+                category: 'Earnings',
+                jobId: tx.referenceId || '',
+                transactionId: transactionId,
+                costCenter: tx.costCenter || '',
+            });
             return { success: true, status: 'APPROVED', invoiceId: invoice.id };
         });
     }
@@ -1128,6 +1291,18 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         });
         const totalSpend = transactions.reduce((acc, tx) => acc + Number(tx.amount), 0);
         return { departmentId, totalSpend: new Decimal(totalSpend) };
+    }
+    async logToAnalytics(data) {
+        const analyticsUrl = this.configService.get('ANALYTICS_SERVICE_URL', 'http://analytics-service:8000');
+        try {
+            await (0, rxjs_1.firstValueFrom)(this.httpService.post(`${analyticsUrl}/api/analytics/financials`, {
+                ...data,
+                cost_center: data.costCenter,
+            }));
+        }
+        catch (error) {
+            this.logger.error(`Failed to log financial event to analytics-service: ${error.message}`);
+        }
     }
 };
 exports.PaymentsService = PaymentsService;

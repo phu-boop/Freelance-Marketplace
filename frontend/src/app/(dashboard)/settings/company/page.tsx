@@ -17,6 +17,8 @@ import {
     LayoutDashboard
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import { getPublicUrl } from '@/lib/utils';
+import api from '@/lib/api';
 
 interface TeamMember {
     id: string;
@@ -56,12 +58,9 @@ export default function CompanyTeamPage() {
 
     const fetchTeams = async () => {
         try {
-            const resp = await fetch('/api/user/teams', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (resp.ok) {
-                const data = await resp.json();
-                setTeams(data);
+            const resp = await api.get('/user/teams');
+            if (resp.status === 200) {
+                setTeams(resp.data);
             }
         } catch (err) {
             console.error('Failed to fetch teams', err);
@@ -74,24 +73,16 @@ export default function CompanyTeamPage() {
         e.preventDefault();
         setError(null);
         try {
-            const resp = await fetch('/api/user/teams', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify(newTeam)
-            });
-            if (resp.ok) {
+            const resp = await api.post('/user/teams', newTeam);
+            if (resp.status === 201 || resp.status === 200) {
                 setShowCreateModal(false);
                 setNewTeam({ name: '', description: '' });
                 fetchTeams();
             } else {
-                const errData = await resp.json();
-                setError(errData.message || 'Failed to create organization');
+                setError(resp.data.message || 'Failed to create organization');
             }
-        } catch (err) {
-            setError('An error occurred. Please try again.');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'An error occurred. Please try again.');
         }
     };
 
@@ -152,7 +143,7 @@ export default function CompanyTeamPage() {
                             <div className="flex justify-between items-start mb-4">
                                 <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center border border-slate-700">
                                     {team.logoUrl ? (
-                                        <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover rounded-2xl" />
+                                        <img src={getPublicUrl(team.logoUrl)} alt={team.name} className="w-full h-full object-cover rounded-2xl" />
                                     ) : (
                                         <Building2 className="w-6 h-6 text-slate-400" />
                                     )}
@@ -179,7 +170,7 @@ export default function CompanyTeamPage() {
                                             title={`${m.user.firstName} ${m.user.lastName}`}
                                         >
                                             {m.user.avatarUrl ? (
-                                                <img src={m.user.avatarUrl} alt={m.user.firstName} className="w-full h-full rounded-full object-cover" />
+                                                <img src={getPublicUrl(m.user.avatarUrl)} alt={m.user.firstName} className="w-full h-full rounded-full object-cover" />
                                             ) : (
                                                 `${m.user.firstName[0]}${m.user.lastName[0]}`
                                             )}

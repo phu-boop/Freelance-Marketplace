@@ -4,9 +4,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Briefcase, Check, ArrowRight, Loader2, Globe, Phone, Award, Building2 } from 'lucide-react';
 import api from '@/lib/api';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Card } from './ui/Card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Card } from './ui/card';
 import { cn } from '@/lib/utils';
 
 interface OnboardingModalProps {

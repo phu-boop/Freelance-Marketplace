@@ -28,9 +28,9 @@ import {
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Card } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import Link from 'next/link';
 import { ExperienceList } from '@/components/profile/ExperienceList';

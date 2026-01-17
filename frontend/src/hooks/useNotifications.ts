@@ -14,13 +14,15 @@ interface Notification {
 }
 
 export const useNotifications = () => {
-    const { token, authenticated } = useKeycloak();
+    const { token, authenticated, userId } = useKeycloak();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [socket, setSocket] = useState<Socket | null>(null);
 
     useEffect(() => {
-        if (authenticated && token) {
+        if (authenticated && token && userId) {
+            console.log('Initializing socket connection to:', process.env.NEXT_PUBLIC_NOTIFICATION_URL || 'http://localhost:3007');
             const newSocket = io(process.env.NEXT_PUBLIC_NOTIFICATION_URL || 'http://localhost:3007', {
+                transports: ['websocket'],
                 auth: {
                     token: `Bearer ${token}`,
                 },
@@ -28,10 +30,15 @@ export const useNotifications = () => {
 
             newSocket.on('connect', () => {
                 console.log('Connected to notification service');
-                newSocket.emit('join', { userId: 'current-user-id' }); // In real app, get from token
+                newSocket.emit('joinNotifications', { userId });
             });
 
-            newSocket.on('notification', (notification: Notification) => {
+            newSocket.on('connect_error', (error) => {
+                console.error('Socket connection error:', error);
+            });
+
+            newSocket.on('newNotification', (notification: Notification) => {
+                console.log('Received notification:', notification);
                 setNotifications((prev) => [notification, ...prev]);
             });
 
@@ -41,7 +48,7 @@ export const useNotifications = () => {
                 newSocket.close();
             };
         }
-    }, [authenticated, token]);
+    }, [authenticated, token, userId]);
 
     return { notifications, socket };
 };

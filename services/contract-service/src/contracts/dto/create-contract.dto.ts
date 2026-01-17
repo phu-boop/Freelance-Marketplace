@@ -47,6 +47,9 @@ export class CreateContractDto {
   departmentId?: string;
 
   @IsOptional()
+  costCenter?: string;
+
+  @IsOptional()
   customClauses?: any; // JSON array
 
   @IsString()
@@ -56,4 +59,13 @@ export class CreateContractDto {
   @IsNumber()
   @IsOptional()
   eorFeePercentage?: number;
+
+  @IsOptional()
+  attachments?: string[];
+
+  @IsOptional()
+  progress?: number;
+
+  @IsOptional()
+  milestones?: any[];
 }

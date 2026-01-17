@@ -16,8 +16,11 @@ model Contract {
   freelancer_id String   // User ID from User Service
   client_id     String   // User ID from User Service
   proposal_id   String   // Proposal ID from Proposal Service
-  agencyId      String?  // Optional: linked agency/team ID
+  agencyId      String?  // Optional: linked agency ID
   departmentId  String?  // Optional: linked department ID
+  costCenter    String?  // Optional: linked cost center for budgeting
+  attachments   String[] // Array of file names
+  progress      Int      @default(0)
   totalAmount   Decimal
   status        String   @default("ACTIVE") // ACTIVE, COMPLETED, TERMINATED, DISPUTED, PENDING_APPROVAL
   type          String   @default("FREELANCE") // FREELANCE, EOR
@@ -64,8 +67,10 @@ model ContractApprovalRequest {
   decidedBy   String?  // User ID
   decidedAt   DateTime?
   reason      String?  // Rejection reason
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  requiredRoles String[] @default([]) // Roles needed for approval
+  approvals     Json?    @default("[]") // Array of { role, userId, approvedAt }
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@schema("contracts")
 }
@@ -161,6 +166,8 @@ model Milestone {
   contractId  String
   contract    Contract @relation(fields: [contractId], references: [id])
   submissions Submission[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   
   @@schema("contracts")
 }

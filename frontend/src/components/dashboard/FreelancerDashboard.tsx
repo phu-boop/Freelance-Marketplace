@@ -18,6 +18,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 
 import { OfferDetails } from './OfferDetails';
+import { ProfileCompleteness } from '../ProfileCompleteness';
 
 export function FreelancerDashboard({ user }: { user: any }) {
     const [proposals, setProposals] = React.useState<any[]>([]);
@@ -277,6 +278,8 @@ export function FreelancerDashboard({ user }: { user: any }) {
                                 Upgrade Now
                             </button>
                         </div>
+
+                        <ProfileCompleteness user={user} />
                     </div>
                 </div>
             </div>

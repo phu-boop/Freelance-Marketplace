@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Shield, CheckCircle2, AlertCircle, Clock, FileText } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Card } from '@/components/ui/Card';
+import { Card } from '@/components/ui/card';
 import { DocumentUpload } from '@/components/DocumentUpload';
 
 export default function VerificationSettingsPage() {

@@ -15,9 +15,9 @@ const nextConfig: NextConfig = {
         source: '/api/jobs/:path*',
         destination: 'http://localhost:3002/jobs/:path*', // Ensure /jobs prefix is kept
       },
-      { // Special case for flat job routes if any
-        source: '/jobs/:path*',
-        destination: 'http://localhost:3002/jobs/:path*',
+      {
+        source: '/api/invitations/:path*',
+        destination: 'http://localhost:3002/api/invitations/:path*', // Job Service
       },
       {
         source: '/storage/:path*',
@@ -26,6 +26,26 @@ const nextConfig: NextConfig = {
       {
         source: '/api/admin/:path*',
         destination: 'http://localhost:3009/:path*', // Admin Service
+      },
+      {
+        source: '/api/analytics/:path*',
+        destination: 'http://localhost:3014/api/analytics/:path*', // Analytics Service
+      },
+      {
+        source: '/api/payments/:path*',
+        destination: 'http://localhost:3005/api/payments/:path*', // Payment Service
+      },
+      {
+        source: '/api/clouds/:path*',
+        destination: 'http://localhost:3017/api/clouds/:path*', // Talent Cloud Service
+      },
+      {
+        source: '/api/search/:path*',
+        destination: 'http://localhost:3010/api/search/:path*', // Search Service
+      },
+      {
+        source: '/api/contracts/:path*',
+        destination: 'http://localhost:3004/api/contracts/:path*', // Contract Service
       },
     ];
   },

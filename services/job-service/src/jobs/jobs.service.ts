@@ -112,7 +112,7 @@ export class JobsService {
 
   async deleteCategory(id: string) {
     const result = await this.prisma.category.delete({ where: { id } });
-    await this.recordTombstone('Category', id);
+    await this.recordTombstone('Category', id, null);
     return result;
   }
 
@@ -221,7 +221,7 @@ export class JobsService {
   async trackEvent(eventType: string, userId: string, jobId?: string, metadata: any = {}) {
     try {
       const analyticsUrl = process.env.ANALYTICS_SERVICE_URL || 'http://analytics-service:3014';
-      await fetch(`${analyticsUrl}/analytics/events`, {
+      await fetch(`${analyticsUrl}/api/analytics/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -315,10 +315,11 @@ export class JobsService {
   }
 
   async remove(id: string) {
+    const job = await this.prisma.job.findUnique({ where: { id } });
     const result = await this.prisma.job.delete({
       where: { id }
     });
-    await this.recordTombstone('Job', id);
+    if (job) await this.recordTombstone('Job', id, job.client_id);
     return result;
   }
 
@@ -528,7 +529,7 @@ export class JobsService {
   async deleteSkill(id: string) {
     try {
       const result = await this.prisma.skill.delete({ where: { id } });
-      await this.recordTombstone('Skill', id);
+      await this.recordTombstone('Skill', id, null);
       return result;
     } catch (error) {
       if (error.code === 'P2025') {
@@ -761,6 +762,27 @@ export class JobsService {
         }
       });
 
+      // 6. Handle invitation if present
+      if (dto.invitationId) {
+        await tx.jobInvitation.updateMany({
+          where: {
+            id: dto.invitationId,
+            freelancerId: userId,
+            status: 'PENDING'
+          },
+          data: { status: 'ACCEPTED' }
+        });
+      }
+      // 7. Notify Client
+      await this.sendNotification(
+        job.client_id,
+        'NEW_PROPOSAL',
+        'New Proposal Received',
+        `A freelancer has submitted a proposal for "${job.title}"`,
+        `/client/jobs/${job.id}/proposals`,
+        { jobId: job.id, proposalId: proposal.id }
+      );
+
       // Trigger AI Screening in background
       this.aiService.autoScreenProposal(proposal.id).catch(err =>
         this.logger.error(`AI Screening failed for proposal ${proposal.id}: ${err.message}`)
@@ -895,28 +917,17 @@ export class JobsService {
     });
 
     // Send Notification
-    try {
-      // Use the internal docker service name and port 3007
-      const notificationUrl = 'http://notification-service:3007'; // Root path as per fix
-
-      await this.httpService.axiosRef.post(notificationUrl, {
-        userId: proposal.freelancerId,
-        type: 'JOB_OFFER',
-        title: 'You received a Job Offer!',
-        message: `Congratulations! You have been hired for the job: ${proposal.job.title}`,
-        metadata: {
-          jobId: proposal.jobId,
-          proposalId: proposal.id
-        }
-      });
-    } catch (error) {
-      console.error('Failed to send notification:', error.message);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Response status:', error.response.status);
+    await this.sendNotification(
+      proposal.freelancerId,
+      'JOB_OFFER',
+      'You received a Job Offer!',
+      `Congratulations! You have been hired for the job: ${proposal.job.title}`,
+      '/proposals',
+      {
+        jobId: proposal.jobId,
+        proposalId: proposal.id
       }
-      // Don't fail the request if notification fails, just log it.
-    }
+    );
 
     return updatedProposal;
   }
@@ -939,21 +950,58 @@ export class JobsService {
       throw new BadRequestException('Proposal is not in OFFERED status');
     }
 
-    return this.prisma.$transaction([
+    const result = await this.prisma.$transaction([
       this.prisma.proposal.update({
         where: { id: proposalId },
-        data: { status: 'HIRED' }
+        data: { status: 'HIRED' },
+        include: { milestones: true }
       }),
       this.prisma.job.update({
         where: { id: proposal.jobId },
         data: { status: 'IN_PROGRESS' }
       })
     ]);
+
+    const updatedProposal = result[0];
+
+    // Create contract in contract-service
+    try {
+      const contractServiceUrl = process.env.CONTRACT_SERVICE_URL || 'http://contract-service:3004';
+      await this.httpService.axiosRef.post(`${contractServiceUrl}/api/contracts`, {
+        job_id: proposal.jobId,
+        freelancer_id: proposal.freelancerId,
+        client_id: proposal.job.client_id,
+        proposal_id: proposal.id,
+        totalAmount: Number(proposal.bidAmount),
+        milestones: updatedProposal.milestones.map(m => ({
+          description: m.description,
+          amount: Number(m.amount),
+          dueDate: m.dueDate
+        }))
+      });
+    } catch (e) {
+      this.logger.error(`Failed to create contract in contract-service: ${e.message}`);
+      // We don't fail the whole transaction if contract-service is down, 
+      // but in production we might want more robust sync.
+    }
+
+    // Notify Client
+    await this.sendNotification(
+      proposal.job.client_id,
+      'OFFER_ACCEPTED',
+      'Job Offer Accepted',
+      `A freelancer has accepted your offer for "${proposal.job.title}"`,
+      '/contracts',
+      { jobId: proposal.jobId, proposalId: proposal.id }
+    );
+
+    return result;
   }
 
   async declineOffer(userId: string, proposalId: string) {
     const proposal = await this.prisma.proposal.findUnique({
-      where: { id: proposalId }
+      where: { id: proposalId },
+      include: { job: true }
     });
 
     if (!proposal) {
@@ -968,10 +1016,22 @@ export class JobsService {
       throw new BadRequestException('Proposal is not in OFFERED status');
     }
 
-    return this.prisma.proposal.update({
+    const updatedProposal = await this.prisma.proposal.update({
       where: { id: proposalId },
-      data: { status: 'WITHDRAWN' }
+      data: { status: 'DECLINED' }
     });
+
+    // Notify Client
+    await this.sendNotification(
+      proposal.job.client_id,
+      'OFFER_DECLINED',
+      'Job Offer Declined',
+      `A freelancer has declined your offer for "${proposal.job.title}"`,
+      `/client/jobs/${proposal.jobId}/proposals`,
+      { jobId: proposal.jobId, proposalId: proposal.id }
+    );
+
+    return updatedProposal;
   }
 
   async counterOffer(userId: string, proposalId: string, dto: { amount: number, timeline: string }) {
@@ -1023,11 +1083,16 @@ export class JobsService {
     return updated;
   }
 
-  async getContracts(userId: string, status: string[] = ['HIRED']) {
+  async getContracts(userId: string, roles: string[] = [], status: string[] = ['HIRED']) {
+    const isClient = roles.includes('CLIENT');
+
     return this.prisma.proposal.findMany({
       where: {
-        freelancerId: userId,
-        status: { in: status }
+        status: { in: status },
+        OR: [
+          { freelancerId: userId },
+          { job: { client_id: userId } }
+        ]
       },
       include: {
         job: true
@@ -1173,6 +1238,7 @@ export class JobsService {
         'PAYMENT_REQUESTED',
         `Payment Requested: ${description}`,
         `Freelancer has submitted work for milestone '${description}'. Please review and release payment.`,
+        '/contracts',
         { milestoneId, contractId: milestone.proposalId }
       );
 
@@ -1206,7 +1272,7 @@ export class JobsService {
     }
   }
 
-  private async sendNotification(userId: string, type: string, title: string, message: string, metadata?: any) {
+  private async sendNotification(userId: string, type: string, title: string, message: string, link?: string, metadata?: any) {
     try {
       const notificationUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3007';
       await this.httpService.axiosRef.post(`${notificationUrl}/api/notifications`, {
@@ -1214,6 +1280,7 @@ export class JobsService {
         type,
         title,
         message,
+        link,
         metadata
       });
     } catch (error) {
@@ -1301,6 +1368,7 @@ export class JobsService {
       'EXTENSION_REQUESTED',
       'Contract Extension Requested',
       `Freelancer has requested to extend the contract deadline to ${new Date(date).toLocaleDateString()}. Reason: ${reason}`,
+      '/contracts',
       { contractId }
     );
 
@@ -1334,6 +1402,7 @@ export class JobsService {
       'CONTRACT_TERMINATED',
       'Contract Terminated',
       `The contract for '${contract.job.title}' has been terminated by the other party. Reason: ${reason}`,
+      '/contracts',
       { contractId }
     );
 
@@ -1382,6 +1451,38 @@ export class JobsService {
     });
   }
 
+  async getProposalsByFreelancer(freelancerId: string, userId: string, userRoles: string[]) {
+    // If the freelancer is requesting their own proposals
+    if (userId === freelancerId) {
+      return this.getMyProposals(freelancerId);
+    }
+
+    // If a client is requesting proposals, only show proposals sent to THIS client's jobs
+    if (userRoles.includes('CLIENT') || userRoles.includes('realm:CLIENT')) {
+      return this.prisma.proposal.findMany({
+        where: {
+          freelancerId,
+          job: {
+            client_id: userId
+          }
+        },
+        include: {
+          job: {
+            select: {
+              title: true,
+              status: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+    }
+
+    throw new ForbiddenException('You are not authorized to view these proposals');
+  }
+
   async negotiateProposal(userId: string, proposalId: string, dto: { amount?: number, timeline?: string }) {
     const proposal = await this.prisma.proposal.findUnique({
       where: { id: proposalId },
@@ -1411,6 +1512,7 @@ export class JobsService {
       'NEGOTIATION_UPDATE',
       'Proposal Negotiation',
       `Proposal terms for '${proposal.job.title}' have been updated.`,
+      '/proposals',
       { proposalId }
     );
 
@@ -1456,17 +1558,21 @@ export class JobsService {
   }
 
   async deleteServicePackage(id: string, userId: string) {
+    const pkg = await this.findOneServicePackage(id);
+    if (pkg.freelancerId !== userId) {
+      throw new ForbiddenException('You can only delete your own service packages');
+    }
     const result = await this.prisma.servicePackage.delete({
-      where: { id }
+      where: { id },
     });
-    await this.recordTombstone('ServicePackage', id);
+    await this.recordTombstone('ServicePackage', id, userId);
     return result;
   }
 
-  private async recordTombstone(entity: string, recordId: string) {
+  private async recordTombstone(entity: string, recordId: string, userId: string | null) {
     try {
       await this.prisma.syncTombstone.create({
-        data: { entity, recordId }
+        data: { entity, recordId, userId }
       });
     } catch (error) {
       this.logger.error(`Failed to record tombstone for ${entity}:${recordId}: ${error.message}`);
@@ -1548,6 +1654,7 @@ export class JobsService {
       'MEETING_STARTED',
       'Interview Started',
       `The video call for your interview has started.`,
+      meetingUrl,
       { interviewId: id, meetingUrl }
     );
 
@@ -1670,72 +1777,214 @@ export class JobsService {
     };
   }
 
-  async sync(since: string, entities: string[]) {
-    console.log(`Sync request: since=${since}, entities=${entities}`);
-    const sinceDate = new Date(since);
-    const newSince = new Date();
-    const result: any = {
-      newSince: newSince.toISOString(),
-      upserted: {},
-      deleted: {},
-    };
+  async sync(since: string, entities: string[], requestingUserId: string) {
+    try {
+      this.logger.log(`Sync request for user ${requestingUserId}: since=${since}, entities=${entities}`);
+      const sinceDate = new Date(since);
+      const newSince = new Date();
+      const result: any = {
+        newSince: newSince.toISOString(),
+        upserted: {},
+        deleted: {},
+      };
 
-    if (entities.includes('Job')) {
-      result.upserted.jobs = await this.prisma.job.findMany({
-        where: { updatedAt: { gt: sinceDate } },
-        include: { category: true, skills: { include: { skill: true } } },
+      // Public Entities
+      const publicEntities = [
+        { name: 'Job', prismaName: 'job', entityName: 'jobs', include: { category: true, skills: { include: { skill: true } } } },
+        { name: 'Category', prismaName: 'category', entityName: 'categories' },
+        { name: 'Skill', prismaName: 'skill', entityName: 'skills' },
+      ];
+
+      for (const e of publicEntities) {
+        if (entities.includes(e.name)) {
+          result.upserted[e.entityName] = await (this.prisma[e.prismaName] as any).findMany({
+            where: { updatedAt: { gt: sinceDate } },
+            include: (e as any).include,
+          });
+
+          const tombstones = await this.prisma.syncTombstone.findMany({
+            where: { entity: e.name, deletedAt: { gt: sinceDate } },
+            select: { recordId: true },
+          });
+          result.deleted[e.entityName] = tombstones.map(t => t.recordId);
+        }
+      }
+
+      // Private Entities (Filtered by requestingUserId)
+      const privateEntities = [
+        {
+          name: 'Proposal',
+          prismaName: 'proposal',
+          entityName: 'proposals',
+          where: (userId: string, since: Date) => ({
+            OR: [
+              { freelancerId: userId },
+              { job: { client_id: userId } }
+            ],
+            updatedAt: { gt: since }
+          })
+        },
+        { name: 'ServicePackage', prismaName: 'servicePackage', entityName: 'servicePackages', userIdField: 'freelancerId' },
+        {
+          name: 'Milestone',
+          prismaName: 'milestone',
+          entityName: 'milestones',
+          where: (userId: string, since: Date) => ({
+            proposal: {
+              OR: [
+                { freelancerId: userId },
+                { job: { client_id: userId } }
+              ]
+            },
+            updatedAt: { gt: since }
+          })
+        },
+      ];
+
+      for (const e of privateEntities) {
+        if (entities.includes(e.name)) {
+          // Note: for Proposal, client also sees them. This sync logic assumes freelancer's perspective for now.
+          const where = (e as any).where
+            ? (e as any).where(requestingUserId, sinceDate)
+            : { [(e as any).userIdField as string]: requestingUserId, updatedAt: { gt: sinceDate } };
+
+          result.upserted[e.entityName] = await (this.prisma[e.prismaName] as any).findMany({
+            where,
+          });
+
+          const tombstoneWhere = (e as any).where
+            ? { entity: e.name, userId: requestingUserId, deletedAt: { gt: sinceDate } }
+            : { entity: e.name, userId: requestingUserId, deletedAt: { gt: sinceDate } };
+          // For simplicity, we assume tombstones are recorded with the correct userId
+
+          const tombstones = await this.prisma.syncTombstone.findMany({
+            where: { entity: e.name, userId: requestingUserId, deletedAt: { gt: sinceDate } },
+            select: { recordId: true },
+          });
+          result.deleted[e.entityName] = tombstones.map(t => t.recordId);
+        }
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(`Sync failed for user ${requestingUserId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  // Invitations
+  async createInvitation(clientId: string, dto: any) {
+    const job = await this.prisma.job.findUnique({ where: { id: dto.jobId } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.client_id !== clientId) throw new ForbiddenException('You can only invite to your own jobs');
+
+    // Check if already invited
+    const existing = await this.prisma.jobInvitation.findFirst({
+      where: {
+        jobId: dto.jobId,
+        freelancerId: dto.freelancerId
+      }
+    });
+
+    if (existing) throw new BadRequestException('Freelancer already invited to this job');
+
+    const invitation = await this.prisma.jobInvitation.create({
+      data: {
+        jobId: dto.jobId,
+        freelancerId: dto.freelancerId,
+        clientId,
+        message: dto.message,
+        status: 'PENDING'
+      }
+    });
+
+    // Notify Freelancer
+    await this.sendNotification(
+      dto.freelancerId,
+      'JOB_INVITATION',
+      'New Job Invitation',
+      `You have been invited to apply for job: ${job.title}`,
+      `/jobs/${job.id}?invited=${invitation.id}`,
+      { invitationId: invitation.id, jobId: job.id }
+    );
+
+    return invitation;
+  }
+
+  async createInvitationsBulk(clientId: string, dto: { jobId: string; freelancerIds: string[]; message?: string }) {
+    const job = await this.prisma.job.findUnique({ where: { id: dto.jobId } });
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.client_id !== clientId) throw new ForbiddenException('You can only invite to your own jobs');
+
+    const createdInvitations: any[] = [];
+    for (const freelancerId of dto.freelancerIds) {
+      // Check if already invited
+      const existing = await this.prisma.jobInvitation.findFirst({
+        where: {
+          jobId: dto.jobId,
+          freelancerId
+        }
       });
-      const tombstones = await this.prisma.syncTombstone.findMany({
-        where: { entity: 'Job', deletedAt: { gt: sinceDate } },
-        select: { recordId: true },
-      });
-      result.deleted.jobs = tombstones.map(t => t.recordId);
+
+      if (!existing) {
+        const invitation = await this.prisma.jobInvitation.create({
+          data: {
+            jobId: dto.jobId,
+            freelancerId,
+            clientId,
+            message: dto.message || `Hi, I'd like to invite you to apply for my job: ${job.title}`,
+            status: 'PENDING'
+          }
+        });
+        createdInvitations.push(invitation);
+
+        // Notify Freelancer
+        await this.sendNotification(
+          freelancerId,
+          'JOB_INVITATION',
+          'New Job Invitation',
+          `You have been invited to apply for job: ${job.title}`,
+          `/jobs/${job.id}?invited=${invitation.id}`,
+          { invitationId: invitation.id, jobId: job.id }
+        ).catch(err => this.logger.error(`Failed to notify freelancer ${freelancerId}: ${err.message}`));
+      }
     }
 
-    if (entities.includes('Category')) {
-      result.upserted.categories = await this.prisma.category.findMany({
-        where: { updatedAt: { gt: sinceDate } },
-      });
-      const tombstones = await this.prisma.syncTombstone.findMany({
-        where: { entity: 'Category', deletedAt: { gt: sinceDate } },
-        select: { recordId: true },
-      });
-      result.deleted.categories = tombstones.map(t => t.recordId);
-    }
+    return { count: createdInvitations.length, invitations: createdInvitations };
+  }
 
-    if (entities.includes('Skill')) {
-      result.upserted.skills = await this.prisma.skill.findMany({
-        where: { updatedAt: { gt: sinceDate } },
-      });
-      const tombstones = await this.prisma.syncTombstone.findMany({
-        where: { entity: 'Skill', deletedAt: { gt: sinceDate } },
-        select: { recordId: true },
-      });
-      result.deleted.skills = tombstones.map(t => t.recordId);
-    }
+  async getFreelancerInvitations(freelancerId: string) {
+    return this.prisma.jobInvitation.findMany({
+      where: { freelancerId, status: 'PENDING' },
+      include: { job: true },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
 
-    if (entities.includes('Proposal')) {
-      result.upserted.proposals = await this.prisma.proposal.findMany({
-        where: { updatedAt: { gt: sinceDate } },
-      });
-      const tombstones = await this.prisma.syncTombstone.findMany({
-        where: { entity: 'Proposal', deletedAt: { gt: sinceDate } },
-        select: { recordId: true },
-      });
-      result.deleted.proposals = tombstones.map(t => t.recordId);
-    }
+  async respondToInvitation(freelancerId: string, invitationId: string, status: 'ACCEPTED' | 'DECLINED') {
+    const invitation = await this.prisma.jobInvitation.findUnique({
+      where: { id: invitationId }
+    });
 
-    if (entities.includes('Milestone')) {
-      result.upserted.milestones = await this.prisma.milestone.findMany({
-        where: { updatedAt: { gt: sinceDate } },
-      });
-      const tombstones = await this.prisma.syncTombstone.findMany({
-        where: { entity: 'Milestone', deletedAt: { gt: sinceDate } },
-        select: { recordId: true },
-      });
-      result.deleted.milestones = tombstones.map(t => t.recordId);
-    }
+    if (!invitation) throw new NotFoundException('Invitation not found');
+    if (invitation.freelancerId !== freelancerId) throw new ForbiddenException('Not your invitation');
+    if (invitation.status !== 'PENDING') throw new BadRequestException('Invitation already handled');
 
-    return result;
+    const updated = await this.prisma.jobInvitation.update({
+      where: { id: invitationId },
+      data: { status }
+    });
+
+    // Notify Client
+    await this.sendNotification(
+      invitation.clientId,
+      'INVITATION_RESPONSE',
+      `Invitation ${status.toLowerCase()}`,
+      `Freelancer has ${status.toLowerCase()} your invitation for ${invitation.jobId}`,
+      `/client/jobs/${invitation.jobId}/proposals`,
+      { invitationId, status }
+    );
+
+    return updated;
   }
 }

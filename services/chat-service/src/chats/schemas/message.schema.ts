@@ -27,6 +27,32 @@ export class Message extends Document {
     @Prop()
     flagReason?: string;
 
+    @Prop({ type: String, ref: 'Message' })
+    replyTo?: string;
+
+    @Prop({ default: false })
+    isPinned: boolean;
+
+    @Prop()
+    pinnedAt?: Date;
+
+    @Prop({ default: false })
+    isEdited: boolean;
+
+    @Prop()
+    deletedAt?: Date;
+
+    @Prop({
+        type: [
+            {
+                emoji: { type: String, required: true },
+                userIds: { type: [String], default: [] },
+            },
+        ],
+        default: [],
+    })
+    reactions: { emoji: string; userIds: string[] }[];
+
     createdAt: Date;
     updatedAt: Date;
 }

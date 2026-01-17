@@ -18,7 +18,7 @@ import { UpdateAdminDto } from './dto/update-admin.dto';
 import { Roles } from 'nest-keycloak-connect';
 
 @Controller('api/admins')
-@Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+@Roles({ roles: ['realm:ADMIN', 'ADMIN', 'realm:CLIENT', 'realm:FREELANCER'] })
 export class AdminsController {
     constructor(private readonly adminsService: AdminsService) { }
 

@@ -63,7 +63,9 @@ export class ReviewsService {
             // Trigger user stats update for both parties
             await Promise.all([
                 this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall),
-                this.triggerStatsUpdate(opposing.reviewee_id, opposing.ratingOverall)
+                this.triggerStatsUpdate(opposing.reviewee_id, opposing.ratingOverall),
+                this.logToAnalytics(review.reviewee_id, review.ratingOverall, review.contract_id),
+                this.logToAnalytics(opposing.reviewee_id, opposing.ratingOverall, opposing.contract_id)
             ]);
         }
 
@@ -208,10 +210,30 @@ export class ReviewsService {
                 });
 
                 await this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall);
+
+                // Log to analytics
+                await this.logToAnalytics(review.reviewee_id, review.ratingOverall, review.contract_id);
+
                 this.logger.log(`Auto-released review ${review.id} for user ${review.reviewee_id}`);
             } catch (error) {
                 this.logger.error(`Failed to auto-release review ${review.id}: ${error.message}`);
             }
+        }
+    }
+
+    private async logToAnalytics(userId: string, rating: number, contractId: string) {
+        try {
+            const analyticsUrl = this.configService.get<string>('ANALYTICS_SERVICE_URL', 'http://analytics-service:3014');
+            await firstValueFrom(
+                this.httpService.post(`${analyticsUrl}/api/analytics/events`, {
+                    event_type: 'review_received',
+                    user_id: userId,
+                    job_id: contractId,
+                    metadata: JSON.stringify({ rating })
+                })
+            );
+        } catch (error) {
+            console.error('Failed to log review to analytics:', error.message);
         }
     }
 

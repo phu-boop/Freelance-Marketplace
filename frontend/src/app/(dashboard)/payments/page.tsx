@@ -29,6 +29,31 @@ export default function PaymentsPage() {
         methodId: ''
     });
 
+    // Transactions State
+    const [transactions, setTransactions] = React.useState<any[]>([]);
+    const [totalTransactions, setTotalTransactions] = React.useState(0);
+    const [page, setPage] = React.useState(0);
+    const [statusFilter, setStatusFilter] = React.useState<string>('');
+    const [typeFilter, setTypeFilter] = React.useState<string>('');
+    const ITEMS_PER_PAGE = 10;
+
+    const fetchTransactions = React.useCallback(async (p: number, type: string, status: string) => {
+        try {
+            const res = await api.get('/payments/transactions', {
+                params: {
+                    limit: ITEMS_PER_PAGE,
+                    offset: p * ITEMS_PER_PAGE,
+                    type: type || undefined,
+                    status: status || undefined
+                }
+            });
+            setTransactions(res.data.data);
+            setTotalTransactions(res.data.total);
+        } catch (error) {
+            console.error('Failed to fetch transactions', error);
+        }
+    }, []);
+
     React.useEffect(() => {
         const fetchWallet = async () => {
             try {
@@ -65,12 +90,17 @@ export default function PaymentsPage() {
 
         const loadAll = async () => {
             setLoading(true);
-            await Promise.all([fetchWallet(), fetchStats(), fetchMethods()]);
+            await Promise.all([
+                fetchWallet(),
+                fetchStats(),
+                fetchMethods(),
+                fetchTransactions(page, typeFilter, statusFilter)
+            ]);
             setLoading(false);
         };
 
         loadAll();
-    }, [period]);
+    }, [period, page, typeFilter, statusFilter, fetchTransactions]);
 
     const handleUpdateAutoWithdraw = async () => {
         try {
@@ -335,11 +365,39 @@ export default function PaymentsPage() {
 
                 {/* Recent Transactions */}
                 <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-                    <div className="p-6 border-b border-slate-800 flex justify-between items-center">
-                        <h2 className="text-xl font-bold text-white">Recent Transactions</h2>
+                    <div className="p-6 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <h2 className="text-xl font-bold text-white">Transactions</h2>
+
+                        <div className="flex flex-wrap gap-2">
+                            <select
+                                value={typeFilter}
+                                onChange={(e) => { setTypeFilter(e.target.value); setPage(0); }}
+                                className="bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-3 text-sm text-slate-300 focus:outline-none focus:border-blue-500"
+                            >
+                                <option value="">All Types</option>
+                                <option value="PAYMENT">Payment</option>
+                                <option value="WITHDRAWAL">Withdrawal</option>
+                                <option value="DEPOSIT">Deposit</option>
+                                <option value="ESCROW_FUND">Escrow Fund</option>
+                                <option value="ESCROW_RELEASE">Escrow Release</option>
+                            </select>
+
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+                                className="bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-3 text-sm text-slate-300 focus:outline-none focus:border-blue-500"
+                            >
+                                <option value="">All Status</option>
+                                <option value="COMPLETED">Completed</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="PENDING_APPROVAL">Awaiting Approval</option>
+                                <option value="REFUNDED">Refunded</option>
+                                <option value="DISPUTED">Disputed</option>
+                            </select>
+                        </div>
                     </div>
                     <div>
-                        {wallet?.transactions && wallet.transactions.length > 0 ? (
+                        {transactions && transactions.length > 0 ? (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead className="bg-slate-950/50 text-slate-400 text-xs uppercase tracking-wider">
@@ -352,7 +410,7 @@ export default function PaymentsPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800 text-sm text-slate-300">
-                                        {wallet.transactions.map((tx: any) => (
+                                        {transactions.map((tx: any) => (
                                             <tr key={tx.id} className="hover:bg-slate-800/50 transition-colors">
                                                 <td className="p-4 whitespace-nowrap">
                                                     {new Date(tx.createdAt).toLocaleDateString()}
@@ -361,8 +419,8 @@ export default function PaymentsPage() {
                                                     {tx.description || '-'}
                                                 </td>
                                                 <td className="p-4">
-                                                    <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wide ${tx.type === 'DEPOSIT' ? 'bg-green-500/10 text-green-500' :
-                                                        tx.type === 'WITHDRAWAL' ? 'bg-red-500/10 text-red-500' :
+                                                    <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wide ${tx.type === 'DEPOSIT' || tx.type === 'ESCROW_RELEASE' ? 'bg-green-500/10 text-green-500' :
+                                                        tx.type === 'WITHDRAWAL' || tx.type === 'ESCROW_FUND' ? 'bg-red-500/10 text-red-500' :
                                                             'bg-blue-500/10 text-blue-500'
                                                         }`}>
                                                         {tx.type}
@@ -371,9 +429,10 @@ export default function PaymentsPage() {
                                                 <td className="p-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
                                                         <div className={`w-1.5 h-1.5 rounded-full ${tx.status === 'COMPLETED' ? 'bg-green-500' :
-                                                            tx.status === 'PENDING' ? 'bg-yellow-500' : 'bg-red-500'
+                                                            tx.status === 'PENDING' || tx.status === 'PENDING_APPROVAL' ? 'bg-yellow-500' :
+                                                                'bg-red-500'
                                                             }`} />
-                                                        <span className="capitalize">{tx.status.toLowerCase()}</span>
+                                                        <span className="capitalize">{tx.status.toLowerCase().replace('_', ' ')}</span>
                                                     </div>
                                                 </td>
                                                 <td className={`p-4 text-right font-medium ${tx.type === 'DEPOSIT' || (tx.type === 'PAYMENT' && tx.status === 'COMPLETED') ? 'text-green-400' : 'text-slate-300'}`}>
@@ -411,13 +470,34 @@ export default function PaymentsPage() {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
-                                    </tbody>
                                 </table>
+
+                                {/* Pagination UI */}
+                                <div className="p-4 border-t border-slate-800 flex items-center justify-between bg-slate-950/20">
+                                    <div className="text-sm text-slate-500">
+                                        Showing {totalTransactions === 0 ? 0 : (page * ITEMS_PER_PAGE + 1)} to {Math.min((page + 1) * ITEMS_PER_PAGE, totalTransactions)} of {totalTransactions}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            disabled={page === 0}
+                                            onClick={() => setPage(p => p - 1)}
+                                            className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-700 transition-colors"
+                                        >
+                                            Previous
+                                        </button>
+                                        <button
+                                            disabled={(page + 1) * ITEMS_PER_PAGE >= totalTransactions}
+                                            onClick={() => setPage(p => p + 1)}
+                                            className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-700 transition-colors"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <div className="p-12 text-center text-slate-500">
-                                No transactions found
+                                No transactions found matching your criteria
                             </div>
                         )}
                     </div>

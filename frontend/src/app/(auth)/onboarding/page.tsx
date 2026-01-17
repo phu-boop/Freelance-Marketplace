@@ -9,8 +9,8 @@ import {
     ArrowRight,
     ShieldCheck
 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import api from '@/lib/api';
 import { useKeycloak } from '@/components/KeycloakProvider';
 

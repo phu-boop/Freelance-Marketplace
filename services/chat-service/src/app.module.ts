@@ -7,6 +7,14 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ChatsModule } from './chats/chats.module';
 import { HealthController } from './health/health.controller';
+import {
+  KeycloakConnectModule,
+  ResourceGuard,
+  RoleGuard,
+  AuthGuard,
+  TokenValidation,
+} from 'nest-keycloak-connect';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -21,13 +29,38 @@ import { HealthController } from './health/health.controller';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
+        uri: configService.get<string>('MONGODB_URI', 'mongodb://mongodb:27017/chat_db'),
       }),
       inject: [ConfigService],
     }),
     ChatsModule,
+    KeycloakConnectModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        authServerUrl: configService.get<string>('KEYCLOAK_URL', 'http://keycloak:8080'),
+        realm: configService.get<string>('KEYCLOAK_REALM', 'freelance-marketplace'),
+        clientId: configService.get<string>('KEYCLOAK_CLIENT_ID', 'freelance-client'),
+        secret: configService.get<string>('KEYCLOAK_SECRET', ''),
+        tokenValidation: TokenValidation.OFFLINE,
+      }),
+      inject: [ConfigService],
+    }),
   ],
   controllers: [AppController, HealthController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ResourceGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RoleGuard,
+    },
+  ],
 })
 export class AppModule { }

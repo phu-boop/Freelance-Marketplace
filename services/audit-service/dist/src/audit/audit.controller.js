@@ -16,11 +16,16 @@ exports.AuditController = void 0;
 const common_1 = require("@nestjs/common");
 const audit_service_1 = require("./audit.service");
 const create_audit_log_dto_1 = require("./dto/create-audit-log.dto");
+const nest_keycloak_connect_1 = require("nest-keycloak-connect");
 let AuditController = class AuditController {
     constructor(auditService) {
         this.auditService = auditService;
     }
-    create(createAuditLogDto) {
+    create(createAuditLogDto, secret) {
+        const internalSecret = process.env.AUDIT_SECRET || 'fallback-secret';
+        if (secret !== internalSecret) {
+            throw new common_1.ForbiddenException('Invalid audit secret');
+        }
         return this.auditService.create(createAuditLogDto);
     }
     findAll(limit, offset) {
@@ -29,16 +34,22 @@ let AuditController = class AuditController {
     verify(id) {
         return this.auditService.verifyLog(id);
     }
+    verifyAll() {
+        return this.auditService.verifyAll();
+    }
 };
 exports.AuditController = AuditController;
 __decorate([
+    (0, nest_keycloak_connect_1.Public)(),
     (0, common_1.Post)('logs'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Headers)('x-audit-secret')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_audit_log_dto_1.CreateAuditLogDto]),
+    __metadata("design:paramtypes", [create_audit_log_dto_1.CreateAuditLogDto, String]),
     __metadata("design:returntype", void 0)
 ], AuditController.prototype, "create", null);
 __decorate([
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN'] }),
     (0, common_1.Get)('logs'),
     __param(0, (0, common_1.Query)('limit')),
     __param(1, (0, common_1.Query)('offset')),
@@ -47,12 +58,20 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuditController.prototype, "findAll", null);
 __decorate([
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN'] }),
     (0, common_1.Get)('logs/:id/verify'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], AuditController.prototype, "verify", null);
+__decorate([
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN'] }),
+    (0, common_1.Post)('verify-all'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AuditController.prototype, "verifyAll", null);
 exports.AuditController = AuditController = __decorate([
     (0, common_1.Controller)('api/audit'),
     __metadata("design:paramtypes", [audit_service_1.AuditService])

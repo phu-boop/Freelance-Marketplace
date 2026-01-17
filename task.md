@@ -429,13 +429,13 @@ Story E-012: Mobile App (React Native / Flutter) synchronization (In Progress)
  Verify Sync Flow
  Documentation: Sync protocol for mobile developers
 4. Communication & Performance
-Story E-013: Web Push Notifications & Slack/Discord Integration
- Infrastructure: Install web-push and configure VAPID keys
- Web Push: Implement Subscription Schema & API
- Web Push: Integrate PushService into notification flow
- External Chat: Implement Integration Schema (Slack/Discord Webhooks)
- External Chat: Create IntegrationService for webhook dispatch
- Verification: Test Push & Webhook delivery
+Story E-013: Web Push Notifications & Slack/Discord Integration (Completed)
+ - [x] Infrastructure: Install web-push and configure VAPID keys
+ - [x] Web Push: Implement Subscription Schema & API
+ - [x] Web Push: Integrate PushService into notification flow
+ - [x] External Chat: Implement Integration Schema (Slack/Discord Webhooks)
+ - [x] External Chat: Create IntegrationService for webhook dispatch
+ - [x] Verification: Test Push & Webhook delivery
  Story E-014: Global Search Performance (Redis/Elasticsearch deep optimization)
  Dependency: Install ioredis in search-service
  Caching: Implement Redis caching for search & recommendations

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Plus, Pencil, Trash2, CheckCircle2, Loader2, Image as ImageIcon } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import api from '@/lib/api';
+import { getPublicUrl } from '@/lib/utils';
 import { useKeycloak } from '@/components/KeycloakProvider';
 
 interface PortfolioItem {
@@ -91,7 +92,7 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
                         label="Image URL"
                         value={formData.imageUrl || ''}
                         onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
-                        rightIcon={formData.imageUrl ? <img src={formData.imageUrl} className="w-6 h-6 rounded object-cover" /> : <ImageIcon className="w-4 h-4" />}
+                        rightIcon={formData.imageUrl ? <img src={getPublicUrl(formData.imageUrl)} className="w-6 h-6 rounded object-cover" /> : <ImageIcon className="w-4 h-4" />}
                     />
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-300">Description</label>
@@ -114,7 +115,7 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
                     <div key={item.id} className="group rounded-xl bg-slate-900/30 border border-slate-800 overflow-hidden hover:border-slate-700 transition-all">
                         <div className="aspect-video bg-slate-900 relative">
                             {item.imageUrl ? (
-                                <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                                <img src={getPublicUrl(item.imageUrl)} alt={item.title} className="w-full h-full object-cover" />
                             ) : (
                                 <div className="flex items-center justify-center h-full text-slate-700">
                                     <ImageIcon className="w-8 h-8" />

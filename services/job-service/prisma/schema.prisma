@@ -19,6 +19,7 @@ model User {
   firstName String?
   lastName  String?
   avatarUrl String?
+  coverImageUrl String?
   phone     String?
   address   String?
   country   String?
@@ -62,6 +63,8 @@ model User {
   resetPasswordExpiresAt DateTime?
   facebookId             String?                @unique
   githubId               String?                @unique
+  keycloakId             String?                @unique
+  languages              Json?
   isEmailVerified        Boolean                @default(false)
   taxId                  String?
   billingAddress         String?
@@ -368,9 +371,10 @@ model SyncTombstone {
   id        String   @id @default(uuid())
   entity    String   // e.g., "Job", "Category"
   recordId  String
+  userId    String?  // Optional: associated user
   deletedAt DateTime @default(now())
   
-  @@index([deletedAt])
+  @@index([entity, deletedAt, userId])
   @@map("sync_tombstones")
   @@schema("sync")
 }

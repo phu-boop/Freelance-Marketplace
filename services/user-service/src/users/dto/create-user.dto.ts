@@ -31,6 +31,10 @@ export class CreateUserDto {
 
   @IsString()
   @IsOptional()
+  coverImageUrl?: string;
+
+  @IsString()
+  @IsOptional()
   phone?: string;
 
   @IsString()
@@ -128,4 +132,28 @@ export class CreateUserDto {
   @IsBoolean()
   @IsOptional()
   isPaymentVerified?: boolean;
+
+  @IsString()
+  @IsOptional()
+  githubUsername?: string;
+
+  @IsString()
+  @IsOptional()
+  behanceUsername?: string;
+
+  @IsString()
+  @IsOptional()
+  dribbbleUsername?: string;
+
+  @IsString()
+  @IsOptional()
+  linkedinUsername?: string;
+
+  @IsString()
+  @IsOptional()
+  twitterUsername?: string;
+
+  @IsArray()
+  @IsOptional()
+  languages?: any[];
 }

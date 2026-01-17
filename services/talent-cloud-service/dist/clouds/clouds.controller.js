@@ -25,11 +25,20 @@ let CloudsController = class CloudsController {
     async addMember(cloudId, dto) {
         return this.cloudsService.addMember(cloudId, dto.userId, dto.role);
     }
+    async addMembersBulk(cloudId, dto) {
+        return this.cloudsService.addMembersBulk(cloudId, dto.userIds, dto.role);
+    }
     async removeMember(cloudId, userId) {
         return this.cloudsService.removeMember(cloudId, userId);
     }
     async listForUser(userId) {
         return this.cloudsService.listCloudsForUser(userId);
+    }
+    async getOne(id) {
+        return this.cloudsService.getCloud(id);
+    }
+    async update(id, dto) {
+        return this.cloudsService.updateCloud(id, dto);
     }
 };
 exports.CloudsController = CloudsController;
@@ -49,6 +58,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CloudsController.prototype, "addMember", null);
 __decorate([
+    (0, common_1.Post)(':cloudId/members/bulk'),
+    __param(0, (0, common_1.Param)('cloudId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CloudsController.prototype, "addMembersBulk", null);
+__decorate([
     (0, common_1.Delete)(':cloudId/members/:userId'),
     __param(0, (0, common_1.Param)('cloudId')),
     __param(1, (0, common_1.Param)('userId')),
@@ -63,6 +80,21 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CloudsController.prototype, "listForUser", null);
+__decorate([
+    (0, common_1.Get)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CloudsController.prototype, "getOne", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CloudsController.prototype, "update", null);
 exports.CloudsController = CloudsController = __decorate([
     (0, common_1.Controller)('api/clouds'),
     __metadata("design:paramtypes", [clouds_service_1.CloudsService])

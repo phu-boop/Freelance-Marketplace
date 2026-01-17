@@ -18,6 +18,9 @@ export class Notification extends Document {
     @Prop({ default: false })
     isRead: boolean;
 
+    @Prop()
+    link?: string;
+
     @Prop({ type: Object })
     metadata?: Record<string, any>; // Optional: extra data like jobId, proposalId, etc.
 }

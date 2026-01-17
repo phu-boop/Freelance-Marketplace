@@ -20,7 +20,16 @@ let CloudsService = class CloudsService {
         this.http = http;
     }
     async createCloud(data) {
-        const cloud = await this.prisma.talentCloud.create({ data });
+        const cloud = await this.prisma.talentCloud.create({
+            data: {
+                name: data.name,
+                description: data.description,
+                ownerId: data.ownerId,
+                visibility: data.visibility,
+                costCenter: data.costCenter,
+                budget: data.budget || 0,
+            }
+        });
         await this.prisma.talentCloudMember.create({
             data: { cloudId: cloud.id, userId: data.ownerId, role: 'OWNER' },
         });
@@ -28,11 +37,23 @@ let CloudsService = class CloudsService {
         return cloud;
     }
     async addMember(cloudId, userId, role = 'MEMBER') {
-        const member = await this.prisma.talentCloudMember.create({
-            data: { cloudId, userId, role },
+        const member = await this.prisma.talentCloudMember.upsert({
+            where: { cloudId_userId: { cloudId, userId } },
+            update: { role },
+            create: { cloudId, userId, role },
         });
-        await this.notifyUserService(userId, { isCloudMember: true, cloudId });
+        await this.notifyUserService(userId, { isCloudMember: true, cloudId }).catch(() => { });
         return member;
+    }
+    async addMembersBulk(cloudId, userIds, role = 'MEMBER') {
+        const operations = userIds.map(userId => this.prisma.talentCloudMember.upsert({
+            where: { cloudId_userId: { cloudId, userId } },
+            update: { role },
+            create: { cloudId, userId, role }
+        }));
+        const results = await Promise.all(operations);
+        await Promise.all(userIds.map(userId => this.notifyUserService(userId, { isCloudMember: true, cloudId }).catch(() => { })));
+        return { count: results.length };
     }
     async removeMember(cloudId, userId) {
         await this.prisma.talentCloudMember.deleteMany({ where: { cloudId, userId } });
@@ -41,6 +62,41 @@ let CloudsService = class CloudsService {
     }
     async listCloudsForUser(userId) {
         return this.prisma.talentCloudMember.findMany({ where: { userId }, include: { cloud: true } });
+    }
+    async getCloud(cloudId) {
+        const cloud = await this.prisma.talentCloud.findUnique({
+            where: { id: cloudId },
+            include: { members: true },
+        });
+        if (!cloud)
+            return null;
+        const enrichedMembers = await Promise.all(cloud.members.map(async (member) => {
+            try {
+                const profile = await this.getUserProfile(member.userId);
+                return { ...member, userProfile: profile };
+            }
+            catch (err) {
+                return { ...member, userProfile: { id: member.userId, firstName: 'User', lastName: member.userId.slice(0, 4) } };
+            }
+        }));
+        return { ...cloud, members: enrichedMembers };
+    }
+    async updateCloud(cloudId, data) {
+        return this.prisma.talentCloud.update({
+            where: { id: cloudId },
+            data: {
+                name: data.name,
+                description: data.description,
+                visibility: data.visibility,
+                costCenter: data.costCenter,
+                budget: data.budget,
+            }
+        });
+    }
+    async getUserProfile(userId) {
+        const url = `${process.env.USER_SERVICE_INTERNAL_URL || process.env.USER_SERVICE_URL}/api/users/${userId}`;
+        const res = await (0, rxjs_1.firstValueFrom)(this.http.get(url));
+        return res.data;
     }
     async notifyUserService(userId, payload) {
         const url = `${process.env.USER_SERVICE_URL}/api/users/${userId}/cloud-membership`;

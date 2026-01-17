@@ -106,6 +106,7 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+      KONG_CLIENT_MAX_BODY_SIZE: 50m
     volumes:
       - ./kong.yml:/usr/local/kong/declarative/kong.yml
     ports:
@@ -138,6 +139,7 @@ services:
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - ANALYTICS_SERVICE_URL=http://analytics-service:3014
       - KEYCLOAK_CLIENT_ID=freelance-client
       - SEARCH_SERVICE_URL=http://search-service:3010
       - NODE_OPTIONS=--max-old-space-size=1536
@@ -186,7 +188,6 @@ services:
       - postgres
     volumes:
       - ./services/job-service:/app
-      - /app/node_modules
     command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
@@ -221,7 +222,6 @@ services:
       - postgres
     volumes:
       - ./services/proposal-service:/app
-      - /app/node_modules
     command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
@@ -277,12 +277,17 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_chat?authSource=admin
       - PORT=3006
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - NODE_OPTIONS=--max-old-space-size=1536
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - mongo
     volumes:
       - ./services/chat-service:/app
-      - /app/node_modules
     command: sh -c "npm run start:dev"
     restart: always
     networks:
@@ -304,7 +309,13 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:password@mongo:27017/freelance_notifications?authSource=admin
       - PORT=3007
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - NODE_OPTIONS=--max-old-space-size=1536
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - mongo
     volumes:
@@ -343,7 +354,6 @@ services:
       - postgres
     volumes:
       - ./services/review-service:/app
-      - /app/node_modules
     command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
@@ -565,6 +575,7 @@ services:
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - ADMIN_SERVICE_URL=http://admin-service:3009
       - AUDIT_SERVICE_URL=http://audit-service:3011
+      - ANALYTICS_SERVICE_URL=http://analytics-service:3014
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
@@ -572,7 +583,6 @@ services:
       - postgres
     volumes:
       - ./services/payment-service:/app
-      - /app/node_modules
     command: sh -c "npx prisma@6.1.0 generate && npm run start:dev"
     restart: always
     networks:
@@ -689,7 +699,14 @@ services:
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=admin
       - MINIO_SECRET_KEY=password
+      - MINIO_EXTERNAL_URL=http://localhost:9000
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - NODE_OPTIONS=--max-old-space-size=1536
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       - minio
     volumes:

@@ -14,21 +14,50 @@ const terminus_1 = require("@nestjs/terminus");
 const storage_controller_1 = require("./storage.controller");
 const minio_service_1 = require("./minio.service");
 const health_controller_1 = require("./health/health.controller");
+const nest_keycloak_connect_1 = require("nest-keycloak-connect");
+const core_1 = require("@nestjs/core");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            config_1.ConfigModule.forRoot(),
+            config_1.ConfigModule.forRoot({
+                isGlobal: true,
+            }),
             throttler_1.ThrottlerModule.forRoot([{
                     ttl: 60000,
                     limit: 10,
                 }]),
             terminus_1.TerminusModule,
+            nest_keycloak_connect_1.KeycloakConnectModule.registerAsync({
+                imports: [config_1.ConfigModule],
+                useFactory: async (configService) => ({
+                    authServerUrl: configService.get('KEYCLOAK_URL', 'http://keycloak:8080'),
+                    realm: configService.get('KEYCLOAK_REALM', 'freelance-marketplace'),
+                    clientId: configService.get('KEYCLOAK_CLIENT_ID', 'freelance-client'),
+                    secret: configService.get('KEYCLOAK_SECRET', ''),
+                    tokenValidation: nest_keycloak_connect_1.TokenValidation.OFFLINE,
+                }),
+                inject: [config_1.ConfigService],
+            }),
         ],
         controllers: [storage_controller_1.StorageController, health_controller_1.HealthController],
-        providers: [minio_service_1.MinioService],
+        providers: [
+            minio_service_1.MinioService,
+            {
+                provide: core_1.APP_GUARD,
+                useClass: nest_keycloak_connect_1.AuthGuard,
+            },
+            {
+                provide: core_1.APP_GUARD,
+                useClass: nest_keycloak_connect_1.ResourceGuard,
+            },
+            {
+                provide: core_1.APP_GUARD,
+                useClass: nest_keycloak_connect_1.RoleGuard,
+            },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

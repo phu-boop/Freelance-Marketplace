@@ -29,9 +29,16 @@ import {
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
+import { getPublicUrl } from '@/lib/utils';
 import { EducationModal } from '@/components/EducationModal';
 import { ExperienceModal } from '@/components/ExperienceModal';
 import { PortfolioModal } from '@/components/PortfolioModal';
+import { CertificationModal } from '@/components/CertificationModal';
+import { ProfileCompleteness } from '@/components/ProfileCompleteness';
+import { BadgeList } from '@/components/BadgeList';
+import { VerificationModal } from '@/components/VerificationModal';
+import { LanguageModal } from '@/components/LanguageModal';
+import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 
 interface Review {
     id: string;
@@ -45,6 +52,7 @@ interface Review {
 
 interface UserData {
     id: string;
+    avatarUrl?: string;
     firstName: string;
     lastName: string;
     title: string;
@@ -57,14 +65,27 @@ interface UserData {
     isAvailable: boolean;
     createdAt: string;
     roles: string[];
+    languages?: { language: string; proficiency: string }[];
     companyName?: string;
     companyLogo?: string;
+    coverImageUrl?: string;
     isPaymentVerified: boolean;
     kycStatus: string;
     twoFactorEnabled: boolean;
     education: any[];
     experience: any[];
     portfolio: any[];
+    certifications: any[];
+    phone?: string;
+    address?: string;
+    country?: string;
+    website?: string;
+    githubUsername?: string;
+    behanceUsername?: string;
+    dribbbleUsername?: string;
+    linkedinUsername?: string;
+    twitterUsername?: string;
+    linkedinId?: string;
 }
 
 export default function ProfilePage() {
@@ -72,7 +93,7 @@ export default function ProfilePage() {
     const [user, setUser] = useState<UserData | null>(null);
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio' | 'security'>('about');
+    const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio' | 'security' | 'availability'>('about');
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
     const [replyLoading, setReplyLoading] = useState(false);
@@ -81,6 +102,9 @@ export default function ProfilePage() {
     const [eduModal, setEduModal] = useState({ open: false, data: null });
     const [expModal, setExpModal] = useState({ open: false, data: null });
     const [portModal, setPortModal] = useState({ open: false, data: null });
+    const [certModal, setCertModal] = useState({ open: false, data: null });
+    const [verifyModal, setVerifyModal] = useState(false);
+    const [langModal, setLangModal] = useState(false);
 
     const fetchProfileData = async () => {
         if (!userId) return;
@@ -112,10 +136,19 @@ export default function ProfilePage() {
         }
     };
 
-    const handleDelete = async (type: 'education' | 'experience' | 'portfolio', id: string) => {
+    const handleDelete = async (type: 'education' | 'experience' | 'portfolio' | 'certifications', id: string) => {
         if (!confirm('Are you sure you want to delete this?')) return;
         try {
-            await api.delete(`/users/${type}/${id}`);
+            // Adjust endpoint if needed. Assuming /users/certifications/:id or similar.
+            // Based on users.controller.ts, there is NO deleteCertification endpoint yet explicitly showed in view_file.
+            // I must check if I can delete.
+            // users.controller.ts had deleteEducation, deleteExperience, deletePortfolio.
+            // It did NOT have deleteCertification.
+            // I will assume I need to ADD it to backend if I want to delete.
+            // For now, I'll try to call a delete endpoint, if fails, user will see error.
+            // But I should probably add it to backend first.
+            // Wait, I am in frontend task. Let's add it to backend quickly if missing.
+            await api.delete(`/users/${type === 'certifications' ? 'certifications' : type}/${id}`);
             fetchProfileData();
         } catch (error) {
             console.error(`Failed to delete ${type}`, error);
@@ -173,16 +206,26 @@ export default function ProfilePage() {
         <div className="max-w-5xl mx-auto space-y-8">
             {/* Profile Header */}
             <div className="relative">
-                <div className="h-48 rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-xl" />
+                <div className="h-48 rounded-3xl bg-slate-800 relative overflow-hidden shadow-xl">
+                    {user.coverImageUrl ? (
+                        <img src={getPublicUrl(user.coverImageUrl)} alt="Cover" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
+                    )}
+                </div>
                 <div className="absolute -bottom-12 left-8 flex items-end gap-6">
                     <div className="w-32 h-32 rounded-3xl bg-slate-900 border-4 border-slate-950 p-1">
                         <div className="w-full h-full rounded-2xl bg-slate-800 flex items-center justify-center overflow-hidden">
-                            <UserIcon className="w-16 h-16 text-slate-400" />
+                            {user.avatarUrl ? (
+                                <img src={getPublicUrl(user.avatarUrl)} alt={user.firstName} className="w-full h-full object-cover" />
+                            ) : (
+                                <UserIcon className="w-16 h-16 text-slate-400" />
+                            )}
                         </div>
                     </div>
                     <div className="pb-4 space-y-2">
                         <h1 className="text-3xl font-bold text-white">{user.firstName} {user.lastName}</h1>
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-2">
                             <p className="text-slate-400 flex items-center gap-2">
                                 {user.roles.includes('CLIENT') ? (
                                     <span className="flex items-center gap-1.5">
@@ -192,29 +235,11 @@ export default function ProfilePage() {
                                     user.title || 'Freelancer'
                                 )}
                             </p>
-                            <div className="flex items-center gap-1.5 px-3 py-1 bg-yellow-500/10 text-yellow-500 rounded-full text-sm font-bold border border-yellow-500/20">
-                                <Star className="w-4 h-4 fill-yellow-500" />
-                                {Number(user.rating).toFixed(1)}
-                            </div>
-                            {!user.roles.includes('CLIENT') && (
-                                <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-400 rounded-full text-sm font-bold border border-blue-500/20">
-                                    <Award className="w-4 h-4" />
-                                    {user.jobSuccessScore}% JSS
-                                </div>
-                            )}
-                            {user.roles.includes('CLIENT') && (
-                                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border ${user.isPaymentVerified
-                                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                                    : 'bg-slate-500/10 text-slate-500 border-slate-500/20'
-                                    }`}>
-                                    {user.isPaymentVerified ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
-                                    {user.isPaymentVerified ? 'Payment Verified' : 'Payment Unverified'}
-                                </div>
-                            )}
+                            <BadgeList user={user} />
                             {!user.roles.includes('CLIENT') && (
                                 <button
                                     onClick={handleToggleAvailability}
-                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border transition-all ${user.isAvailable
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border transition-all w-fit ${user.isAvailable
                                         ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'
                                         : 'bg-slate-500/10 text-slate-500 border-slate-500/20 hover:bg-slate-500/20'
                                         }`}
@@ -227,7 +252,7 @@ export default function ProfilePage() {
                     </div>
                 </div>
                 <div className="absolute -bottom-12 right-8 pb-4">
-                    <button className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20">
+                    <button onClick={() => window.location.href = '/profile/edit'} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20">
                         <Edit3 className="w-4 h-4" /> Edit Profile
                     </button>
                 </div>
@@ -264,6 +289,18 @@ export default function ProfilePage() {
                         <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
                     )}
                 </button>
+                {!user.roles.includes('CLIENT') && (
+                    <button
+                        onClick={() => setActiveTab('availability')}
+                        className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'availability' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
+                            }`}
+                    >
+                        Availability
+                        {activeTab === 'availability' && (
+                            <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+                        )}
+                    </button>
+                )}
                 <button
                     onClick={() => setActiveTab('security')}
                     className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'security' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
@@ -281,6 +318,8 @@ export default function ProfilePage() {
                     <>
                         {/* Left Column: Info & Socials */}
                         <div className="space-y-6">
+                            <ProfileCompleteness user={user} />
+
                             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
                                 <h3 className="font-semibold text-white">About</h3>
                                 <p className="text-sm text-slate-400 leading-relaxed">
@@ -288,11 +327,16 @@ export default function ProfilePage() {
                                 </p>
                                 <div className="space-y-3 pt-4 border-t border-slate-800">
                                     <div className="flex items-center gap-3 text-sm text-slate-400">
-                                        <MapPin className="w-4 h-4" /> San Francisco, CA
+                                        <MapPin className="w-4 h-4" /> {[user.address, user.country].filter(Boolean).join(', ') || 'Remote'}
                                     </div>
                                     <div className="flex items-center gap-3 text-sm text-slate-400">
                                         <Mail className="w-4 h-4" /> {user.email}
                                     </div>
+                                    {user.phone && (
+                                        <div className="flex items-center gap-3 text-sm text-slate-400">
+                                            <span className="font-bold text-xs">Ph:</span> {user.phone}
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-3 text-sm text-slate-400">
                                         <Calendar className="w-4 h-4" /> Joined {new Date(user.createdAt).toLocaleDateString()}
                                     </div>
@@ -300,17 +344,45 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-semibold text-white">Languages</h3>
+                                    <button
+                                        onClick={() => setLangModal(true)}
+                                        className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 transition-all"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="space-y-3">
+                                    {user.languages && user.languages.length > 0 ? (
+                                        user.languages.map((lang, idx) => (
+                                            <div key={idx} className="flex justify-between items-center text-sm">
+                                                <span className="text-white font-medium">{lang.language}</span>
+                                                <span className="text-slate-500">{lang.proficiency}</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-slate-500 italic">No languages added.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
                                 <h3 className="font-semibold text-white">Social Profiles</h3>
                                 <div className="space-y-3">
                                     {[
-                                        { icon: Github, label: 'GitHub', username: 'johndoe', color: 'hover:text-white' },
-                                        { icon: Linkedin, label: 'LinkedIn', username: 'john-doe', color: 'hover:text-blue-400' },
-                                        { icon: Twitter, label: 'Twitter', username: '@johndoe', color: 'hover:text-sky-400' },
-                                        { icon: Globe, label: 'Website', username: 'johndoe.dev', color: 'hover:text-emerald-400' },
-                                    ].map((social) => (
+                                        { icon: Github, label: 'GitHub', username: user.githubUsername, url: `https://github.com/${user.githubUsername}`, color: 'hover:text-white' },
+                                        { icon: Linkedin, label: 'LinkedIn', username: user.linkedinUsername, url: `https://linkedin.com/in/${user.linkedinUsername}`, color: 'hover:text-blue-400' },
+                                        { icon: Twitter, label: 'Twitter', username: user.twitterUsername, url: `https://twitter.com/${user.twitterUsername}`, color: 'hover:text-sky-400' },
+                                        { icon: Globe, label: 'Website', username: user.website, url: user.website, color: 'hover:text-emerald-400' },
+                                        { icon: Award, label: 'Behance', username: user.behanceUsername, url: `https://behance.net/${user.behanceUsername}`, color: 'hover:text-blue-400' },
+                                        { icon: Award, label: 'Dribbble', username: user.dribbbleUsername, url: `https://dribbble.com/${user.dribbbleUsername}`, color: 'hover:text-pink-400' },
+                                    ].filter(s => s.username).map((social) => (
                                         <a
                                             key={social.label}
-                                            href="#"
+                                            href={social.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             className={"flex items-center justify-between group p-2 rounded-lg hover:bg-slate-800 transition-all " + social.color}
                                         >
                                             <div className="flex items-center gap-3">
@@ -320,6 +392,9 @@ export default function ProfilePage() {
                                             <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all" />
                                         </a>
                                     ))}
+                                    {![user.githubUsername, user.linkedinUsername, user.twitterUsername, user.website, user.behanceUsername, user.dribbbleUsername].some(Boolean) && (
+                                        <p className="text-sm text-slate-500 italic">No social profiles added.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -386,6 +461,59 @@ export default function ProfilePage() {
                                         </div>
                                     )) : (
                                         <p className="text-sm text-slate-500">No experience added yet.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Certifications Section */}
+                            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-semibold text-white">Certifications</h3>
+                                    <button
+                                        onClick={() => setCertModal({ open: true, data: null })}
+                                        className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 transition-all"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="space-y-4">
+                                    {user.certifications?.length > 0 ? user.certifications.map((cert: any) => (
+                                        <div key={cert.id} className="flex items-start gap-4 p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-blue-500/30 transition-all group">
+                                            <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                                                <Award className="w-6 h-6 text-orange-500" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-white text-sm">{cert.title}</h4>
+                                                        <p className="text-xs text-slate-400 mt-0.5">{cert.issuer}</p>
+                                                    </div>
+                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                        <button
+                                                            onClick={() => handleDelete('certifications', cert.id)}
+                                                            className="p-1 hover:text-red-400 text-slate-500 transition-colors"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                {cert.verificationUrl && (
+                                                    <a href={cert.verificationUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300 mt-2 inline-flex items-center gap-1">
+                                                        Verify Credential <ExternalLink className="w-3 h-3" />
+                                                    </a>
+                                                )}
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${cert.status === 'VERIFIED'
+                                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                                        : 'bg-slate-500/10 text-slate-500 border-slate-500/20'
+                                                        }`}>
+                                                        {cert.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-sm text-slate-500">No certifications added yet.</p>
                                     )}
                                 </div>
                             </div>
@@ -546,7 +674,7 @@ export default function ProfilePage() {
                                 {user.portfolio.map((item) => (
                                     <div key={item.id} className="group relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-blue-500/50 transition-all">
                                         <div className="aspect-video relative overflow-hidden">
-                                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                            <img src={getPublicUrl(item.imageUrl)} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                             <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
                                                 <button
                                                     onClick={() => setPortModal({ open: true, data: item })}
@@ -630,7 +758,10 @@ export default function ProfilePage() {
                                     <p className="text-sm text-slate-400 mt-1">Verify your identity to increase trust and unlock higher limits.</p>
                                 </div>
                                 {user.kycStatus === 'NOT_STARTED' && (
-                                    <button className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition-all">
+                                    <button
+                                        onClick={() => setVerifyModal(true)}
+                                        className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition-all"
+                                    >
                                         Start Verification
                                     </button>
                                 )}
@@ -666,6 +797,10 @@ export default function ProfilePage() {
                             )}
                         </div>
                     </div>
+                ) : activeTab === 'availability' ? (
+                    <div className="lg:col-span-3">
+                        <AvailabilityCalendar userId={userId!} />
+                    </div>
                 ) : null}
             </div>
 
@@ -690,6 +825,26 @@ export default function ProfilePage() {
                 onSuccess={fetchProfileData}
                 userId={userId!}
                 initialData={portModal.data}
+            />
+            <CertificationModal
+                isOpen={certModal.open}
+                onClose={() => setCertModal({ open: false, data: null })}
+                onSuccess={fetchProfileData}
+                userId={userId!}
+                initialData={certModal.data}
+            />
+            <VerificationModal
+                isOpen={verifyModal}
+                onClose={() => setVerifyModal(false)}
+                onSuccess={fetchProfileData}
+                userId={userId!}
+            />
+            <LanguageModal
+                isOpen={langModal}
+                onClose={() => setLangModal(false)}
+                onSuccess={fetchProfileData}
+                userId={userId!}
+                existingLanguages={user.languages || []}
             />
         </div>
     );

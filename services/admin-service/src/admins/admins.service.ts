@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -46,26 +46,7 @@ export class AdminsService {
         });
     }
 
-    // Job Moderation Proxy
-    async approveJob(jobId: string, token?: string) {
-        const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
-        const res = await firstValueFrom(
-            this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/approve`, {}, {
-                headers: token ? { Authorization: token } : undefined
-            })
-        );
-        return res.data;
-    }
 
-    async rejectJob(jobId: string, token?: string) {
-        const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
-        const res = await firstValueFrom(
-            this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/reject`, {}, {
-                headers: token ? { Authorization: token } : undefined
-            })
-        );
-        return res.data;
-    }
 
     // User Moderation Proxy
     async suspendUser(userId: string, token?: string) {
@@ -129,6 +110,44 @@ export class AdminsService {
             })
         );
         return res.data;
+    }
+
+    async approveJob(jobId: string, token?: string) {
+        const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
+        try {
+            const res = await firstValueFrom(
+                this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/approve`, {}, {
+                    headers: token ? { Authorization: token } : undefined
+                })
+            );
+            return res.data;
+        } catch (error) {
+            this.handleUpstreamError(error, 'approve job');
+        }
+    }
+
+    async rejectJob(jobId: string, token?: string) {
+        const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://localhost:3002');
+        try {
+            const res = await firstValueFrom(
+                this.httpService.post(`${jobServiceUrl}/api/jobs/${jobId}/reject`, {}, {
+                    headers: token ? { Authorization: token } : undefined
+                })
+            );
+            return res.data;
+        } catch (error) {
+            this.handleUpstreamError(error, 'reject job');
+        }
+    }
+
+    private handleUpstreamError(error: any, action: string) {
+        if (error.response) {
+            throw new HttpException(
+                error.response.data || `Failed to ${action}`,
+                error.response.status
+            );
+        }
+        throw new Error(`Failed to ${action}: ${error.message}`);
     }
 
     // System Configuration

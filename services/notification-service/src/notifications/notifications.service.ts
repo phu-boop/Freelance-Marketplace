@@ -5,6 +5,10 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 import { Notification } from './schemas/notification.schema';
 import { PushService } from './push.service';
 import { IntegrationService } from './integration.service';
+import { NotificationGateway } from './notifications.gateway';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class NotificationsService {
@@ -13,6 +17,9 @@ export class NotificationsService {
         private notificationModel: Model<Notification>,
         private pushService: PushService,
         private integrationService: IntegrationService,
+        private notificationGateway: NotificationGateway,
+        private httpService: HttpService,
+        private configService: ConfigService,
     ) { }
 
     async create(
@@ -21,19 +28,39 @@ export class NotificationsService {
         const createdNotification = new this.notificationModel(
             createNotificationDto,
         );
+        // Fetch user preferences
+        let userPrefs = { inAppNotifications: true, pushNotifications: true, emailNotifications: true };
+        try {
+            const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://user-service:3001');
+            const { data: user } = await firstValueFrom(this.httpService.get(`${userServiceUrl}/api/users/${createNotificationDto.userId}`));
+            userPrefs = {
+                inAppNotifications: user.inAppNotifications ?? true,
+                pushNotifications: user.pushNotifications ?? true,
+                emailNotifications: user.emailNotifications ?? true,
+            };
+        } catch (err) {
+            console.error('Failed to fetch user preferences, defaulting to enabled', err.message);
+        }
+
         const saved = await createdNotification.save();
 
-        // Dispatch Web Push
-        // Ensure payload is small and simple
-        const payload = {
-            title: createNotificationDto.title,
-            body: createNotificationDto.message,
-            url: createNotificationDto.link || '/',
-            data: { id: saved._id }
-        };
-        await this.pushService.sendNotification(createNotificationDto.userId, payload);
+        // Dispatch Real-time (Socket.io)
+        if (userPrefs.inAppNotifications) {
+            this.notificationGateway.sendNotification(createNotificationDto.userId, saved);
+        }
 
-        // Dispatch Integrations (Slack/Discord)
+        // Dispatch Web Push
+        if (userPrefs.pushNotifications) {
+            const payload = {
+                title: createNotificationDto.title,
+                body: createNotificationDto.message,
+                url: createNotificationDto.link || '/',
+                data: { id: saved._id }
+            };
+            await this.pushService.sendNotification(createNotificationDto.userId, payload);
+        }
+
+        // Dispatch Integrations (Slack/Discord) - Always dispatch if active, or we could add a specific pref
         await this.integrationService.dispatch(createNotificationDto.userId, {
             title: createNotificationDto.title,
             message: createNotificationDto.message,
@@ -75,13 +102,13 @@ export class NotificationsService {
             .exec();
     }
 
-    async markAsRead(id: string): Promise<Notification | null> {
+    async markAsRead(id: string, userId: string): Promise<Notification | null> {
         return this.notificationModel
-            .findByIdAndUpdate(id, { isRead: true }, { new: true })
+            .findOneAndUpdate({ _id: id, userId }, { isRead: true }, { new: true })
             .exec();
     }
 
-    async remove(id: string): Promise<any> {
-        return this.notificationModel.findByIdAndDelete(id).exec();
+    async remove(id: string, userId: string): Promise<any> {
+        return this.notificationModel.findOneAndDelete({ _id: id, userId }).exec();
     }
 }

@@ -4,9 +4,9 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, ArrowRight, Github, Chrome, Facebook, AlertCircle, ShieldCheck } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 
@@ -28,16 +28,36 @@ export default function LoginPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log('[LOGIN] Form submitted. Step:', step, 'Email:', formData.email);
         setLoading(true);
         setError(null);
 
         try {
-            // Standard OIDC Redirect Flow is the "Enterprise" way
-            // We use loginHint to pass the email if the user already typed it
-            redirectLogin({ loginHint: formData.email });
+            if (step === 'LOGIN') {
+                const response = await api.post('/auth/login', {
+                    email: formData.email,
+                    password: formData.password
+                });
+
+                if (response.data.required2FA) {
+                    setTempToken(response.data.tempToken);
+                    setStep('2FA');
+                } else {
+                    setTokens(response.data);
+                }
+            } else {
+                const response = await api.post('/auth/login/2fa', {
+                    tempToken,
+                    code: twoFactorCode
+                });
+                setTokens(response.data);
+            }
         } catch (err: any) {
-            console.error('Login error:', err);
-            setError(err.message || 'Failed to initiate login');
+            console.error('Login error detail:', err.response?.data);
+            const data = err.response?.data;
+            const message = data?.message || (Array.isArray(data?.errors) ? data.errors[0] : null) || err.message || 'Failed to sign in';
+            setError(message);
+        } finally {
             setLoading(false);
         }
     };
@@ -59,24 +79,14 @@ export default function LoginPage() {
                 </div>
 
                 <Card className="p-8 space-y-6 bg-slate-900/50 border-slate-800/50 backdrop-blur-xl">
-                    <AnimatePresence mode="wait">
-                        {error && (
-                            <motion.div
-                                key="error"
-                                initial={{ opacity: 0, height: 0, x: 0 }}
-                                animate={{
-                                    opacity: 1,
-                                    height: 'auto',
-                                    x: [0, -4, 4, -4, 4, 0],
-                                }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm mb-4"
-                            >
-                                <AlertCircle className="w-5 h-5 shrink-0" />
-                                <p>{error}</p>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    {error && (
+                        <div
+                            className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm mb-4"
+                        >
+                            <AlertCircle className="w-5 h-5 shrink-0" />
+                            <p>{error}</p>
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <AnimatePresence mode="wait">

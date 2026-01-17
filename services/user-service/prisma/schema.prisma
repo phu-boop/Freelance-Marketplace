@@ -15,6 +15,7 @@ model User {
   availableConnects      Int                    @default(50)
   address                String?
   avatarUrl              String?
+  coverImageUrl          String?
   badges                 String[]
   banExpiresAt           DateTime?
   banReason              String?
@@ -41,6 +42,7 @@ model User {
   language               String?                @default("en")
   lastName               String?
   linkedinId             String?                @unique
+linkedinUsername        String?
   overview               String?
   password               String?
   phone                  String?
@@ -59,6 +61,7 @@ model User {
   trustScore             Int                    @default(100)
   isCloudMember          Boolean                @default(false)
   hasCloudOwnership      Boolean                @default(false)
+  languages              Json?                  // e.g. [{ "lang": "English", "level": "NATIVE" }]
   twoFactorEnabled       Boolean                @default(false)
   twoFactorSecret        String?
   updatedAt              DateTime               @updatedAt
@@ -93,6 +96,8 @@ model User {
   githubUsername         String?
   behanceUsername        String?
   dribbbleUsername       String?
+
+  twitterUsername        String?
   portfolioSyncEnabled   Boolean                @default(false)
   lastPortfolioSync      DateTime?
 
@@ -364,9 +369,10 @@ model SyncTombstone {
   id        String   @id @default(uuid())
   entity    String   // e.g., "User", "PortfolioItem"
   recordId  String
+  userId    String?  // Optional: associated user
   deletedAt DateTime @default(now())
   
-  @@index([entity, deletedAt])
+  @@index([entity, deletedAt, userId])
   @@map("sync_tombstones")
-  @@schema("users")
+  @@schema("sync")
 }

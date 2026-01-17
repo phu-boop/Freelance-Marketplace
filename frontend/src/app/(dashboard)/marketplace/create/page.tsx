@@ -71,7 +71,7 @@ export default function PostJobPage() {
             const uploadData = new FormData();
             uploadData.append('file', file);
             // Assuming direct access or proxy
-            const res = await api.post('http://localhost:3000/storage/upload', uploadData, {
+            const res = await api.post('/storage/upload', uploadData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setFormData(prev => ({

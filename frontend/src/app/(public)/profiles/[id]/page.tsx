@@ -4,11 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     User as UserIcon,
-    Mail,
-    Globe,
-    Github,
-    Twitter,
-    Linkedin,
     MapPin,
     Calendar,
     Star,
@@ -17,15 +12,20 @@ import {
     Loader2,
     Briefcase,
     ArrowLeft,
-    ExternalLink,
     Share2,
     Check,
-    Copy
+    Copy,
+    Linkedin,
+    Twitter,
+    Globe
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import api from '@/lib/api';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import { HireModal } from '@/components/HireModal';
+import { BadgeList } from '@/components/BadgeList';
+import { getPublicUrl } from '@/lib/utils';
 
 interface Review {
     id: string;
@@ -47,6 +47,14 @@ interface UserData {
     jobSuccessScore: number;
     skills: string[];
     createdAt: string;
+    isIdentityVerified: boolean;
+    isPaymentVerified: boolean;
+    kycStatus: string;
+    portfolio: any[];
+    experience: any[];
+    education: any[];
+    certifications: any[];
+    languages: { language: string, proficiency: string }[];
 }
 
 export default function PublicProfilePage() {
@@ -56,7 +64,7 @@ export default function PublicProfilePage() {
     const [user, setUser] = useState<UserData | null>(null);
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'about' | 'reviews'>('about');
+    const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio'>('about');
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -124,7 +132,13 @@ export default function PublicProfilePage() {
                     <div className="absolute -bottom-12 left-8 flex items-end gap-6">
                         <div className="w-32 h-32 rounded-3xl bg-slate-900 border-4 border-slate-950 p-1">
                             <div className="w-full h-full rounded-2xl bg-slate-800 flex items-center justify-center overflow-hidden">
-                                <UserIcon className="w-16 h-16 text-slate-400" />
+                                {user.email ? (
+                                    <img src={getPublicUrl(user.id + '.avatar')} alt="" className="w-full h-full object-cover" onError={(e) => {
+                                        (e.target as any).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
+                                    }} />
+                                ) : (
+                                    <UserIcon className="w-16 h-16 text-slate-400" />
+                                )}
                             </div>
                         </div>
                         <div className="pb-4 space-y-2">
@@ -142,6 +156,7 @@ export default function PublicProfilePage() {
                                     {user.jobSuccessScore}% JSS
                                 </div>
                             </div>
+                            <BadgeList user={user} />
                         </div>
                     </div>
                     <div className="absolute -bottom-12 right-8 pb-4 flex items-center gap-3">
@@ -200,9 +215,10 @@ export default function PublicProfilePage() {
                                 Sign in to Hire
                             </button>
                         ) : (
-                            <button className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-all shadow-lg shadow-blue-600/20">
-                                Hire {user.firstName}
-                            </button>
+                            <HireModal
+                                freelancerId={user.id}
+                                freelancerName={`${user.firstName} ${user.lastName}`}
+                            />
                         )}
                     </div>
                 </div>
@@ -228,10 +244,20 @@ export default function PublicProfilePage() {
                             <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
                         )}
                     </button>
+                    <button
+                        onClick={() => setActiveTab('portfolio')}
+                        className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'portfolio' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
+                            }`}
+                    >
+                        Portfolio ({user.portfolio?.length || 0})
+                        {activeTab === 'portfolio' && (
+                            <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+                        )}
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {activeTab === 'about' ? (
+                    {activeTab === 'about' && (
                         <>
                             <div className="space-y-6">
                                 <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
@@ -248,6 +274,20 @@ export default function PublicProfilePage() {
                                         </div>
                                     </div>
                                 </div>
+
+                                {user.languages?.length > 0 && (
+                                    <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                        <h3 className="font-semibold text-white">Languages</h3>
+                                        <div className="space-y-3">
+                                            {user.languages.map((lang, i) => (
+                                                <div key={i} className="flex justify-between items-center text-sm">
+                                                    <span className="text-slate-300 font-medium">{lang.language}</span>
+                                                    <span className="text-slate-500">{lang.proficiency}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="lg:col-span-2 space-y-6">
@@ -266,9 +306,58 @@ export default function PublicProfilePage() {
                                         )}
                                     </div>
                                 </div>
+
+                                {user.experience?.length > 0 && (
+                                    <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
+                                        <h3 className="font-semibold text-white">Experience</h3>
+                                        <div className="space-y-6">
+                                            {user.experience.map((exp) => (
+                                                <div key={exp.id} className="flex gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+                                                        <Briefcase className="w-5 h-5 text-slate-400" />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <h4 className="font-bold text-white">{exp.title}</h4>
+                                                        <p className="text-sm text-blue-400">{exp.company}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {new Date(exp.startDate).toLocaleDateString()} - {exp.endDate ? new Date(exp.endDate).toLocaleDateString() : 'Present'}
+                                                        </p>
+                                                        {exp.description && (
+                                                            <p className="text-sm text-slate-400 mt-2 leading-relaxed">{exp.description}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {user.education?.length > 0 && (
+                                    <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
+                                        <h3 className="font-semibold text-white">Education</h3>
+                                        <div className="space-y-6">
+                                            {user.education.map((edu) => (
+                                                <div key={edu.id} className="flex gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+                                                        <Award className="w-5 h-5 text-slate-400" />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <h4 className="font-bold text-white">{edu.degree}</h4>
+                                                        <p className="text-sm text-indigo-400">{edu.school}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {new Date(edu.startDate).getFullYear()} - {edu.endDate ? new Date(edu.endDate).getFullYear() : 'Present'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </>
-                    ) : (
+                    )}
+
+                    {activeTab === 'reviews' && (
                         <div className="lg:col-span-3 space-y-6">
                             {reviews.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -300,6 +389,39 @@ export default function PublicProfilePage() {
                                     <p className="text-slate-500 text-sm">No reviews yet.</p>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {activeTab === 'portfolio' && (
+                        <div className="lg:col-span-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {user.portfolio?.length > 0 ? user.portfolio.map((item) => (
+                                    <div key={item.id} className="group rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-slate-700 transition-all cursor-pointer">
+                                        <div className="aspect-video bg-slate-800 relative overflow-hidden">
+                                            {item.imageUrl ? (
+                                                <img
+                                                    src={getPublicUrl(item.imageUrl)}
+                                                    alt={item.title}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-slate-700">
+                                                    <Briefcase className="w-8 h-8" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-4 space-y-2">
+                                            <h4 className="font-bold text-white group-hover:text-blue-400 transition-colors">{item.title}</h4>
+                                            <p className="text-sm text-slate-400 line-clamp-2">{item.description}</p>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="col-span-full py-12 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+                                        <Briefcase className="w-12 h-12 text-slate-800 mx-auto mb-4" />
+                                        <p className="text-slate-500">No portfolio projects to showcase yet.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

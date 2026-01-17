@@ -89,12 +89,14 @@ export class SearchService implements OnModuleInit {
             ...job,
             preferredCommunicationStyle: job.preferredCommunicationStyle || null
         };
-        // Invalidate cache? For now, we rely on TTL.
-        return this.elasticsearchService.index({
+        const result = await this.elasticsearchService.index({
             index: 'jobs',
             id: job.id,
             document: doc,
         });
+        // Invalidate caches
+        await this.invalidateCache(['search:jobs:*', 'search:rec:freelancers:*']);
+        return result;
     }
 
     async indexUser(user: any) {
@@ -112,11 +114,27 @@ export class SearchService implements OnModuleInit {
             rating: user.rating ? parseFloat(user.rating.toString()) : 0,
             isPromoted: user.isPromoted || false
         };
-        return this.elasticsearchService.index({
+        const result = await this.elasticsearchService.index({
             index: 'users',
             id: user.id,
             document: doc,
         });
+        // Invalidate caches
+        await this.invalidateCache(['search:users:*', 'search:rec:jobs:*']);
+        return result;
+    }
+
+    private async invalidateCache(patterns: string[]) {
+        try {
+            for (const pattern of patterns) {
+                const keys = await this.redis.keys(pattern);
+                if (keys.length > 0) {
+                    await this.redis.del(...keys);
+                }
+            }
+        } catch (err) {
+            this.logger.warn(`Failed to invalidate cache for patterns ${patterns.join(',')}: ${err.message}`);
+        }
     }
 
     private generateCacheKey(prefix: string, params: any): string {
@@ -141,8 +159,10 @@ export class SearchService implements OnModuleInit {
         const cacheKey = this.generateCacheKey('jobs', { query, filters });
         const cached = await this.redis.get(cacheKey);
         if (cached) {
+            this.logger.log(`Cache HIT for ${cacheKey}`);
             return JSON.parse(cached);
         }
+        this.logger.log(`Cache MISS for ${cacheKey}`);
 
         const page = Number(filters?.page) || 1;
         const limit = Number(filters?.limit) || 10;
@@ -253,7 +273,10 @@ export class SearchService implements OnModuleInit {
                 total,
                 page,
                 limit,
-                results: result.hits.hits.map((hit) => hit._source),
+                results: result.hits.hits.map((hit) => ({
+                    ...hit._source as any,
+                    matchScore: Math.round((hit._score as number) * 10)
+                })),
             };
 
             await this.redis.set(cacheKey, JSON.stringify(response), 'EX', 60); // Cache for 60 seconds
@@ -272,7 +295,11 @@ export class SearchService implements OnModuleInit {
     async searchUsers(query: string, page: number = 1, limit: number = 10) {
         const cacheKey = this.generateCacheKey('users', { query, page, limit });
         const cached = await this.redis.get(cacheKey);
-        if (cached) return JSON.parse(cached);
+        if (cached) {
+            this.logger.log(`Cache HIT for ${cacheKey}`);
+            return JSON.parse(cached);
+        }
+        this.logger.log(`Cache MISS for ${cacheKey}`);
 
         const from = (page - 1) * limit;
 
@@ -308,7 +335,10 @@ export class SearchService implements OnModuleInit {
                 total,
                 page,
                 limit,
-                results: result.hits.hits.map((hit) => hit._source),
+                results: result.hits.hits.map((hit) => ({
+                    ...hit._source as any,
+                    matchScore: Math.round((hit._score as number) * 10)
+                })),
             };
 
             await this.redis.set(cacheKey, JSON.stringify(response), 'EX', 60);
@@ -325,7 +355,11 @@ export class SearchService implements OnModuleInit {
     async getRecommendedJobs(userId: string, limit: number = 5) {
         const cacheKey = this.generateCacheKey('rec:jobs', { userId, limit });
         const cached = await this.redis.get(cacheKey);
-        if (cached) return JSON.parse(cached);
+        if (cached) {
+            this.logger.log(`Cache HIT for ${cacheKey}`);
+            return JSON.parse(cached);
+        }
+        this.logger.log(`Cache MISS for ${cacheKey}`);
 
         try {
             // 1. Fetch user profile from user-service
@@ -420,7 +454,10 @@ export class SearchService implements OnModuleInit {
             const response = {
                 total,
                 limit,
-                results: result.hits.hits.map((hit) => hit._source),
+                results: result.hits.hits.map((hit) => ({
+                    ...hit._source as any,
+                    matchScore: Math.round((hit._score as number) * 10)
+                })),
             };
 
             await this.redis.set(cacheKey, JSON.stringify(response), 'EX', 600); // 10 minutes cache for recommendations
@@ -435,7 +472,11 @@ export class SearchService implements OnModuleInit {
     async getRecommendedFreelancers(jobId: string, limit: number = 10) {
         const cacheKey = this.generateCacheKey('rec:freelancers', { jobId, limit });
         const cached = await this.redis.get(cacheKey);
-        if (cached) return JSON.parse(cached);
+        if (cached) {
+            this.logger.log(`Cache HIT for ${cacheKey}`);
+            return JSON.parse(cached);
+        }
+        this.logger.log(`Cache MISS for ${cacheKey}`);
 
         try {
             // 1. Fetch job details from job-service

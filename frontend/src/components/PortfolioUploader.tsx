@@ -22,7 +22,7 @@ export function PortfolioUploader({ userId, onUploadComplete }: PortfolioUploade
             // 1. Upload file to Storage Service
             const formData = new FormData();
             formData.append('file', file);
-            const uploadRes = await api.post('http://localhost:3000/storage/upload', formData, { // Direct call to storage service via proxy or gateway
+            const uploadRes = await api.post('/storage/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 

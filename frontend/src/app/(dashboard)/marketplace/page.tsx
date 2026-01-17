@@ -27,6 +27,7 @@ interface Job {
     description: string;
     skills: string[];
     preferredCommunicationStyle?: string;
+    matchScore?: number;
 }
 
 interface UserProfile {
@@ -228,10 +229,18 @@ export default function JobsPage() {
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
-                                                    {userProfile?.communicationStyle && job.preferredCommunicationStyle === userProfile.communicationStyle && (
-                                                        <span className="px-2 py-0.5 rounded-md bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 flex items-center gap-1">
-                                                            ✨ Smart Match
-                                                        </span>
+                                                    {job.matchScore !== undefined && job.matchScore > 0 && (
+                                                        <div className="flex items-center gap-1">
+                                                            <div className={`px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 ${job.matchScore >= 80 ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                                                                    job.matchScore >= 50 ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                                                        'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                                                }`}>
+                                                                ✨ {job.matchScore}% Match
+                                                            </div>
+                                                            {userProfile?.communicationStyle && job.preferredCommunicationStyle === userProfile.communicationStyle && (
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Perfect Communication Match" />
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <p className="text-sm text-slate-400">{job.company}</p>

@@ -34,6 +34,7 @@ services:
           - /api/users
           - /api/user/teams
         methods:
+          - GET
           - POST
           - PUT
           - PATCH
@@ -48,6 +49,7 @@ services:
         paths:
           - /api/jobs
           - /api/proposals
+          - /api/invitations
           - /api/reports
           - /api/interviews
           - /api/timesheets

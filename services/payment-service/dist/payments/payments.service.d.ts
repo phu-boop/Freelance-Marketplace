@@ -139,7 +139,7 @@ export declare class PaymentsService {
         status: string;
         userId: string;
     }>;
-    transfer(fromUserId: string, toUserId: string, amount: number, description: string, referenceId?: string, teamId?: string, departmentId?: string): Promise<{
+    transfer(fromUserId: string, toUserId: string, amount: number, description: string, referenceId?: string, teamId?: string, departmentId?: string, costCenter?: string): Promise<{
         success: boolean;
         status: string;
         transactionId: string;
@@ -150,6 +150,134 @@ export declare class PaymentsService {
         status?: undefined;
         transactionId?: undefined;
     }>;
+    getTransactionById(id: string): Promise<{
+        wallet: {
+            id: string;
+            userId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            balance: Prisma.Decimal;
+            currency: string;
+            preferredCurrency: string;
+            cryptoAddress: string | null;
+            autoWithdrawalEnabled: boolean;
+            autoWithdrawalSchedule: string | null;
+            autoWithdrawalThreshold: Prisma.Decimal | null;
+            pendingBalance: Prisma.Decimal;
+            autoWithdrawalMethodId: string | null;
+            autoDepositEnabled: boolean;
+            autoDepositThreshold: Prisma.Decimal | null;
+            autoDepositAmount: Prisma.Decimal | null;
+            paymentMethodId: string | null;
+        };
+        invoice: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            currency: string;
+            amount: Prisma.Decimal;
+            status: string;
+            feeAmount: Prisma.Decimal;
+            taxAmount: Prisma.Decimal;
+            invoiceNumber: string;
+            senderId: string;
+            receiverId: string;
+            dueDate: Date | null;
+            paidAt: Date | null;
+            items: Prisma.JsonValue;
+        } | null;
+    } & {
+        id: string;
+        type: string;
+        createdAt: Date;
+        walletId: string;
+        amount: Prisma.Decimal;
+        status: string;
+        referenceId: string | null;
+        departmentId: string | null;
+        costCenter: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: Prisma.Decimal;
+        invoiceId: string | null;
+        taxAmount: Prisma.Decimal;
+    }>;
+    listTransactions(userId?: string, opts?: {
+        limit?: number;
+        offset?: number;
+        type?: string;
+        status?: string;
+    }): Promise<{
+        total: number;
+        data: ({
+            wallet: {
+                id: string;
+                userId: string;
+                createdAt: Date;
+                updatedAt: Date;
+                balance: Prisma.Decimal;
+                currency: string;
+                preferredCurrency: string;
+                cryptoAddress: string | null;
+                autoWithdrawalEnabled: boolean;
+                autoWithdrawalSchedule: string | null;
+                autoWithdrawalThreshold: Prisma.Decimal | null;
+                pendingBalance: Prisma.Decimal;
+                autoWithdrawalMethodId: string | null;
+                autoDepositEnabled: boolean;
+                autoDepositThreshold: Prisma.Decimal | null;
+                autoDepositAmount: Prisma.Decimal | null;
+                paymentMethodId: string | null;
+            };
+            invoice: {
+                id: string;
+                createdAt: Date;
+                updatedAt: Date;
+                currency: string;
+                amount: Prisma.Decimal;
+                status: string;
+                feeAmount: Prisma.Decimal;
+                taxAmount: Prisma.Decimal;
+                invoiceNumber: string;
+                senderId: string;
+                receiverId: string;
+                dueDate: Date | null;
+                paidAt: Date | null;
+                items: Prisma.JsonValue;
+            } | null;
+        } & {
+            id: string;
+            type: string;
+            createdAt: Date;
+            walletId: string;
+            amount: Prisma.Decimal;
+            status: string;
+            referenceId: string | null;
+            departmentId: string | null;
+            costCenter: string | null;
+            description: string | null;
+            clearedAt: Date | null;
+            feeAmount: Prisma.Decimal;
+            invoiceId: string | null;
+            taxAmount: Prisma.Decimal;
+        })[];
+    }>;
+    updateTransactionStatus(id: string, status: string): Promise<{
+        id: string;
+        type: string;
+        createdAt: Date;
+        walletId: string;
+        amount: Prisma.Decimal;
+        status: string;
+        referenceId: string | null;
+        departmentId: string | null;
+        costCenter: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: Prisma.Decimal;
+        invoiceId: string | null;
+        taxAmount: Prisma.Decimal;
+    }>;
     getTransactionsByReference(referenceId: string): Promise<{
         id: string;
         type: string;
@@ -159,6 +287,7 @@ export declare class PaymentsService {
         status: string;
         referenceId: string | null;
         departmentId: string | null;
+        costCenter: string | null;
         description: string | null;
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
@@ -194,6 +323,7 @@ export declare class PaymentsService {
         status: string;
         referenceId: string | null;
         departmentId: string | null;
+        costCenter: string | null;
         description: string | null;
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
@@ -329,6 +459,7 @@ export declare class PaymentsService {
         contractId: string;
         milestoneId: string;
         amount: number;
+        costCenter?: string;
     }): Promise<any>;
     releaseEscrow(contractId: string, milestoneId: string, freelancerId: string): Promise<{
         id: string;
@@ -339,6 +470,23 @@ export declare class PaymentsService {
         status: string;
         referenceId: string | null;
         departmentId: string | null;
+        costCenter: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: Prisma.Decimal;
+        invoiceId: string | null;
+        taxAmount: Prisma.Decimal;
+    }>;
+    refundEscrow(contractId: string, milestoneId: string): Promise<{
+        id: string;
+        type: string;
+        createdAt: Date;
+        walletId: string;
+        amount: Prisma.Decimal;
+        status: string;
+        referenceId: string | null;
+        departmentId: string | null;
+        costCenter: string | null;
         description: string | null;
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
@@ -429,6 +577,7 @@ export declare class PaymentsService {
         status: string;
         referenceId: string | null;
         departmentId: string | null;
+        costCenter: string | null;
         description: string | null;
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
@@ -486,7 +635,7 @@ export declare class PaymentsService {
             amount: number;
         }[];
     }>;
-    processRecipientCredit(prisma: any, fromUserId: string, toUserId: string, grossAmount: number, feeAmount: number, netAmount: number, description: string, referenceId?: string): Promise<any>;
+    processRecipientCredit(prisma: any, fromUserId: string, toUserId: string, grossAmount: number, feeAmount: number, netAmount: number, description: string, referenceId?: string, costCenter?: string): Promise<any>;
     checkApproval(teamId: string, triggerType: string, amount: number): Promise<any>;
     approvePayment(transactionId: string, userId: string): Promise<{
         success: boolean;
@@ -497,4 +646,5 @@ export declare class PaymentsService {
         departmentId: string;
         totalSpend: Prisma.Decimal;
     }>;
+    private logToAnalytics;
 }
