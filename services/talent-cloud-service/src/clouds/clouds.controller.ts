@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, Get, Patch } from '@nestjs/common';
 import { CloudsService } from './clouds.service';
 
 @Controller('api/clouds')
@@ -23,5 +23,15 @@ export class CloudsController {
     @Get('user/:userId')
     async listForUser(@Param('userId') userId: string) {
         return this.cloudsService.listCloudsForUser(userId);
+    }
+
+    @Get(':id')
+    async getOne(@Param('id') id: string) {
+        return this.cloudsService.getCloud(id);
+    }
+
+    @Patch(':id')
+    async update(@Param('id') id: string, @Body() dto: { name?: string; description?: string; visibility?: 'PRIVATE' | 'PUBLIC'; costCenter?: string; budget?: number }) {
+        return this.cloudsService.updateCloud(id, dto);
     }
 }

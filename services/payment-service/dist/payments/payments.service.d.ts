@@ -345,6 +345,21 @@ export declare class PaymentsService {
         invoiceId: string | null;
         taxAmount: Prisma.Decimal;
     }>;
+    refundEscrow(contractId: string, milestoneId: string): Promise<{
+        id: string;
+        type: string;
+        createdAt: Date;
+        walletId: string;
+        amount: Prisma.Decimal;
+        status: string;
+        referenceId: string | null;
+        departmentId: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: Prisma.Decimal;
+        invoiceId: string | null;
+        taxAmount: Prisma.Decimal;
+    }>;
     processPayroll(contractId: string, data: {
         periodStart: Date;
         periodEnd: Date;
@@ -497,4 +512,5 @@ export declare class PaymentsService {
         departmentId: string;
         totalSpend: Prisma.Decimal;
     }>;
+    private logToAnalytics;
 }

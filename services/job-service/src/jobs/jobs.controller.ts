@@ -4,7 +4,7 @@ import { AiService } from './ai.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { CreateCategoryDto } from '../categories/create-category.dto';
-import { Public, Roles } from 'nest-keycloak-connect';
+import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
 
 @Controller('api/jobs')
 export class JobsController {
@@ -225,12 +225,18 @@ export class JobsController {
   }
 
   @Get('sync')
-  @Public()
   sync(
+    @AuthenticatedUser() user: any,
     @Query('since') since: string,
     @Query('entities') entities: string,
   ) {
-    const entityList = entities ? entities.split(',') : ['Job', 'Category', 'Skill'];
-    return this.jobsService.sync(since || new Date(0).toISOString(), entityList);
+    const entityList = entities
+      ? entities.split(',')
+      : ['Job', 'Category', 'Skill', 'Proposal', 'ServicePackage', 'Milestone'];
+    return this.jobsService.sync(
+      since || new Date(0).toISOString(),
+      entityList,
+      user.sub,
+    );
   }
 }

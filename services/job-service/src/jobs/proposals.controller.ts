@@ -165,12 +165,16 @@ export class ProposalsController {
     }
 
     @Get('sync')
-    @Public()
     sync(
+        @AuthenticatedUser() user: any,
         @Query('since') since: string,
         @Query('entities') entities: string,
     ) {
         const entityList = entities ? entities.split(',') : ['Proposal', 'Milestone'];
-        return this.jobsService.sync(since || new Date(0).toISOString(), entityList);
+        return this.jobsService.sync(
+            since || new Date(0).toISOString(),
+            entityList,
+            user.sub,
+        );
     }
 }

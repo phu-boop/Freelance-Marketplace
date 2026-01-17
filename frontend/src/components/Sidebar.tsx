@@ -13,7 +13,9 @@ import {
     Settings,
     LogOut,
     Search,
-    PlusCircle
+    PlusCircle,
+    BarChart2,
+    Users
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { cn } from '@/lib/utils';
@@ -25,6 +27,8 @@ const menuItems = [
     { icon: PlusCircle, label: 'Post a Job', href: '/marketplace/create' },
     { icon: FileText, label: 'My Proposals', href: '/proposals' },
     { icon: Briefcase, label: 'My Contracts', href: '/contracts' },
+    { icon: Users, label: 'Talent Clouds', href: '/clouds' },
+    { icon: BarChart2, label: 'Analytics', href: '/analytics' },
     { icon: MessageSquare, label: 'Messages', href: '/messages' },
     { icon: Bell, label: 'Notifications', href: '/notifications' },
     { icon: User, label: 'Profile', href: '/profile' },

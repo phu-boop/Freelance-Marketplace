@@ -6,6 +6,7 @@ import {
   ConflictException,
   HttpException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -24,6 +25,8 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private prisma: PrismaService,
     private keycloakService: KeycloakService, // Fixed typo
@@ -310,7 +313,12 @@ export class UsersService {
     return { message: '2FA enabled successfully' };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, viewerId?: string) {
+    if (viewerId && viewerId !== id) {
+      this.trackEvent('profile_view', id, { viewerId }).catch((err) =>
+        this.logger.error(`Failed to track profile view: ${err.message}`),
+      );
+    }
     let user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -318,6 +326,7 @@ export class UsersService {
         experience: true,
         portfolio: true,
         certifications: true,
+        availability: true,
       },
     });
 
@@ -340,6 +349,7 @@ export class UsersService {
             experience: true,
             portfolio: true,
             certifications: true,
+            availability: true,
           },
         });
 
@@ -396,6 +406,7 @@ export class UsersService {
           experience: true,
           portfolio: true,
           certifications: true,
+          availability: true,
         },
       });
 
@@ -481,7 +492,7 @@ export class UsersService {
     const result = await this.prisma.user.delete({
       where: { id },
     });
-    await this.recordTombstone('User', id);
+    await this.recordTombstone('User', id, id);
     return result;
   }
 
@@ -499,8 +510,9 @@ export class UsersService {
   }
 
   async deleteEducation(id: string) {
+    const record = await this.prisma.education.findUnique({ where: { id } });
     const result = await this.prisma.education.delete({ where: { id } });
-    await this.recordTombstone('Education', id);
+    if (record) await this.recordTombstone('Education', id, record.userId);
     return result;
   }
 
@@ -518,8 +530,9 @@ export class UsersService {
   }
 
   async deleteExperience(id: string) {
+    const record = await this.prisma.experience.findUnique({ where: { id } });
     const result = await this.prisma.experience.delete({ where: { id } });
-    await this.recordTombstone('Experience', id);
+    if (record) await this.recordTombstone('Experience', id, record.userId);
     return result;
   }
 
@@ -537,8 +550,9 @@ export class UsersService {
   }
 
   async deletePortfolio(id: string) {
+    const record = await this.prisma.portfolioItem.findUnique({ where: { id } });
     const result = await this.prisma.portfolioItem.delete({ where: { id } });
-    await this.recordTombstone('PortfolioItem', id);
+    if (record) await this.recordTombstone('PortfolioItem', id, record.userId);
     return result;
   }
 
@@ -869,10 +883,13 @@ export class UsersService {
     });
   }
 
-  deleteCertification(certId: string) {
-    return this.prisma.certification.delete({
+  async deleteCertification(certId: string) {
+    const record = await this.prisma.certification.findUnique({ where: { id: certId } });
+    const result = await this.prisma.certification.delete({
       where: { id: certId },
     });
+    if (record) await this.recordTombstone('Certification', certId, record.userId);
+    return result;
   }
 
   async initiateBackgroundCheck(userId: string) {
@@ -1330,10 +1347,10 @@ export class UsersService {
     }
   }
 
-  private async recordTombstone(entity: string, recordId: string) {
+  private async recordTombstone(entity: string, recordId: string, userId: string) {
     try {
       await this.prisma.syncTombstone.create({
-        data: { entity, recordId },
+        data: { entity, recordId, userId },
       });
     } catch (error) {
       console.error(
@@ -1342,9 +1359,9 @@ export class UsersService {
     }
   }
 
-  async sync(since: string, entities: string[]) {
+  async sync(since: string, entities: string[], requestingUserId: string) {
     try {
-      console.log(`Sync request: since=${since}, entities=${entities}`);
+      this.logger.log(`Sync request for user ${requestingUserId}: since=${since}, entities=${entities}`);
       const sinceDate = new Date(since);
       const newSince = new Date();
       const result: any = {
@@ -1355,52 +1372,35 @@ export class UsersService {
 
       if (entities.includes('User')) {
         result.upserted.users = await this.prisma.user.findMany({
-          where: { updatedAt: { gt: sinceDate } },
+          where: { id: requestingUserId, updatedAt: { gt: sinceDate } },
         });
-        const tombstones = await this.prisma.syncTombstone.findMany({
-          where: { entity: 'User', deletedAt: { gt: sinceDate } },
-          select: { recordId: true },
-        });
-        result.deleted.users = tombstones.map((t) => t.recordId);
+        // No deleted check for self user - if deleted, login would fail.
       }
 
-      if (entities.includes('Education')) {
-        result.upserted.education = await this.prisma.education.findMany({
-          where: { updatedAt: { gt: sinceDate } },
-        });
-        const tombstones = await this.prisma.syncTombstone.findMany({
-          where: { entity: 'Education', deletedAt: { gt: sinceDate } },
-          select: { recordId: true },
-        });
-        result.deleted.education = tombstones.map((t) => t.recordId);
-      }
+      const syncableEntities = [
+        { name: 'Education', prismaName: 'education', entityName: 'education' },
+        { name: 'Experience', prismaName: 'experience', entityName: 'experience' },
+        { name: 'PortfolioItem', prismaName: 'portfolioItem', entityName: 'portfolioItems' },
+        { name: 'Certification', prismaName: 'certification', entityName: 'certifications' },
+      ];
 
-      if (entities.includes('Experience')) {
-        result.upserted.experience = await this.prisma.experience.findMany({
-          where: { updatedAt: { gt: sinceDate } },
-        });
-        const tombstones = await this.prisma.syncTombstone.findMany({
-          where: { entity: 'Experience', deletedAt: { gt: sinceDate } },
-          select: { recordId: true },
-        });
-        result.deleted.experience = tombstones.map((t) => t.recordId);
-      }
-
-      if (entities.includes('PortfolioItem')) {
-        result.upserted.portfolioItems =
-          await this.prisma.portfolioItem.findMany({
-            where: { updatedAt: { gt: sinceDate } },
+      for (const e of syncableEntities) {
+        if (entities.includes(e.name)) {
+          result.upserted[e.entityName] = await (this.prisma[e.prismaName] as any).findMany({
+            where: { userId: requestingUserId, updatedAt: { gt: sinceDate } },
           });
-        const tombstones = await this.prisma.syncTombstone.findMany({
-          where: { entity: 'PortfolioItem', deletedAt: { gt: sinceDate } },
-          select: { recordId: true },
-        });
-        result.deleted.portfolioItems = tombstones.map((t) => t.recordId);
+
+          const tombstones = await this.prisma.syncTombstone.findMany({
+            where: { entity: e.name, userId: requestingUserId, deletedAt: { gt: sinceDate } },
+            select: { recordId: true },
+          });
+          result.deleted[e.entityName] = tombstones.map((t) => t.recordId);
+        }
       }
 
       return result;
     } catch (error) {
-      console.error('Sync failed:', error);
+      this.logger.error(`Sync failed for user ${requestingUserId}: ${error.message}`);
       throw error;
     }
   }
@@ -1481,5 +1481,20 @@ export class UsersService {
         subscriptionEndsAt: new Date(data.endsAt),
       },
     });
+  }
+
+  private async trackEvent(eventType: string, userId: string, metadata: any = {}) {
+    try {
+      const analyticsUrl = this.configService.get<string>('ANALYTICS_SERVICE_URL', 'http://analytics-service:3014');
+      await firstValueFrom(
+        this.httpService.post(`${analyticsUrl}/api/analytics/events`, {
+          event_type: eventType,
+          user_id: userId,
+          metadata: JSON.stringify(metadata),
+        }),
+      );
+    } catch (error) {
+      this.logger.error(`Failed to track event ${eventType}: ${error.message}`);
+    }
   }
 }

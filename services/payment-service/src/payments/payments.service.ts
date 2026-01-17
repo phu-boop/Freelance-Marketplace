@@ -769,6 +769,17 @@ export class PaymentsService {
         );
       }
 
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'SUBSCRIPTION_FEE_PAID',
+        actorId: userId,
+        amount: data.price,
+        referenceId: sub.id,
+        metadata: {
+          planId: data.planId,
+        },
+      });
+
       return sub;
     });
   }
@@ -802,7 +813,7 @@ export class PaymentsService {
       });
 
       // 3. Create Escrow Hold
-      return (prisma as any).escrowHold.create({
+      const hold = await (prisma as any).escrowHold.create({
         data: {
           walletId: wallet.id,
           transactionId: transaction.id,
@@ -812,6 +823,20 @@ export class PaymentsService {
           status: 'HELD',
         },
       });
+
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'ESCROW_FUNDED',
+        actorId: userId,
+        amount: data.amount,
+        referenceId: data.milestoneId,
+        metadata: {
+          contractId: data.contractId,
+          holdId: hold.id,
+        },
+      });
+
+      return hold;
     });
   }
 
@@ -871,7 +896,7 @@ export class PaymentsService {
       });
 
       // 3. Create Release Transaction
-      return prisma.transaction.create({
+      const tx = await prisma.transaction.create({
         data: {
           walletId: freelancerWallet.id,
           amount: hold.amount,
@@ -880,6 +905,73 @@ export class PaymentsService {
           description: `Escrow Release for Contract ${contractId} Milestone ${milestoneId}`,
         },
       });
+
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'ESCROW_RELEASED',
+        actorId: freelancerId,
+        amount: Number(hold.amount),
+        referenceId: milestoneId,
+        metadata: {
+          contractId,
+          holdId: hold.id,
+          transactionId: tx.id,
+        },
+      });
+
+      return tx;
+    });
+  }
+
+  async refundEscrow(contractId: string, milestoneId: string) {
+    const hold = await (this.prisma as any).escrowHold.findFirst({
+      where: { contractId, milestoneId, status: 'HELD' },
+    });
+
+    if (!hold) {
+      throw new NotFoundException(
+        'No active escrow hold found for this milestone',
+      );
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      // 1. Credit Client wallet (the hold.walletId is the client's wallet)
+      await prisma.wallet.update({
+        where: { id: hold.walletId },
+        data: { balance: { increment: hold.amount } },
+      });
+
+      // 2. Update Hold Status
+      await (prisma as any).escrowHold.update({
+        where: { id: hold.id },
+        data: { status: 'REFUNDED' },
+      });
+
+      // 3. Create Refund Transaction
+      const tx = await prisma.transaction.create({
+        data: {
+          walletId: hold.walletId,
+          amount: hold.amount,
+          type: 'ESCROW_REFUND',
+          status: 'COMPLETED',
+          description: `Escrow Refund for Contract ${contractId} Milestone ${milestoneId}`,
+        },
+      });
+
+      await this.logFinancialEvent({
+        service: 'payment-service',
+        eventType: 'ESCROW_REFUNDED',
+        actorId: hold.walletId,
+        amount: Number(hold.amount),
+        referenceId: milestoneId,
+        metadata: {
+          contractId,
+          holdId: hold.id,
+          transactionId: tx.id,
+        },
+      });
+
+      return tx;
     });
   }
 
@@ -1242,9 +1334,12 @@ export class PaymentsService {
       'AUDIT_SERVICE_URL',
       'http://audit-service:3011',
     );
+    const auditSecret = this.configService.get<string>('AUDIT_SECRET', 'fallback-secret');
     try {
       await firstValueFrom(
-        this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data),
+        this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data, {
+          headers: { 'x-audit-secret': auditSecret }
+        }),
       );
     } catch (error) {
       this.logger.error(
@@ -1525,7 +1620,7 @@ export class PaymentsService {
 
       await this.logFinancialEvent({
         service: 'payment-service',
-        eventType: 'PAYMENT_APPROVED', // New event type
+        eventType: 'PAYMENT_APPROVED',
         actorId: userId,
         amount: amount,
         referenceId: tx.referenceId || undefined,
@@ -1533,6 +1628,17 @@ export class PaymentsService {
           approvedBy: userId,
           transactionId,
         },
+      });
+
+      // Log to Analytics Service for Dashboarding
+      await this.logToAnalytics({
+        userId: toUserId, // Freelancer
+        counterpartyId: tx.wallet.userId, // Client
+        amount: Number(netAmount),
+        currency: 'USD',
+        category: 'Earnings',
+        jobId: tx.referenceId || '', // Assuming referenceId links to job/contract
+        transactionId: transactionId,
       });
 
       return { success: true, status: 'APPROVED', invoiceId: invoice.id };
@@ -1549,5 +1655,29 @@ export class PaymentsService {
       0,
     );
     return { departmentId, totalSpend: new Decimal(totalSpend) };
+  }
+
+  private async logToAnalytics(data: {
+    userId: string;
+    counterpartyId: string;
+    amount: number;
+    currency: string;
+    category: string;
+    jobId: string;
+    transactionId: string;
+  }) {
+    const analyticsUrl = this.configService.get<string>(
+      'ANALYTICS_SERVICE_URL',
+      'http://analytics-service:8000',
+    );
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${analyticsUrl}/api/analytics/financials`, data),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to log financial event to analytics-service: ${error.message}`,
+      );
+    }
   }
 }

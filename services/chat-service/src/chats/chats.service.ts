@@ -3,21 +3,42 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
+import ogs from 'open-graph-scraper';
+// Define interface for OG results
+export interface OpenGraphResult {
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: { url: string }[];
+  ogUrl?: string;
+}
 import { Message } from './schemas/message.schema';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 
+import { ConversationMetadata } from './schemas/conversation-metadata.schema';
+
 @Injectable()
 export class ChatsService {
   constructor(
     @InjectModel(Message.name) private messageModel: Model<Message>,
+    @InjectModel(ConversationMetadata.name) private metadataModel: Model<ConversationMetadata>,
     private httpService: HttpService,
     private configService: ConfigService,
   ) { }
 
   async create(createChatDto: CreateChatDto): Promise<Message> {
-    const createdMessage = new this.messageModel(createChatDto);
+    // Basic profanity filter
+    const blacklist = ['badword1', 'badword2', 'spamlink.com']; // Extend this in production
+    const containsBadWord = blacklist.some(word =>
+      createChatDto.content.toLowerCase().includes(word)
+    );
+
+    const createdMessage = new this.messageModel({
+      ...createChatDto,
+      isFlagged: createChatDto.isFlagged || containsBadWord,
+      flagReason: createChatDto.flagReason || (containsBadWord ? 'Profanity/Blacklisted content detected' : undefined)
+    });
     const message = await createdMessage.save();
 
     // Trigger behavioral metrics update
@@ -153,6 +174,7 @@ export class ChatsService {
       .find(query)
       .sort({ createdAt: -1 }) // Get newest first
       .limit(50)
+      .populate('replyTo')
       .exec();
 
     return messages.reverse(); // Return in chronological order
@@ -174,6 +196,14 @@ export class ChatsService {
       .findByIdAndUpdate(id, updateChatDto, { new: true })
       .exec();
   }
+
+  // Mark a message as read (set isRead = true)
+  async markMessageRead(messageId: string): Promise<Message | null> {
+    return this.messageModel
+      .findByIdAndUpdate(messageId, { isRead: true }, { new: true })
+      .exec();
+  }
+
 
   async getConversations(userId: string): Promise<any[]> {
     const messages = await this.messageModel
@@ -206,21 +236,76 @@ export class ChatsService {
       }
     });
 
-    return Array.from(conversationsMap.values());
+    // Option B: Efficient Aggregation (Recommended for later, but let's keep current logic for now or switch)
+    // For now, I'll enhance the current logic to be slightly better by limiting the initial fetch if needed,
+    // but the proper way is an aggregation pipeline.
+
+    // Fetch metadata for user's conversations
+    const metadata = await this.metadataModel.find({ userId }).exec();
+    const metadataMap = new Map(metadata.map(m => [m.peerId, m]));
+
+    // Enrich conversations with metadata and filter archived ones by default?
+    // For now, return all but mark them as isArchived
+    const results = Array.from(conversationsMap.values()).map((conv: any) => {
+      const meta = metadataMap.get(conv.otherId);
+      return {
+        ...conv,
+        isArchived: meta?.isArchived || false,
+        isMuted: meta?.isMuted || false
+      };
+    });
+
+    return results;
   }
 
-  async sync(since: string): Promise<any> {
+  async setArchiveStatus(userId: string, peerId: string, isArchived: boolean): Promise<any> {
+    return this.metadataModel.findOneAndUpdate(
+      { userId, peerId },
+      { isArchived },
+      { upsert: true, new: true }
+    ).exec();
+  }
+
+  async deleteConversation(userId: string, peerId: string): Promise<any> {
+    // Logic: Maybe set a 'hidden' flag? or 'deletedAt'?
+    // For MVP, let's just use a 'isDeleted' flag in metadata if we update the schema,
+    // OR we can just 'Archive' it and pretend it's deleted? No, that's confusing.
+    // Let's really delete the messages? No, destructive.
+    // Let's just remove the metadata entry? No, that resets state.
+    // Let's add isDeleted to schema first.
+    return this.metadataModel.findOneAndUpdate(
+      { userId, peerId },
+      { isDeleted: true }, // We need to add this field
+      { upsert: true, new: true }
+    ).exec();
+  }
+
+  async markConversationRead(userId: string, otherId: string): Promise<void> {
+    await this.messageModel.updateMany(
+      { senderId: otherId, receiverId: userId, isRead: false },
+      { isRead: true }
+    ).exec();
+  }
+
+  async sync(userId: string, since: string): Promise<any> {
     const sinceDate = new Date(since);
     const newSince = new Date();
 
     const upserted = await this.messageModel.find({
+      $or: [{ senderId: userId }, { receiverId: userId }],
       updatedAt: { $gt: sinceDate }
     }).exec();
+
+    // Check for deleted items in metadata or soft-deleted messages
+    const deletedMessages = await this.messageModel.find({
+      $or: [{ senderId: userId }, { receiverId: userId }],
+      deletedAt: { $gt: sinceDate }
+    }).select('_id').exec();
 
     return {
       newSince: newSince.toISOString(),
       upserted: { messages: upserted },
-      deleted: { messages: [] },
+      deleted: { messages: deletedMessages.map(m => m._id) },
     };
   }
   async editContent(id: string, content: string): Promise<Message | null> {
@@ -232,6 +317,47 @@ export class ChatsService {
   async softDelete(id: string): Promise<Message | null> {
     return this.messageModel
       .findByIdAndUpdate(id, { deletedAt: new Date() }, { new: true })
+      .exec();
+  }
+
+  async getLinkPreview(url: string): Promise<OpenGraphResult> {
+    try {
+      // @ts-ignore
+      const data = await ogs({ url });
+      const { result } = data;
+      return {
+        ogTitle: result.ogTitle,
+        ogDescription: result.ogDescription,
+        ogImage: result.ogImage,
+        ogUrl: result.ogUrl
+      };
+    } catch (error) {
+      console.error('Error fetching OG data:', error);
+      return {};
+    }
+  }
+  async searchMessages(userId: string, query: string, peerId?: string): Promise<Message[]> {
+    const filter: any = {
+      content: { $regex: query, $options: 'i' },
+      deletedAt: { $exists: false },
+      $or: [{ senderId: userId }, { receiverId: userId }]
+    };
+
+    if (peerId) {
+      filter.$and = [
+        {
+          $or: [
+            { senderId: userId, receiverId: peerId },
+            { senderId: peerId, receiverId: userId }
+          ]
+        }
+      ];
+    }
+
+    return this.messageModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .limit(50)
       .exec();
   }
 }

@@ -37,9 +37,13 @@ export class ProposalsService {
 
     // 2. Create proposal
     try {
-      return await this.prisma.proposal.create({
+      const proposal = await this.prisma.proposal.create({
         data: createProposalDto,
       });
+
+      this.trackEvent('proposal_sent', createProposalDto.freelancer_id, createProposalDto.job_id);
+
+      return proposal;
     } catch (error) {
       // Prisma error code P2002: Unique constraint failed
       if (error.code === 'P2002') {
@@ -110,10 +114,16 @@ export class ProposalsService {
     }
 
     const { baseVersion, ...data } = updateProposalDto;
-    return this.prisma.proposal.update({
+    const updated = await this.prisma.proposal.update({
       where: { id },
       data,
     });
+
+    if (data.status === 'ACCEPTED' && proposal.status !== 'ACCEPTED') {
+      this.trackEvent('proposal_accepted', proposal.freelancer_id, proposal.job_id);
+    }
+
+    return updated;
   }
 
   async remove(id: string) {
@@ -155,5 +165,23 @@ export class ProposalsService {
     }
 
     return result;
+  }
+
+  private async trackEvent(eventType: string, userId: string, jobId?: string, metadata: any = {}) {
+    try {
+      const analyticsUrl = process.env.ANALYTICS_SERVICE_URL || 'http://analytics-service:3014';
+      await fetch(`${analyticsUrl}/api/analytics/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: eventType,
+          user_id: userId,
+          job_id: jobId || '',
+          metadata: JSON.stringify(metadata)
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to track event:', error);
+    }
   }
 }

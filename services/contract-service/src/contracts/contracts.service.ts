@@ -25,6 +25,42 @@ export class ContractsService {
     private jurisdictionService: JurisdictionService,
   ) { }
 
+  private async enrichContracts(contracts: any[]) {
+    return Promise.all(contracts.map(c => this.enrichContract(c)));
+  }
+
+  private async enrichContract(contract: any) {
+    try {
+      const jobServiceUrl = this.configService.get<string>(
+        'JOB_SERVICE_URL',
+        'http://job-service:3002',
+      );
+      const { data: job } = await firstValueFrom(
+        this.httpService.get(`${jobServiceUrl}/api/jobs/${contract.job_id}`),
+      );
+
+      return {
+        ...contract,
+        job: {
+          title: job.title,
+          description: job.description,
+          client_id: job.client_id
+        },
+        // For compatibility with frontend expecting bidAmount and timeline
+        bidAmount: contract.totalAmount,
+        timeline: contract.timeline || 'TBD'
+      };
+    } catch (err) {
+      this.logger.error(`Failed to enrich contract ${contract.id}: ${err.message}`);
+      return {
+        ...contract,
+        job: { title: 'Unknown Job', client_id: contract.client_id },
+        bidAmount: contract.totalAmount,
+        timeline: contract.timeline || 'TBD'
+      };
+    }
+  }
+
   async create(createContractDto: CreateContractDto, authHeader?: string) {
     let {
       freelancer_id,
@@ -101,20 +137,34 @@ export class ContractsService {
       }
     }
 
-    const contract = await this.prisma.contract.create({
-      data: {
-        freelancer_id: freelancer_id as string,
-        client_id: client_id as string,
-        totalAmount: totalAmount as any,
-        job_id: job_id,
-        proposal_id: proposal_id,
+    const contractData: any = {
+      freelancer_id: freelancer_id as string,
+      client_id: client_id as string,
+      totalAmount: totalAmount as any,
+      job_id: job_id,
+      proposal_id: proposal_id,
 
-        agencyId: agencyId as string,
-        departmentId: departmentId as string,
-        customClauses: customClauses || undefined,
-        status,
-        ...rest,
-      },
+      agencyId: agencyId as string,
+      departmentId: departmentId as string,
+      customClauses: customClauses || undefined,
+      status,
+      ...rest,
+    };
+
+    if (rest.milestones && Array.isArray(rest.milestones)) {
+      contractData.milestones = {
+        create: rest.milestones.map((m) => ({
+          description: m.description,
+          amount: Number(m.amount),
+          dueDate: m.dueDate ? new Date(m.dueDate) : undefined,
+          status: 'PENDING',
+          escrowStatus: 'UNFUNDED',
+        })),
+      };
+    }
+
+    const contract = await this.prisma.contract.create({
+      data: contractData,
     });
 
     if (status === 'PENDING_APPROVAL') {
@@ -145,27 +195,29 @@ export class ContractsService {
     });
   }
 
-  findByFreelancer(freelancerId: string, agencyId?: string) {
+  async findByFreelancer(freelancerId: string, agencyId?: string) {
     const where: any = { freelancer_id: freelancerId };
     if (agencyId) {
       where.agencyId = agencyId;
     }
-    return this.prisma.contract.findMany({
+    const contracts = await this.prisma.contract.findMany({
       where,
       include: { milestones: true },
     });
+    return this.enrichContracts(contracts);
   }
 
-  findByClient(clientId: string, agencyId?: string) {
+  async findByClient(clientId: string, agencyId?: string) {
     const where: any = agencyId ? { agencyId } : { client_id: clientId };
-    return this.prisma.contract.findMany({
+    const contracts = await this.prisma.contract.findMany({
       where,
       include: { milestones: true },
     });
+    return this.enrichContracts(contracts);
   }
 
-  findOne(id: string) {
-    return this.prisma.contract.findUnique({
+  async findOne(id: string) {
+    const contract = await this.prisma.contract.findUnique({
       where: { id },
       include: {
         milestones: {
@@ -173,12 +225,43 @@ export class ContractsService {
         },
       },
     });
+    if (!contract) return null;
+    return this.enrichContract(contract);
+  }
+
+  async findActiveBetween(user1: string, user2: string) {
+    const contract = await this.prisma.contract.findFirst({
+      where: {
+        OR: [
+          { client_id: user1, freelancer_id: user2 },
+          { client_id: user2, freelancer_id: user1 },
+        ],
+        status: { in: ['ACTIVE', 'PAUSED'] },
+      },
+      include: {
+        milestones: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!contract) return null;
+    return this.enrichContract(contract);
   }
 
   update(id: string, updateContractDto: UpdateContractDto) {
+    const { milestones, ...rest } = updateContractDto;
+    const updateData: any = { ...rest };
+
+    if (milestones) {
+      updateData.milestones = {
+        deleteMany: {}, // Clear and recreate or use better merging logic
+        create: milestones,
+      };
+    }
+
     return this.prisma.contract.update({
       where: { id },
-      data: updateContractDto,
+      data: updateData,
     });
   }
 
@@ -188,10 +271,22 @@ export class ContractsService {
     });
   }
 
-  addMilestone(contractId: string, data: any) {
-    return this.prisma.milestone.create({
-      data: { ...data, contractId },
+  async addMilestone(contractId: string, data: any) {
+    const milestone = await this.prisma.milestone.create({
+      data: {
+        ...data,
+        contractId,
+        amount: data.amount as any,
+        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+      },
     });
+
+    await this.prisma.contract.update({
+      where: { id: contractId },
+      data: { totalAmount: { increment: data.amount as any } },
+    });
+
+    return milestone;
   }
 
   async pauseContract(id: string, userId: string) {
@@ -259,40 +354,118 @@ export class ContractsService {
     );
 
     // Update milestone status and set auto-release date
-    return this.prisma.milestone.update({
+    const updatedMilestone = await this.prisma.milestone.update({
       where: { id: milestoneId },
       data: {
         status: 'IN_REVIEW',
         autoReleaseDate,
       },
     });
+
+    // Notify Client
+    await this.sendNotification(
+      contract.client_id,
+      'WORK_SUBMITTED',
+      'Work Submitted',
+      `Freelancer submitted work for milestone: ${milestoneId}`,
+      `/contracts/${contractId}`,
+      { contractId, milestoneId },
+    );
+
+    return updatedMilestone;
   }
 
   async extendContract(
     id: string,
     userId: string,
-    data: { additionalAmount?: number; newEndDate?: string },
+    data: { additionalAmount?: number; newEndDate?: string; reason?: string },
   ) {
     const contract = await this.prisma.contract.findUnique({ where: { id } });
     if (!contract) throw new NotFoundException('Contract not found');
-    if (contract.client_id !== userId)
-      throw new ConflictException('Only the client can extend the contract');
 
+    // Check if user is authorized (either client or freelancer)
+    if (contract.client_id !== userId && contract.freelancer_id !== userId) {
+      throw new ConflictException('You are not authorized to modify this contract');
+    }
+
+    // If freelancer is requesting
+    if (contract.freelancer_id === userId) {
+      if (!data.newEndDate) {
+        throw new ConflictException('New end date is required for extension request');
+      }
+
+      const newEndDate = new Date(data.newEndDate);
+      if (isNaN(newEndDate.getTime()) || newEndDate <= new Date()) {
+        throw new ConflictException('Invalid new end date');
+      }
+
+      await this.sendNotification(
+        contract.client_id,
+        'CONTRACT_EXTENSION_REQUEST',
+        'Extension Requested',
+        `The freelancer has requested an extension until ${newEndDate.toLocaleDateString()}. Reason: ${data.reason || 'None provided'}`,
+        `/contracts/${id}`,
+        { contractId: id, newEndDate: data.newEndDate, reason: data.reason },
+      );
+
+      return { message: 'Extension request sent to client' };
+    }
+
+    // Only client reaches here
     const updateData: any = {};
     if (data.additionalAmount) {
       updateData.totalAmount = { increment: data.additionalAmount };
     }
     if (data.newEndDate) {
-      updateData.endDate = new Date(data.newEndDate);
+      const newEndDate = new Date(data.newEndDate);
+      if (isNaN(newEndDate.getTime())) {
+        throw new ConflictException('Invalid new end date');
+      }
+      // Ensure new end date is in the future and after current end date if it exists
+      if (newEndDate <= new Date()) {
+        throw new ConflictException('New end date must be in the future');
+      }
+      if (contract.endDate && newEndDate <= new Date(contract.endDate)) {
+        throw new ConflictException(
+          'New end date must be after current end date',
+        );
+      }
+      updateData.endDate = newEndDate;
     }
 
-    return this.prisma.contract.update({
+    const updatedContract = await this.prisma.contract.update({
       where: { id },
       data: updateData,
     });
+
+    if (data.additionalAmount) {
+      await this.logFinancialEvent({
+        service: 'contract-service',
+        eventType: 'CONTRACT_AMOUNT_INCREASED',
+        actorId: userId,
+        amount: Number(data.additionalAmount),
+        referenceId: id,
+        metadata: {
+          reason: data.reason,
+          newTotal: Number(updatedContract.totalAmount),
+        },
+      });
+    }
+
+    // Notify Freelancer
+    await this.sendNotification(
+      contract.freelancer_id,
+      'CONTRACT_EXTENDED',
+      'Contract Extended',
+      `The client has extended your contract${data.newEndDate ? ` until ${new Date(data.newEndDate).toLocaleDateString()}` : ''}${data.additionalAmount ? ` with an additional amount of ${data.additionalAmount}` : ''}.`,
+      `/contracts/${id}`,
+      { contractId: id },
+    );
+
+    return updatedContract;
   }
 
-  async activateMilestone(contractId: string, data: { milestoneId: string }) {
+  async activateMilestone(contractId: string, data: { milestoneId: string }, token?: string) {
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
     });
@@ -320,7 +493,7 @@ export class ContractsService {
             amount: Number(milestone.amount),
           },
           {
-            headers: { Authorization: `Bearer mocked_client_token` }, // In real app, pass actual token
+            headers: { Authorization: token },
           },
         ),
       );
@@ -332,7 +505,7 @@ export class ContractsService {
     }
 
     // Update Status
-    return this.prisma.milestone.update({
+    const updatedMilestone = await this.prisma.milestone.update({
       where: { id: milestone.id },
       data: {
         status: 'ACTIVE',
@@ -344,6 +517,30 @@ export class ContractsService {
           : null,
       },
     });
+
+    await this.logFinancialEvent({
+      service: 'contract-service',
+      eventType: 'MILESTONE_FUNDED',
+      actorId: contract.client_id,
+      amount: Number(milestone.amount),
+      referenceId: contractId,
+      metadata: {
+        milestoneId: milestone.id,
+        freelancerId: contract.freelancer_id,
+      },
+    });
+
+    // Notify Freelancer
+    await this.sendNotification(
+      contract.freelancer_id,
+      'MILESTONE_ACTIVATED',
+      'Milestone Activated',
+      `The client has funded and activated the milestone: ${milestone.description}`,
+      `/contracts/${contractId}`,
+      { contractId, milestoneId: milestone.id },
+    );
+
+    return updatedMilestone;
   }
 
   getSubmissions(milestoneId: string) {
@@ -353,7 +550,7 @@ export class ContractsService {
     });
   }
 
-  async approveWork(contractId: string, data: { milestoneId: string }) {
+  async approveWork(contractId: string, data: { milestoneId: string }, token?: string) {
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
     });
@@ -383,7 +580,7 @@ export class ContractsService {
             freelancerId: contract.freelancer_id,
           },
           {
-            headers: { Authorization: `Bearer mocked_client_token` },
+            headers: { Authorization: token },
           },
         ),
       );
@@ -413,6 +610,16 @@ export class ContractsService {
         },
       })
       .then(async (milestone) => {
+        // Notify Freelancer
+        await this.sendNotification(
+          contract.freelancer_id,
+          'WORK_APPROVED',
+          'Work Approved & Funds Released',
+          `Your work for milestone "${milestone.description}" has been approved and funds have been released.`,
+          `/contracts/${contractId}`,
+          { contractId, milestoneId: milestone.id },
+        );
+
         // Update Reliability Score in User Service
         try {
           const userServiceUrl = this.configService.get<string>(
@@ -499,18 +706,42 @@ export class ContractsService {
       });
   }
 
-  async rejectWork(contractId: string, data: { milestoneId: string }) {
-    return this.prisma.milestone.update({
+  async rejectWork(contractId: string, data: { milestoneId: string, reason?: string }) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract) throw new NotFoundException('Contract not found');
+
+    const milestone = await this.prisma.milestone.findUnique({
+      where: { id: data.milestoneId },
+    });
+
+    const updated = await this.prisma.milestone.update({
       where: { id: data.milestoneId },
       data: { status: 'ACTIVE' },
     });
+
+    // Notify Freelancer
+    await this.sendNotification(
+      contract.freelancer_id,
+      'WORK_REJECTED',
+      'Changes Requested',
+      `The client has requested changes for milestone: ${milestone?.description || data.milestoneId}${data.reason ? `. Feedback: ${data.reason}` : ''}`,
+      `/contracts/${contractId}`,
+      { contractId, milestoneId: data.milestoneId },
+    );
+
+    return updated;
   }
 
-  async disputeContract(id: string, reason: string) {
+  async disputeContract(id: string, reason: string, userId: string, evidence?: string[]) {
+    const contract = await this.prisma.contract.findUnique({ where: { id } });
+    if (!contract) throw new NotFoundException('Contract not found');
+
     const disputeTimeoutAt = new Date();
     disputeTimeoutAt.setDate(disputeTimeoutAt.getDate() + 7); // Default 7 days for dispute resolution
 
-    return this.prisma.contract.update({
+    const updated = await this.prisma.contract.update({
       where: { id },
       data: {
         status: 'DISPUTED',
@@ -518,13 +749,27 @@ export class ContractsService {
         disputeReason: reason,
         disputes: {
           create: {
-            raisedById: 'SYSTEM', // Simplified for now, or pass userId
+            raisedById: userId,
             reason,
+            evidence: evidence || [],
             disputeTimeoutAt,
           },
         },
       },
     });
+
+    // Notify other party
+    const targetUserId = userId === contract.client_id ? contract.freelancer_id : contract.client_id;
+    await this.sendNotification(
+      targetUserId,
+      'CONTRACT_DISPUTED',
+      'Contract Disputed',
+      `The contract has been put into dispute by the other party. Reason: ${reason}`,
+      `/contracts/${id}`,
+      { contractId: id }
+    );
+
+    return updated;
   }
 
   findAllDisputed() {
@@ -534,14 +779,121 @@ export class ContractsService {
     });
   }
 
-  resolveDispute(id: string, resolution: 'COMPLETED' | 'TERMINATED') {
-    return this.prisma.contract.update({
+  async resolveDispute(
+    id: string,
+    resolution: 'COMPLETED' | 'TERMINATED',
+    token?: string,
+  ) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id },
+      include: { milestones: true },
+    });
+    if (!contract) throw new NotFoundException('Contract not found');
+
+    const paymentUrl = this.configService.get<string>(
+      'PAYMENT_SERVICE_URL',
+      'http://payment-service:3005',
+    );
+
+    // Resolve active (funded) milestones
+    const activeMilestones = contract.milestones.filter(
+      (m) => m.escrowStatus === 'FUNDED',
+    );
+
+    for (const milestone of activeMilestones) {
+      try {
+        if (resolution === 'TERMINATED') {
+          // Refund to client
+          await firstValueFrom(
+            this.httpService.post(
+              `${paymentUrl}/api/payments/escrow/refund`,
+              {
+                contractId: id,
+                milestoneId: milestone.id,
+              },
+              { headers: { Authorization: token } },
+            ),
+          );
+          await this.prisma.milestone.update({
+            where: { id: milestone.id },
+            data: { escrowStatus: 'REFUNDED', status: 'COMPLETED' },
+          });
+
+          await this.logFinancialEvent({
+            service: 'contract-service',
+            eventType: 'DISPUTE_REFUND_TO_CLIENT',
+            amount: Number(milestone.amount),
+            referenceId: id,
+            metadata: {
+              milestoneId: milestone.id,
+              clientId: contract.client_id,
+            },
+          });
+        } else {
+          // Release to freelancer
+          await firstValueFrom(
+            this.httpService.post(
+              `${paymentUrl}/api/payments/escrow/release`,
+              {
+                contractId: id,
+                milestoneId: milestone.id,
+                freelancerId: contract.freelancer_id,
+              },
+              { headers: { Authorization: token } },
+            ),
+          );
+          await this.prisma.milestone.update({
+            where: { id: milestone.id },
+            data: { escrowStatus: 'RELEASED', status: 'COMPLETED' },
+          });
+
+          await this.logFinancialEvent({
+            service: 'contract-service',
+            eventType: 'DISPUTE_RELEASE_TO_FREELANCER',
+            amount: Number(milestone.amount),
+            referenceId: id,
+            metadata: {
+              milestoneId: milestone.id,
+              freelancerId: contract.freelancer_id,
+            },
+          });
+        }
+      } catch (err) {
+        this.logger.error(
+          `Failed to resolve financials for milestone ${milestone.id}: ${err.message}`,
+        );
+      }
+    }
+
+    const updated = await this.prisma.contract.update({
       where: { id },
       data: {
         status: resolution,
         disputeStatus: 'RESOLVED',
       },
     });
+
+    // Notify parties
+    await Promise.all([
+      this.sendNotification(
+        contract.client_id,
+        'DISPUTE_RESOLVED',
+        'Dispute Resolved',
+        `The dispute for your contract has been resolved with status: ${resolution}.`,
+        `/contracts/${id}`,
+        { contractId: id },
+      ),
+      this.sendNotification(
+        contract.freelancer_id,
+        'DISPUTE_RESOLVED',
+        'Dispute Resolved',
+        `The dispute for your contract has been resolved with status: ${resolution}.`,
+        `/contracts/${id}`,
+        { contractId: id },
+      ),
+    ]);
+
+    return updated;
   }
 
   async autoReleaseMilestones() {
@@ -649,6 +1001,18 @@ export class ContractsService {
         startDate: new Date(),
         endDate,
         status: 'ACTIVE',
+      },
+    });
+
+    await this.logFinancialEvent({
+      service: 'contract-service',
+      eventType: 'INSURANCE_PURCHASED',
+      actorId: contract.freelancer_id,
+      amount: Number(data.premiumAmount),
+      referenceId: contractId,
+      metadata: {
+        policyId: policy.id,
+        provider: data.provider,
       },
     });
 
@@ -888,6 +1252,7 @@ export class ContractsService {
       'CHECKIN_SCHEDULED',
       'Check-in Scheduled',
       `A new check-in "${data.title}" has been scheduled for ${new Date(data.scheduledAt).toLocaleString()}.`,
+      `/contracts/${contractId}`,
       { contractId, checkInId: checkIn.id },
     );
 
@@ -942,6 +1307,7 @@ export class ContractsService {
       'CHECKIN_STARTED',
       'Check-in Meeting Started',
       `The video call for check-in "${checkIn.title}" has started.`,
+      meetingLink,
       { contractId: checkIn.contractId, checkInId: id, meetingLink },
     );
 
@@ -996,6 +1362,7 @@ export class ContractsService {
     type: string,
     title: string,
     message: string,
+    link?: string,
     metadata?: any,
   ) {
     try {
@@ -1009,6 +1376,7 @@ export class ContractsService {
           type,
           title,
           message,
+          link,
           metadata,
         }),
       );
@@ -1051,9 +1419,12 @@ export class ContractsService {
       'AUDIT_SERVICE_URL',
       'http://audit-service:3011',
     );
+    const auditSecret = this.configService.get<string>('AUDIT_SECRET', 'fallback-secret');
     try {
       await firstValueFrom(
-        this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data),
+        this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data, {
+          headers: { 'x-audit-secret': auditSecret }
+        }),
       );
     } catch (error) {
       this.logger.error(
@@ -1134,8 +1505,19 @@ export class ContractsService {
     });
   }
 
-  async submitDecision(caseId: string, decision: string) {
-    const arbitrationCase = await this.prisma.arbitrationCase.update({
+  async submitDecision(caseId: string, decision: string, token?: string) {
+    const arbitrationCase = await this.prisma.arbitrationCase.findUnique({
+      where: { id: caseId },
+      include: {
+        contract: {
+          include: { milestones: true },
+        },
+      },
+    });
+
+    if (!arbitrationCase) throw new NotFoundException('Case not found');
+
+    const updatedCase = await this.prisma.arbitrationCase.update({
       where: { id: caseId },
       data: {
         decision,
@@ -1143,15 +1525,90 @@ export class ContractsService {
       },
     });
 
+    // 1. Resolve Financials
+    const activeMilestones = arbitrationCase.contract.milestones.filter(
+      (m) => m.escrowStatus === 'FUNDED',
+    );
+
+    const paymentUrl = this.configService.get<string>(
+      'PAYMENT_SERVICE_URL',
+      'http://payment-service:3005',
+    );
+
+    for (const milestone of activeMilestones) {
+      try {
+        if (decision === 'REFUND_CLIENT') {
+          await firstValueFrom(
+            this.httpService.post(
+              `${paymentUrl}/api/payments/escrow/refund`,
+              {
+                contractId: arbitrationCase.contractId,
+                milestoneId: milestone.id,
+              },
+              { headers: { Authorization: token } },
+            ),
+          );
+
+          await this.prisma.milestone.update({
+            where: { id: milestone.id },
+            data: { escrowStatus: 'REFUNDED', status: 'COMPLETED' },
+          });
+        } else if (decision === 'RELEASE_FREELANCER') {
+          await firstValueFrom(
+            this.httpService.post(
+              `${paymentUrl}/api/payments/escrow/release`,
+              {
+                contractId: arbitrationCase.contractId,
+                milestoneId: milestone.id,
+                freelancerId: arbitrationCase.contract.freelancer_id,
+              },
+              { headers: { Authorization: token } },
+            ),
+          );
+
+          await this.prisma.milestone.update({
+            where: { id: milestone.id },
+            data: { escrowStatus: 'RELEASED', status: 'COMPLETED' },
+          });
+        }
+      } catch (err) {
+        this.logger.error(
+          `Failed to execute resolution for milestone ${milestone.id}: ${err.message}`,
+        );
+      }
+    }
+
+    // 2. Resolve Contract Status
     await this.prisma.contract.update({
       where: { id: arbitrationCase.contractId },
       data: {
-        status: 'RESOLVED',
+        status: decision === 'REFUND_CLIENT' ? 'TERMINATED' : 'COMPLETED',
         disputeStatus: 'RESOLVED',
       },
     });
 
-    return arbitrationCase;
+    // 3. Notify parties
+    const contract = arbitrationCase.contract;
+    await Promise.all([
+      this.sendNotification(
+        contract.client_id,
+        'DISPUTE_RESOLVED',
+        'Dispute Resolved',
+        `Dispute decision: ${decision}`,
+        `/contracts/${contract.id}`,
+        { contractId: contract.id },
+      ),
+      this.sendNotification(
+        contract.freelancer_id,
+        'DISPUTE_RESOLVED',
+        'Dispute Resolved',
+        `Dispute decision: ${decision}`,
+        `/contracts/${contract.id}`,
+        { contractId: contract.id },
+      ),
+    ]);
+
+    return updatedCase;
   }
 
   async getArbitrationCase(caseId: string) {

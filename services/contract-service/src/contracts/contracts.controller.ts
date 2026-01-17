@@ -12,11 +12,22 @@ import {
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
+import { DisputeContractDto } from './dto/dispute-contract.dto';
 import { Roles, Public } from 'nest-keycloak-connect';
 
 @Controller('api/contracts')
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) { }
+
+  @Get('between/:otherUserId')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
+  async getContractBetween(
+    @Param('otherUserId') otherUserId: string,
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.contractsService.findActiveBetween(userId, otherUserId);
+  }
 
   @Get('my')
   @Roles({
@@ -128,8 +139,10 @@ export class ContractsController {
   activateMilestone(
     @Param('id') id: string,
     @Param('milestoneId') milestoneId: string,
+    @Request() req,
   ) {
-    return this.contractsService.activateMilestone(id, { milestoneId });
+    const authHeader = req.headers.authorization;
+    return this.contractsService.activateMilestone(id, { milestoneId }, authHeader);
   }
 
   @Post(':id/submit')
@@ -147,35 +160,53 @@ export class ContractsController {
   }
 
   @Post(':id/approve')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
   approveWork(
     @Param('id') id: string,
     @Body() approvalData: { milestoneId: string },
+    @Request() req,
   ) {
-    return this.contractsService.approveWork(id, approvalData);
+    const authHeader = req.headers.authorization;
+    return this.contractsService.approveWork(id, approvalData, authHeader);
   }
 
   @Post(':id/reject-work')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
   rejectWork(
     @Param('id') id: string,
-    @Body() rejectionData: { milestoneId: string },
+    @Body() rejectionData: { milestoneId: string; reason: string },
   ) {
     return this.contractsService.rejectWork(id, rejectionData);
   }
 
   @Post(':id/dispute')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   disputeContract(
     @Param('id') id: string,
-    @Body() disputeData: { reason: string },
+    @Body() disputeData: DisputeContractDto,
+    @Request() req,
   ) {
-    return this.contractsService.disputeContract(id, disputeData.reason);
+    return this.contractsService.disputeContract(
+      id,
+      disputeData.reason,
+      req.user.sub,
+      disputeData.evidence,
+    );
   }
 
   @Post(':id/resolve-dispute')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
   resolveDispute(
     @Param('id') id: string,
     @Body() resolutionData: { resolution: 'COMPLETED' | 'TERMINATED' },
+    @Request() req,
   ) {
-    return this.contractsService.resolveDispute(id, resolutionData.resolution);
+    const token = req.headers.authorization;
+    return this.contractsService.resolveDispute(
+      id,
+      resolutionData.resolution,
+      token,
+    );
   }
 
   @Post(':id/log-time')
@@ -229,7 +260,7 @@ export class ContractsController {
   }
 
   @Post(':id/extend')
-  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   extendContract(
     @Param('id') id: string,
     @Body() data: { additionalAmount?: number; newEndDate?: string },

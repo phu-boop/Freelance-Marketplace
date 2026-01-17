@@ -47,11 +47,38 @@ export class AuditService {
         const log = await this.prisma.auditLog.findUnique({ where: { id } });
         if (!log) return false;
 
+        const isValid = this.isChecksumValid(log);
+        if (!isValid) {
+            this.logger.error(`AUDIT CORRUPTION ALERT: Log entry ${id} checksum mismatch!`);
+        }
+        return isValid;
+    }
+
+    async verifyAll(): Promise<{ total: number, corrupt: string[] }> {
+        const logs = await this.prisma.auditLog.findMany();
+        const corrupt: string[] = [];
+
+        for (const log of logs) {
+            if (!this.isChecksumValid(log)) {
+                corrupt.push(log.id);
+                this.logger.error(`INTEGRITY FAILURE: Audit log ${log.id} has been tampered with!`);
+            }
+        }
+
+        if (corrupt.length > 0) {
+            // Trigger alerts (e.g., Slack, email, or a dedicated Alert table)
+            this.logger.error(`SECURITY ALERT: ${corrupt.length} compromised audit logs detected!`);
+        }
+
+        return { total: logs.length, corrupt };
+    }
+
+    private isChecksumValid(log: any): boolean {
         const dto: CreateAuditLogDto = {
             service: log.service,
             eventType: log.eventType,
             actorId: log.actorId,
-            amount: Number(log.amount),
+            amount: log.amount ? Number(log.amount) : undefined,
             metadata: log.metadata,
             referenceId: log.referenceId,
         };

@@ -49,6 +49,7 @@ services:
         paths:
           - /api/jobs
           - /api/proposals
+          - /api/invitations
           - /api/reports
           - /api/interviews
           - /api/timesheets

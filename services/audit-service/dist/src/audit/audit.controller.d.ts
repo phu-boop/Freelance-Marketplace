@@ -3,7 +3,7 @@ import { CreateAuditLogDto } from './dto/create-audit-log.dto';
 export declare class AuditController {
     private readonly auditService;
     constructor(auditService: AuditService);
-    create(createAuditLogDto: CreateAuditLogDto): Promise<{
+    create(createAuditLogDto: CreateAuditLogDto, secret?: string): Promise<{
         id: string;
         timestamp: Date;
         service: string;
@@ -26,4 +26,8 @@ export declare class AuditController {
         referenceId: string | null;
     }[]>;
     verify(id: string): Promise<boolean>;
+    verifyAll(): Promise<{
+        total: number;
+        corrupt: string[];
+    }>;
 }

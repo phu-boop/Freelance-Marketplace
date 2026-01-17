@@ -40,7 +40,7 @@ Implement the functionality for Clients to hire or invite Freelancers directly f
   - Connect `HireModal` to the "Hire Freelancer" button in `ProfileView.tsx`.
   - Handle authentication state (redirect to login if not logged in).
 
-## Phase 3: Notifications (Optional/Later)
-- [ ] **Freelancer Notification**
+## Phase 3: Notifications (COMPLETED)
+- [x] **Freelancer Notification**
   - Receive real-time notification or email about the invitation.
   - Link to "My Proposals" or "Invitations" page.

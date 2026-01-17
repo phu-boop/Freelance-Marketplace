@@ -38,6 +38,7 @@ import { ProfileCompleteness } from '@/components/ProfileCompleteness';
 import { BadgeList } from '@/components/BadgeList';
 import { VerificationModal } from '@/components/VerificationModal';
 import { LanguageModal } from '@/components/LanguageModal';
+import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 
 interface Review {
     id: string;
@@ -92,7 +93,7 @@ export default function ProfilePage() {
     const [user, setUser] = useState<UserData | null>(null);
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio' | 'security'>('about');
+    const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio' | 'security' | 'availability'>('about');
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
     const [replyLoading, setReplyLoading] = useState(false);
@@ -288,6 +289,18 @@ export default function ProfilePage() {
                         <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
                     )}
                 </button>
+                {!user.roles.includes('CLIENT') && (
+                    <button
+                        onClick={() => setActiveTab('availability')}
+                        className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'availability' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
+                            }`}
+                    >
+                        Availability
+                        {activeTab === 'availability' && (
+                            <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+                        )}
+                    </button>
+                )}
                 <button
                     onClick={() => setActiveTab('security')}
                     className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'security' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
@@ -783,6 +796,10 @@ export default function ProfilePage() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                ) : activeTab === 'availability' ? (
+                    <div className="lg:col-span-3">
+                        <AvailabilityCalendar userId={userId!} />
                     </div>
                 ) : null}
             </div>

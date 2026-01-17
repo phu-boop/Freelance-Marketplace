@@ -27,4 +27,8 @@ export class CreateProposalDto {
     @IsString({ each: true })
     @IsOptional()
     portfolioItemIds?: string[];
+
+    @IsString()
+    @IsOptional()
+    invitationId?: string;
 }

@@ -11,9 +11,10 @@ interface ProposalModalProps {
     onClose: () => void;
     jobId: string;
     jobTitle: string;
+    invitationId?: string;
 }
 
-export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModalProps) {
+export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }: ProposalModalProps) {
     const { userId } = useKeycloak();
     const [coverLetter, setCoverLetter] = useState('');
     const [bidAmount, setBidAmount] = useState('');
@@ -57,6 +58,7 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle }: ProposalModa
                 coverLetter: coverLetter,
                 bidAmount: parseFloat(bidAmount),
                 timeline: timeline,
+                invitationId: invitationId
             });
             setSuccess(true);
             clearDraft();

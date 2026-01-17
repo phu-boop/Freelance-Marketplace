@@ -56,4 +56,13 @@ export class CreateContractDto {
   @IsNumber()
   @IsOptional()
   eorFeePercentage?: number;
+
+  @IsOptional()
+  attachments?: string[];
+
+  @IsOptional()
+  progress?: number;
+
+  @IsOptional()
+  milestones?: any[];
 }

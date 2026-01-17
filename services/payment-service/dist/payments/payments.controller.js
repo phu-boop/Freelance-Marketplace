@@ -43,96 +43,29 @@ let PaymentsController = class PaymentsController {
     deposit(body) {
         return this.paymentsService.deposit(body.userId, body.amount, body.referenceId);
     }
-    withdraw(body) {
-        return this.paymentsService.withdraw(body.userId, body.amount, body.instant);
+    withdraw(req, body) {
+        return this.paymentsService.withdraw(req.user.sub, body.amount, body.instant || false);
     }
-    getMyWithdrawalMethods(req) {
-        return this.paymentsService.getWithdrawalMethods(req.user.sub);
+    getTransactions(req) {
+        return this.paymentsService.getWallet(req.user.sub).then((wallet) => wallet.transactions);
     }
     addWithdrawalMethod(req, body) {
         return this.paymentsService.addWithdrawalMethod(req.user.sub, body);
     }
+    getWithdrawalMethods(req) {
+        return this.paymentsService.getWithdrawalMethods(req.user.sub);
+    }
     deleteWithdrawalMethod(req, id) {
         return this.paymentsService.deleteWithdrawalMethod(req.user.sub, id);
-    }
-    setDefaultWithdrawalMethod(req, id) {
-        return this.paymentsService.setDefaultWithdrawalMethod(req.user.sub, id);
-    }
-    verifyInstantPay(req, id) {
-        return this.paymentsService.verifyInstantCapability(req.user.sub, id);
-    }
-    getInvoice(id) {
-        return this.paymentsService.getInvoiceData(id);
-    }
-    transfer(body) {
-        return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description, body.referenceId, body.teamId, body.departmentId);
-    }
-    getDepartmentSpend(id) {
-        return this.paymentsService.getDepartmentSpend(id);
-    }
-    getTransactionsByReference(id) {
-        return this.paymentsService.getTransactionsByReference(id);
-    }
-    getAllTransactions(limit, offset) {
-        return this.paymentsService.getAllTransactions(limit, offset);
-    }
-    chargebackTransaction(id) {
-        return this.paymentsService.processChargeback(id);
-    }
-    approvePayment(id, req) {
-        return this.paymentsService.approvePayment(id, req.user.sub);
-    }
-    createTaxSetting(body) {
-        return this.paymentsService.createTaxSetting(body);
-    }
-    getTaxSettings() {
-        return this.paymentsService.getTaxSettings();
-    }
-    updateTaxSetting(id, body) {
-        return this.paymentsService.updateTaxSetting(id, body);
-    }
-    getMyInvoices(req) {
-        return this.paymentsService.getInvoices(req.user.sub);
-    }
-    async downloadInvoice(id, res) {
-        const buffer = await this.paymentsService.generateInvoicePdf(id);
-        res.set({
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="invoice-${id}.pdf"`,
-        });
-        return new common_1.StreamableFile(buffer);
-    }
-    getEarningsStats(req, period = 'monthly') {
-        return this.paymentsService.getEarningsStats(req.user.sub, period);
-    }
-    getSpendingStats(req, period = 'monthly') {
-        return this.paymentsService.getSpendingStats(req.user.sub, period);
     }
     updateAutoWithdrawal(req, body) {
         return this.paymentsService.updateAutoWithdrawalSettings(req.user.sub, body);
     }
-    getMetrics() {
-        return this.paymentsService.getMetrics();
+    createTaxSetting(body) {
+        return this.paymentsService.createTaxSetting(body);
     }
-    getMyPaymentMethods(req) {
-        return this.paymentsService.getPaymentMethods(req.user.sub);
-    }
-    addPaymentMethod(req, body) {
-        return this.paymentsService.addPaymentMethod(req.user.sub, body);
-    }
-    deletePaymentMethod(req, id) {
-        return this.paymentsService.deletePaymentMethod(req.user.sub, id);
-    }
-    updateAutoDepositConfig(req, body) {
-        return this.paymentsService.updateAutoDepositConfig(req.user.sub, body);
-    }
-    async getTaxDocument(req, year, res) {
-        const buffer = await this.paymentsService.generateTaxDocumentPdf(req.user.sub, parseInt(year));
-        res.set({
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="tax-summary-${year}.pdf"`,
-        });
-        return new common_1.StreamableFile(buffer);
+    findAllTaxSettings() {
+        return this.paymentsService.getTaxSettings();
     }
     createSubscription(req, body) {
         return this.paymentsService.createSubscription(req.user.sub, body);
@@ -142,6 +75,9 @@ let PaymentsController = class PaymentsController {
     }
     releaseEscrow(body) {
         return this.paymentsService.releaseEscrow(body.contractId, body.milestoneId, body.freelancerId);
+    }
+    refundEscrow(body) {
+        return this.paymentsService.refundEscrow(body.contractId, body.milestoneId);
     }
     processPayroll(body) {
         return this.paymentsService.processPayroll(body.contractId, {
@@ -210,22 +146,24 @@ __decorate([
 ], PaymentsController.prototype, "deposit", null);
 __decorate([
     (0, common_1.Post)('withdraw'),
-    __param(0, (0, common_1.Body)()),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "withdraw", null);
 __decorate([
-    (0, common_1.Get)('withdrawal-methods'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
+    (0, common_1.Get)('transactions'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
     __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getMyWithdrawalMethods", null);
+], PaymentsController.prototype, "getTransactions", null);
 __decorate([
-    (0, common_1.Post)('withdrawal-methods'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
+    (0, common_1.Post)('methods'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -233,8 +171,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "addWithdrawalMethod", null);
 __decorate([
-    (0, common_1.Delete)('withdrawal-methods/:id'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
+    (0, common_1.Get)('methods'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getWithdrawalMethods", null);
+__decorate([
+    (0, common_1.Delete)('methods/:id'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -242,135 +188,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "deleteWithdrawalMethod", null);
 __decorate([
-    (0, common_1.Patch)('withdrawal-methods/:id/default'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "setDefaultWithdrawalMethod", null);
-__decorate([
-    (0, common_1.Post)('withdrawal-methods/:id/verify-instant'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "verifyInstantPay", null);
-__decorate([
-    (0, common_1.Get)('transactions/:id/invoice'),
-    __param(0, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getInvoice", null);
-__decorate([
-    (0, common_1.Post)('transfer'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "transfer", null);
-__decorate([
-    (0, common_1.Get)('departments/:id/spend'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT', 'CLIENT'] }),
-    __param(0, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getDepartmentSpend", null);
-__decorate([
-    (0, common_1.Get)('transactions/reference/:id'),
-    __param(0, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getTransactionsByReference", null);
-__decorate([
-    (0, common_1.Get)('transactions'),
-    __param(0, (0, common_1.Query)('limit')),
-    __param(1, (0, common_1.Query)('offset')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, Number]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getAllTransactions", null);
-__decorate([
-    (0, common_1.Post)('transactions/:id/chargeback'),
-    __param(0, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "chargebackTransaction", null);
-__decorate([
-    (0, common_1.Post)('transactions/:id/approve'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT', 'CLIENT'] }),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Request)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "approvePayment", null);
-__decorate([
-    (0, common_1.Post)('taxes'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "createTaxSetting", null);
-__decorate([
-    (0, common_1.Get)('taxes'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getTaxSettings", null);
-__decorate([
-    (0, common_1.Put)('taxes/:id'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "updateTaxSetting", null);
-__decorate([
-    (0, common_1.Get)('invoices'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getMyInvoices", null);
-__decorate([
-    (0, common_1.Get)('invoices/:id/download'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Res)({ passthrough: true })),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", Promise)
-], PaymentsController.prototype, "downloadInvoice", null);
-__decorate([
-    (0, common_1.Get)('earnings/stats'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Query)('period')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getEarningsStats", null);
-__decorate([
-    (0, common_1.Get)('spending/stats'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Query)('period')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getSpendingStats", null);
-__decorate([
-    (0, common_1.Patch)('wallet/auto-withdrawal'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER'] }),
+    (0, common_1.Patch)('auto-withdrawal'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -378,59 +197,23 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "updateAutoWithdrawal", null);
 __decorate([
-    (0, common_1.Get)('metrics'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getMetrics", null);
-__decorate([
-    (0, common_1.Get)('methods'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
+    (0, common_1.Post)('tax-settings'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
+    __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "getMyPaymentMethods", null);
+], PaymentsController.prototype, "createTaxSetting", null);
 __decorate([
-    (0, common_1.Post)('methods'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Body)()),
+    (0, common_1.Get)('tax-settings'),
+    (0, nest_keycloak_connect_1.Public)(),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "addPaymentMethod", null);
-__decorate([
-    (0, common_1.Delete)('methods/:id'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "deletePaymentMethod", null);
-__decorate([
-    (0, common_1.Post)('auto-deposit/config'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
-    __metadata("design:returntype", void 0)
-], PaymentsController.prototype, "updateAutoDepositConfig", null);
-__decorate([
-    (0, common_1.Get)('tax-documents/:year'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
-    __param(0, (0, common_1.Request)()),
-    __param(1, (0, common_1.Param)('year')),
-    __param(2, (0, common_1.Res)({ passthrough: true })),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, Object]),
-    __metadata("design:returntype", Promise)
-], PaymentsController.prototype, "getTaxDocument", null);
+], PaymentsController.prototype, "findAllTaxSettings", null);
 __decorate([
     (0, common_1.Post)('subscriptions'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -454,6 +237,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "releaseEscrow", null);
+__decorate([
+    (0, common_1.Post)('escrow/refund'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "refundEscrow", null);
 __decorate([
     (0, common_1.Post)('payroll/process'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),

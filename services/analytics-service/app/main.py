@@ -60,11 +60,35 @@ CREATE TABLE IF NOT EXISTS system_metrics (
 ORDER BY (timestamp, service, endpoint)
 """)
 
+client.command("""
+CREATE TABLE IF NOT EXISTS financial_events (
+    event_id UUID,
+    user_id String,
+    counterparty_id String,
+    amount Float64,
+    currency String,
+    category String,
+    job_id String,
+    transaction_id String,
+    timestamp DateTime64(3) DEFAULT now64()
+) ENGINE = MergeTree()
+ORDER BY (timestamp, category, user_id)
+""")
+
 class Metric(BaseModel):
     service: str
     endpoint: str
     status_code: int
     latency_ms: float
+
+class FinancialEvent(BaseModel):
+    user_id: str
+    counterparty_id: str
+    amount: float
+    currency: str
+    category: str
+    job_id: str
+    transaction_id: str
 
 class Event(BaseModel):
     event_type: str
@@ -86,6 +110,40 @@ async def create_event(event: Event):
     
     data = [[event_id, event.event_type, event.user_id, event.job_id, event.metadata, timestamp]]
     client.insert('events', data, column_names=['event_id', 'event_type', 'user_id', 'job_id', 'metadata', 'timestamp'])
+    
+    return {"status": "success", "event_id": str(event_id)}
+
+@app.post("/api/analytics/financials")
+async def create_financial_event(event: FinancialEvent):
+    import uuid
+    from datetime import datetime
+    
+    event_id = uuid.uuid4()
+    timestamp = datetime.utcnow()
+    
+    data = [[
+        event_id, 
+        event.user_id, 
+        event.counterparty_id, 
+        event.amount, 
+        event.currency, 
+        event.category, 
+        event.job_id, 
+        event.transaction_id, 
+        timestamp
+    ]]
+    
+    client.insert('financial_events', data, column_names=[
+        'event_id', 
+        'user_id', 
+        'counterparty_id', 
+        'amount', 
+        'currency', 
+        'category', 
+        'job_id', 
+        'transaction_id', 
+        'timestamp'
+    ])
     
     return {"status": "success", "event_id": str(event_id)}
 
@@ -120,6 +178,54 @@ async def get_job_stats(job_id: str):
         "job_id": job_id,
         "daily_views": [{"date": str(row[0]), "count": row[1]} for row in views_result.result_rows],
         "total_events": {row[0]: row[1] for row in total_result.result_rows}
+    }
+
+@app.get("/api/analytics/freelancer/earnings")
+async def get_freelancer_earnings(user_id: str):
+    # Get total earnings
+    total_query = f"SELECT sum(amount) FROM financial_events WHERE user_id = '{user_id}' AND category = 'Earnings'"
+    total_res = client.query(total_query)
+    total_earnings = total_res.result_rows[0][0] or 0.0
+
+    # Get monthly earnings
+    monthly_query = f"""
+    SELECT formatDateTime(toStartOfMonth(timestamp), '%Y-%m') as month, sum(amount) 
+    FROM financial_events 
+    WHERE user_id = '{user_id}' AND category = 'Earnings'
+    GROUP BY month 
+    ORDER BY month DESC 
+    LIMIT 12
+    """
+    monthly_res = client.query(monthly_query)
+
+    return {
+        "user_id": user_id,
+        "total_earnings": total_earnings,
+        "monthly_earnings": [{"month": row[0], "amount": row[1]} for row in monthly_res.result_rows]
+    }
+
+@app.get("/api/analytics/client/spend")
+async def get_client_spend(user_id: str):
+    # Get total spend
+    total_query = f"SELECT sum(amount) FROM financial_events WHERE counterparty_id = '{user_id}' AND category = 'Earnings'"
+    total_res = client.query(total_query)
+    total_spend = total_res.result_rows[0][0] or 0.0
+    
+    # Get spend by category/job
+    job_query = f"""
+    SELECT job_id, sum(amount) as total 
+    FROM financial_events 
+    WHERE counterparty_id = '{user_id}'
+    GROUP BY job_id
+    ORDER BY total DESC
+    LIMIT 10
+    """
+    job_res = client.query(job_query)
+
+    return {
+        "user_id": user_id,
+        "total_spend": total_spend,
+        "spend_by_job": [{"job_id": row[0], "amount": row[1]} for row in job_res.result_rows]
     }
 
 @app.get("/api/analytics/retention")
@@ -354,3 +460,45 @@ async def get_performance():
         })
         
     return data
+
+@app.get("/api/analytics/freelancer/overview")
+async def get_freelancer_overview(user_id: str):
+    # Earnings
+    earnings_res = client.query(f"SELECT sum(amount) FROM financial_events WHERE user_id = '{user_id}' AND category = 'Earnings'")
+    total_earnings = earnings_res.result_rows[0][0] or 0.0
+    
+    # Jobs Completed (Approximation: Unique jobs with earnings)
+    jobs_res = client.query(f"SELECT uniq(job_id) FROM financial_events WHERE user_id = '{user_id}' AND category = 'Earnings'")
+    jobs_completed = jobs_res.result_rows[0][0] or 0
+    
+    # JSS Calculation
+    # Formula: Percentage of positive reviews (>= 4.0)
+    jss_query = f"""
+    SELECT 
+        count() as total,
+        countIf(JSONExtractFloat(metadata, 'rating') >= 4.0) as positive
+    FROM events 
+    WHERE user_id = '{user_id}' AND event_type = 'review_received'
+    """
+    jss_res = client.query(jss_query)
+    
+    jss = 100
+    if jss_res.result_rows:
+        total_reviews = jss_res.result_rows[0][0]
+        positive_reviews = jss_res.result_rows[0][1]
+        
+        if total_reviews > 0:
+            jss = round((positive_reviews / total_reviews) * 100)
+    
+    # Profile Views
+    views_res = client.query(f"SELECT count() FROM events WHERE user_id = '{user_id}' AND event_type = 'profile_view'")
+    profile_views = views_res.result_rows[0][0] or 0
+
+    return {
+        "userId": user_id,
+        "totalEarnings": total_earnings,
+        "jobsCompleted": jobs_completed,
+        "jss": jss,
+        "profileViews": profile_views,
+        "activeProposals": 0  # TODO: Fetch from proposal-service or track
+    }

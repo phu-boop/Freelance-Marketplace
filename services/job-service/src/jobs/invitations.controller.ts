@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Request, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Request, Query, Param } from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { Roles } from 'nest-keycloak-connect';
@@ -19,5 +19,12 @@ export class InvitationsController {
     async getForFreelancer(@Request() req) {
         const freelancerId = req.user.sub;
         return this.jobsService.getFreelancerInvitations(freelancerId);
+    }
+
+    @Post(':id/respond')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async respond(@Request() req, @Param('id') id: string, @Body() body: { status: 'ACCEPTED' | 'DECLINED' }) {
+        const freelancerId = req.user.sub;
+        return this.jobsService.respondToInvitation(freelancerId, id, body.status);
     }
 }

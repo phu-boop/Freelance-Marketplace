@@ -369,9 +369,10 @@ model SyncTombstone {
   id        String   @id @default(uuid())
   entity    String   // e.g., "User", "PortfolioItem"
   recordId  String
+  userId    String?  // Optional: associated user
   deletedAt DateTime @default(now())
   
-  @@index([entity, deletedAt])
+  @@index([entity, deletedAt, userId])
   @@map("sync_tombstones")
-  @@schema("users")
+  @@schema("sync")
 }

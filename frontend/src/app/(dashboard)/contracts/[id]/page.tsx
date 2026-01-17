@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
-import { Briefcase, Calendar, DollarSign, CheckCircle, Plus, Clock, FileText, ChevronLeft, ArrowUpRight } from 'lucide-react';
+import { Briefcase, Calendar, DollarSign, CheckCircle, Plus, Clock, FileText, ChevronLeft, ArrowUpRight, ShieldCheck, Edit3 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistance } from 'date-fns';
 import ContractChat from '@/components/contracts/ContractChat';
 import { TransactionHistory } from '@/components/contracts/TransactionHistory';
 import TimesheetView from '@/components/contracts/TimesheetView';
+import CollaborativeEditor from '@/components/workspace/CollaborativeEditor';
 
 export default function ContractDetailsPage() {
     const params = useParams();
@@ -20,7 +21,7 @@ export default function ContractDetailsPage() {
     const [transactionsLoading, setTransactionsLoading] = React.useState(false);
 
     // UI State
-    const [activeTab, setActiveTab] = React.useState<'milestones' | 'files' | 'messages' | 'payments' | 'timesheet'>('milestones');
+    const [activeTab, setActiveTab] = React.useState<'milestones' | 'files' | 'messages' | 'payments' | 'timesheet' | 'workspace'>('milestones');
     const [isAddMilestoneOpen, setIsAddMilestoneOpen] = React.useState(false);
     const [isSubmitWorkOpen, setIsSubmitWorkOpen] = React.useState(false);
     const [isApprovalOpen, setIsApprovalOpen] = React.useState(false);
@@ -28,6 +29,8 @@ export default function ContractDetailsPage() {
     const [isSubHistoryOpen, setIsSubHistoryOpen] = React.useState(false);
     const [isExtensionModalOpen, setIsExtensionModalOpen] = React.useState(false);
     const [isTerminationOpen, setIsTerminationOpen] = React.useState(false);
+    const [isDisputeModalOpen, setIsDisputeModalOpen] = React.useState(false);
+    const [disputeReason, setDisputeReason] = React.useState('');
     const [selectedMilestoneId, setSelectedMilestoneId] = React.useState<string | null>(null);
     const [viewingSubmissions, setViewingSubmissions] = React.useState<any[]>([]);
     const [feedback, setFeedback] = React.useState('');
@@ -58,7 +61,7 @@ export default function ContractDetailsPage() {
 
     const fetchContract = React.useCallback(async () => {
         try {
-            const res = await api.get(`/proposals/contracts/${params.id}`);
+            const res = await api.get(`/contracts/${params.id}`);
             setContract(res.data);
         } catch (error) {
             console.error('Failed to fetch contract details', error);
@@ -100,7 +103,7 @@ export default function ContractDetailsPage() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            await api.post(`/proposals/contracts/${params.id}/milestones`, {
+            await api.post(`/contracts/${params.id}/milestones`, {
                 description,
                 amount: parseFloat(amount),
                 dueDate: dueDate || undefined
@@ -123,9 +126,11 @@ export default function ContractDetailsPage() {
 
         setSubmitting(true);
         try {
-            await api.post(`/proposals/milestones/${selectedMilestoneId}/submit`, {
+            await api.post(`/contracts/${params.id}/submit`, {
+                milestoneId: selectedMilestoneId,
                 content: submissionContent,
-                attachments: submissionFiles
+                attachments: submissionFiles,
+                type: 'FINAL_RESULT'
             });
 
             setSubmissionContent('');
@@ -142,7 +147,7 @@ export default function ContractDetailsPage() {
     const handleApproveWork = async (milestoneId: string) => {
         setLoading(true);
         try {
-            await api.post(`/proposals/milestones/${milestoneId}/approve`);
+            await api.post(`/contracts/${params.id}/approve`, { milestoneId });
             fetchContract();
         } catch (error: any) {
             console.error('Failed to approve work', error);
@@ -157,12 +162,30 @@ export default function ContractDetailsPage() {
 
         setLoading(true);
         try {
-            await api.post(`/proposals/milestones/${milestoneId}/request-changes`, { feedback });
+            await api.post(`/contracts/${params.id}/reject-work`, {
+                milestoneId,
+                reason: feedback
+            });
             setFeedback('');
+            setIsRequestChangesOpen(false);
             fetchContract();
         } catch (error: any) {
             console.error('Failed to request changes', error);
             alert('Request failed: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleActivateMilestone = async (milestoneId: string) => {
+        setLoading(true);
+        try {
+            await api.post(`/contracts/${params.id}/milestones/${milestoneId}/activate`);
+            fetchContract();
+            alert('Milestone activated and escrow funded successfully');
+        } catch (error: any) {
+            console.error('Failed to activate milestone', error);
+            alert('Activation failed: ' + (error.response?.data?.message || error.message));
         } finally {
             setLoading(false);
         }
@@ -178,12 +201,36 @@ export default function ContractDetailsPage() {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = React.useState(false);
 
+    const handlePauseContract = async () => {
+        setLoading(true);
+        try {
+            await api.post(`/contracts/${params.id}/pause`);
+            fetchContract();
+        } catch (error) {
+            console.error('Failed to pause contract', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResumeContract = async () => {
+        setLoading(true);
+        try {
+            await api.post(`/contracts/${params.id}/resume`);
+            fetchContract();
+        } catch (error) {
+            console.error('Failed to resume contract', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleRequestExtension = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
         try {
-            await api.post(`/proposals/contracts/${params.id}/extension-request`, {
-                date: extensionDate,
+            await api.post(`/contracts/${params.id}/extend`, {
+                newEndDate: extensionDate,
                 reason: extensionReason
             });
             setIsExtensionModalOpen(false);
@@ -205,8 +252,11 @@ export default function ContractDetailsPage() {
 
         setSubmitting(true);
         try {
-            await api.post(`/proposals/contracts/${params.id}/terminate`, {
-                reason: terminationReason
+            // contract-service might use dispute or just update status
+            // For now, let's use the generic update or dispute
+            await api.patch(`/contracts/${params.id}`, {
+                status: 'TERMINATED',
+                disputeReason: terminationReason
             });
             setIsTerminationOpen(false);
             setTerminationReason('');
@@ -215,6 +265,27 @@ export default function ContractDetailsPage() {
         } catch (error) {
             console.error('Failed to terminate contract', error);
             alert('Failed to terminate contract');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleRaiseDispute = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!disputeReason.trim()) return;
+
+        setSubmitting(true);
+        try {
+            await api.post(`/contracts/${params.id}/dispute`, {
+                reason: disputeReason,
+            });
+            setIsDisputeModalOpen(false);
+            setDisputeReason('');
+            fetchContract();
+            alert('Dispute raised successfully. Our team will review it soon.');
+        } catch (error: any) {
+            console.error('Failed to raise dispute', error);
+            alert('Failed to raise dispute: ' + (error.response?.data?.message || error.message));
         } finally {
             setSubmitting(false);
         }
@@ -326,8 +397,10 @@ export default function ContractDetailsPage() {
                                     Started {formatDistance(new Date(contract.updatedAt), new Date(), { addSuffix: true })}
                                 </span>
                                 <span className="flex items-center gap-1.5 text-sm">
-                                    <CheckCircle className="w-4 h-4" />
-                                    {contract.status === 'TERMINATED' ? 'Terminated' : 'Active'}
+                                    <CheckCircle className={`w-4 h-4 ${contract.status === 'PAUSED' ? 'text-yellow-500' : contract.status === 'DISPUTED' ? 'text-red-500' : 'text-green-500'}`} />
+                                    {contract.status === 'TERMINATED' ? 'Terminated' :
+                                        contract.status === 'PAUSED' ? 'Paused' :
+                                            contract.status === 'DISPUTED' ? 'In Dispute' : 'Active'}
                                 </span>
                                 {contract.extensionRequestStatus === 'PENDING' && (
                                     <span className="flex items-center gap-1.5 text-sm text-yellow-500">
@@ -337,22 +410,70 @@ export default function ContractDetailsPage() {
                                 )}
                             </div>
                         </div>
-                        {currentUser?.id === contract.freelancerId && contract.status !== 'TERMINATED' && (
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setIsExtensionModalOpen(true)}
-                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors text-sm font-medium border border-slate-700"
-                                >
-                                    Request Extension
-                                </button>
-                                <button
-                                    onClick={() => setIsTerminationOpen(true)}
-                                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg transition-colors text-sm font-medium"
-                                >
-                                    Terminate
-                                </button>
-                            </div>
-                        )}
+                        <div className="flex gap-2">
+                            {/* Client Actions */}
+                            {currentUser?.id === contract.job.client_id && contract.status !== 'TERMINATED' && (
+                                <>
+                                    {contract.status === 'PAUSED' ? (
+                                        <button
+                                            onClick={handleResumeContract}
+                                            className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors text-sm font-medium"
+                                        >
+                                            Resume Contract
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handlePauseContract}
+                                            className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition-colors text-sm font-medium"
+                                        >
+                                            Pause Contract
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setIsExtensionModalOpen(true)}
+                                        className="px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/20 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Extend
+                                    </button>
+                                    <button
+                                        onClick={() => setIsTerminationOpen(true)}
+                                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        End Contract
+                                    </button>
+                                    <button
+                                        onClick={() => setIsDisputeModalOpen(true)}
+                                        className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 border border-purple-500/20 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Dispute
+                                    </button>
+                                </>
+                            )}
+
+                            {/* Freelancer Actions */}
+                            {currentUser?.id === contract.freelancer_id && contract.status !== 'TERMINATED' && (
+                                <>
+                                    <button
+                                        onClick={() => setIsExtensionModalOpen(true)}
+                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors text-sm font-medium border border-slate-700"
+                                    >
+                                        {currentUser?.id === contract.job.client_id ? 'Extend Contract' : 'Request Extension'}
+                                    </button>
+                                    <button
+                                        onClick={() => setIsTerminationOpen(true)}
+                                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Terminate
+                                    </button>
+                                    <button
+                                        onClick={() => setIsDisputeModalOpen(true)}
+                                        className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 border border-purple-500/20 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Dispute
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -445,6 +566,13 @@ export default function ContractDetailsPage() {
                         {activeTab === 'files' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
                     </button>
                     <button
+                        onClick={() => setActiveTab('workspace')}
+                        className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'workspace' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Workspace
+                        {activeTab === 'workspace' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+                    </button>
+                    <button
                         onClick={() => setActiveTab('messages')}
                         className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'messages' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
                     >
@@ -470,6 +598,9 @@ export default function ContractDetailsPage() {
                                 currentUser={currentUser}
                                 isClient={contract?.job?.client_id === currentUser?.id}
                             />
+                        )}
+                        {activeTab === 'workspace' && (
+                            <CollaborativeEditor contractId={params.id as string} />
                         )}
                         {activeTab === 'milestones' ? (
                             <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
@@ -500,14 +631,20 @@ export default function ContractDetailsPage() {
                                                                 Due {new Date(milestone.dueDate).toLocaleDateString()}
                                                             </span>
                                                         )}
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${milestone.status === 'PAID' ? 'bg-green-500/10 text-green-500' :
-                                                            milestone.status === 'SUBMITTED' ? 'bg-blue-500/10 text-blue-500' :
-                                                                milestone.status === 'CHANGES_REQUESTED' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${milestone.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' :
+                                                            milestone.status === 'IN_REVIEW' ? 'bg-blue-500/10 text-blue-500' :
+                                                                milestone.status === 'ACTIVE' ? 'bg-indigo-500/10 text-indigo-500' :
                                                                     'bg-slate-700 text-slate-300'
                                                             } uppercase tracking-wide`}>
                                                             {milestone.status.replace('_', ' ')}
                                                         </span>
-                                                        {milestone.status === 'SUBMITTED' && milestone.autoReleaseDate && (
+                                                        {milestone.escrowStatus === 'FUNDED' && milestone.status !== 'COMPLETED' && (
+                                                            <span className="flex items-center gap-1 text-[10px] text-green-400 font-medium bg-green-500/5 px-2 py-0.5 rounded-full border border-green-500/10">
+                                                                <ShieldCheck className="w-3 h-3" />
+                                                                Escrow Funded
+                                                            </span>
+                                                        )}
+                                                        {milestone.status === 'IN_REVIEW' && milestone.autoReleaseDate && (
                                                             <span className="flex items-center gap-1 text-[10px] text-blue-400 font-medium bg-blue-500/5 px-2 py-0.5 rounded-full border border-blue-500/10">
                                                                 <Clock className="w-3 h-3" />
                                                                 Auto-release in {getTimeRemaining(milestone.autoReleaseDate)}
@@ -555,37 +692,42 @@ export default function ContractDetailsPage() {
                                                         <div className="font-bold text-white text-lg">${milestone.amount}</div>
                                                     </div>
                                                     <div className="flex flex-col gap-2">
-                                                        {(milestone.status === 'PENDING' || milestone.status === 'CHANGES_REQUESTED') && (
+                                                        {milestone.status === 'PENDING' && contract.status !== 'PAUSED' && currentUser?.id === contract.job.client_id && (
                                                             <button
-                                                                onClick={() => handleOpenSubmitModal(milestone.id)}
-                                                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors"
+                                                                onClick={() => handleActivateMilestone(milestone.id)}
+                                                                className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-medium transition-colors"
                                                             >
-                                                                {milestone.status === 'CHANGES_REQUESTED' ? 'Resubmit Work' : 'Submit Work'}
+                                                                Fund & Activate
                                                             </button>
                                                         )}
-                                                        {milestone.status === 'SUBMITTED' && (
+                                                        {milestone.status === 'ACTIVE' && contract.status !== 'PAUSED' && currentUser?.id === contract.freelancer_id && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedMilestoneId(milestone.id);
+                                                                    setIsSubmitWorkOpen(true);
+                                                                }}
+                                                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors"
+                                                            >
+                                                                Submit Work
+                                                            </button>
+                                                        )}
+                                                        {milestone.status === 'IN_REVIEW' && contract.status !== 'PAUSED' && currentUser?.id === contract.job.client_id && (
                                                             <div className="flex flex-col gap-2">
                                                                 <button
-                                                                    onClick={() => {
-                                                                        setSelectedMilestoneId(milestone.id);
-                                                                        setIsApprovalOpen(true);
-                                                                    }}
+                                                                    onClick={() => handleApproveWork(milestone.id)}
                                                                     className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-medium transition-colors"
                                                                 >
                                                                     Approve
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => {
-                                                                        setSelectedMilestoneId(milestone.id);
-                                                                        setIsRequestChangesOpen(true);
-                                                                    }}
+                                                                    onClick={() => handleRequestChanges(milestone.id)}
                                                                     className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium transition-colors"
                                                                 >
                                                                     Request Changes
                                                                 </button>
                                                             </div>
                                                         )}
-                                                        {milestone.status === 'PAID' && milestone.submissions?.length > 0 && (
+                                                        {milestone.status === 'COMPLETED' && milestone.submissions?.length > 0 && (
                                                             <button
                                                                 onClick={() => handleOpenSubHistory(milestone.submissions)}
                                                                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors"
@@ -607,7 +749,7 @@ export default function ContractDetailsPage() {
                         ) : activeTab === 'messages' ? (
                             <ContractChat
                                 contractId={params.id as string}
-                                freelancerId={contract.freelancerId}
+                                freelancerId={contract.freelancer_id}
                                 clientId={contract.job.client_id}
                             />
                         ) : activeTab === 'payments' ? (
@@ -977,6 +1119,101 @@ export default function ContractDetailsPage() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* Dispute Modal */}
+            {isDisputeModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white">Raise a Dispute</h3>
+                            <button onClick={() => setIsDisputeModalOpen(false)} className="text-slate-500 hover:text-white transition-colors">
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleRaiseDispute} className="space-y-4">
+                            <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl mb-4">
+                                <p className="text-sm text-purple-400">
+                                    Disputing a contract stops all payments and triggers an investigation by our team. Please provide a detailed reason.
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">Reason for Dispute</label>
+                                <textarea
+                                    value={disputeReason}
+                                    onChange={(e) => setDisputeReason(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 h-32 resize-none"
+                                    placeholder="Explain why you are raising this dispute..."
+                                    required
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button type="button" onClick={() => setIsDisputeModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">Cancel</button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting || !disputeReason.trim()}
+                                    className="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium disabled:opacity-50 transition-all shadow-lg shadow-purple-500/20"
+                                >
+                                    {submitting ? 'Raising Dispute...' : 'Raise Dispute'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Extension Modal */}
+            {isExtensionModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white">
+                                {currentUser?.id === contract.job.client_id ? 'Extend Contract' : 'Request Extension'}
+                            </h3>
+                            <button onClick={() => setIsExtensionModalOpen(false)} className="text-slate-500 hover:text-white transition-colors">
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleRequestExtension} className="space-y-4">
+                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-4">
+                                <p className="text-sm text-blue-400">
+                                    {currentUser?.id === contract.job.client_id
+                                        ? 'Set a new end date for the contract. The freelancer will be notified.'
+                                        : 'Suggest a new end date to your client. They will receive a notification to approve.'}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">New End Date</label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={extensionDate}
+                                    onChange={(e) => setExtensionDate(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                    min={new Date().toISOString().split('T')[0]}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">Reason (Optional)</label>
+                                <textarea
+                                    value={extensionReason}
+                                    onChange={(e) => setExtensionReason(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 h-24 resize-none"
+                                    placeholder="Why is an extension needed?"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button type="button" onClick={() => setIsExtensionModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">Cancel</button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting || !extensionDate}
+                                    className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20"
+                                >
+                                    {submitting ? 'Processing...' : (currentUser?.id === contract.job.client_id ? 'Extend Contract' : 'Send Request')}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

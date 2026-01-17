@@ -24,6 +24,15 @@ export class AiService {
     }
 
     async generatePortfolioItem(freelancerId: string, contractId: string) {
+        // 0. Check if already exists to avoid duplicates
+        const existing = await this.prisma.portfolioItem.findFirst({
+            where: { userId: freelancerId, externalId: contractId }
+        });
+        if (existing) {
+            this.logger.log(`Portfolio item for contract ${contractId} already exists. Skipping.`);
+            return existing;
+        }
+
         // 1. Fetch Contract Details from contract-service
         const contractServiceUrl = this.configService.get<string>('CONTRACT_SERVICE_URL', 'http://contract-service:3002');
         let contractData: any = null;
@@ -57,7 +66,7 @@ export class AiService {
 
         const prompt = `
       You are an expert career consultant.
-      Based on the following project data, generate a portfolio item for the freelancer.
+      Based on the following project data, generate a professional portfolio item for the freelancer.
       
       Job Title: ${jobData?.title || 'Unknown Project'}
       Job Description: ${jobData?.description || 'N/A'}
@@ -66,7 +75,7 @@ export class AiService {
       
       Instructions:
       1. Create a professional, catchy title for the portfolio item.
-      2. Write a 2-3 sentence description of the work performed and value delivered.
+      2. Write a 2-3 sentence description of the work performed, value delivered, and milestones reached.
       3. Identify 3-5 key skills demonstrated in this project.
       
       Return the result EXCLUSIVELY as a JSON object:
@@ -92,9 +101,10 @@ export class AiService {
                     title: portfolioData.title,
                     description: portfolioData.description,
                     skills: portfolioData.skills,
-                    imageUrl: 'https://placehold.co/600x400/png?text=Project+Thumbnail', // Default
+                    imageUrl: `https://placehold.co/600x400/png?text=${encodeURIComponent(portfolioData.title)}`, // Use title in thumbnail
                     source: 'AI_GENERATED',
-                    completionDate: new Date(contractData.updatedAt),
+                    externalId: contractId,
+                    completionDate: new Date(contractData.updatedAt || new Date()),
                 },
             });
         } catch (error) {
@@ -112,7 +122,8 @@ export class AiService {
                 skills: job?.skills?.map((s: any) => s.skill.name) || ['Project Management'],
                 imageUrl: 'https://placehold.co/600x400/png?text=AI+Generated+Project',
                 source: 'AI_GENERATED',
-                completionDate: new Date(contract.updatedAt),
+                externalId: contract.id,
+                completionDate: new Date(contract.updatedAt || new Date()),
             },
         });
     }

@@ -23,4 +23,11 @@ export class CreateChatDto {
     @IsString()
     @IsOptional()
     replyTo?: string;
+
+    @IsOptional()
+    isFlagged?: boolean;
+
+    @IsString()
+    @IsOptional()
+    flagReason?: string;
 }

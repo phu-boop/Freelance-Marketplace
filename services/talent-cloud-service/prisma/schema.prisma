@@ -16,6 +16,8 @@ model TalentCloud {
   description String?
   ownerId     String   // reference to User (enterprise admin)
   visibility  Visibility @default(PRIVATE)
+  costCenter  String?
+  budget      Float?    @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   members     TalentCloudMember[]

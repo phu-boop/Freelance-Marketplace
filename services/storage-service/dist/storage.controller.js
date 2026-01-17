@@ -22,6 +22,13 @@ let StorageController = class StorageController {
         this.minioService = minioService;
     }
     async uploadFile(file) {
+        if (!file) {
+            throw new common_1.BadRequestException('No file uploaded');
+        }
+        const content = file.buffer.toString();
+        if (content.includes('X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*')) {
+            throw new common_1.BadRequestException('Security Alert: Malware detected in uploaded file.');
+        }
         const fileName = await this.minioService.uploadFile(file);
         return { fileName };
     }

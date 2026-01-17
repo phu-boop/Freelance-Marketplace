@@ -10,6 +10,9 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const audit_module_1 = require("./audit/audit.module");
+const prisma_module_1 = require("./prisma/prisma.module");
+const nest_keycloak_connect_1 = require("nest-keycloak-connect");
+const core_1 = require("@nestjs/core");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -19,7 +22,33 @@ exports.AppModule = AppModule = __decorate([
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
             }),
+            prisma_module_1.PrismaModule,
             audit_module_1.AuditModule,
+            nest_keycloak_connect_1.KeycloakConnectModule.registerAsync({
+                imports: [config_1.ConfigModule],
+                useFactory: async (configService) => ({
+                    authServerUrl: configService.get('KEYCLOAK_URL', 'http://keycloak:8080'),
+                    realm: configService.get('KEYCLOAK_REALM', 'freelance-marketplace'),
+                    clientId: configService.get('KEYCLOAK_CLIENT_ID', 'freelance-client'),
+                    secret: configService.get('KEYCLOAK_SECRET', ''),
+                    tokenValidation: nest_keycloak_connect_1.TokenValidation.OFFLINE,
+                }),
+                inject: [config_1.ConfigService],
+            }),
+        ],
+        providers: [
+            {
+                provide: core_1.APP_GUARD,
+                useClass: nest_keycloak_connect_1.AuthGuard,
+            },
+            {
+                provide: core_1.APP_GUARD,
+                useClass: nest_keycloak_connect_1.ResourceGuard,
+            },
+            {
+                provide: core_1.APP_GUARD,
+                useClass: nest_keycloak_connect_1.RoleGuard,
+            },
         ],
     })
 ], AppModule);

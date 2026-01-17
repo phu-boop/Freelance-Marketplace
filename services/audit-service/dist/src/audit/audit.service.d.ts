@@ -28,4 +28,9 @@ export declare class AuditService {
     }[]>;
     private generateChecksum;
     verifyLog(id: string): Promise<boolean>;
+    verifyAll(): Promise<{
+        total: number;
+        corrupt: string[];
+    }>;
+    private isChecksumValid;
 }

@@ -14,7 +14,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { Public, Roles } from 'nest-keycloak-connect';
+import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
 import { AiService } from './ai.service';
 
 @Controller('api/users')
@@ -30,15 +30,19 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
-  @Public()
   @Get('sync')
-  sync(@Query('since') since: string, @Query('entities') entities: string) {
+  sync(
+    @AuthenticatedUser() user: any,
+    @Query('since') since: string,
+    @Query('entities') entities: string,
+  ) {
     const entityList = entities
       ? entities.split(',')
-      : ['User', 'Education', 'Experience', 'PortfolioItem'];
+      : ['User', 'Education', 'Experience', 'PortfolioItem', 'Certification'];
     return this.usersService.sync(
       since || new Date(0).toISOString(),
       entityList,
+      user.sub,
     );
   }
 
@@ -62,8 +66,9 @@ export class UsersController {
 
   @Public()
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    const viewerId = req.user?.sub;
+    return this.usersService.findOne(id, viewerId);
   }
 
   @Get(':id/export')

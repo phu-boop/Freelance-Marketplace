@@ -15,8 +15,8 @@ export default function ContractsPage() {
         const fetchContracts = async () => {
             setLoading(true);
             try {
-                const status = activeTab === 'active' ? 'HIRED' : 'COMPLETED,TERMINATED';
-                const res = await api.get(`/proposals/my/contracts?status=${status}`);
+                const status = activeTab === 'active' ? 'ACTIVE' : 'COMPLETED,TERMINATED';
+                const res = await api.get(`/contracts/my?status=${status}`);
                 setContracts(res.data);
             } catch (error) {
                 console.error('Failed to fetch contracts', error);
@@ -95,17 +95,17 @@ export default function ContractsPage() {
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${contract.status === 'HIRED' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                                    contract.status === 'COMPLETED' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                                                        contract.status === 'TERMINATED' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                                                            'bg-slate-700 text-slate-300 border-slate-600'
+                                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${contract.status === 'ACTIVE' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                                contract.status === 'COMPLETED' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                                    contract.status === 'TERMINATED' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                                        'bg-slate-700 text-slate-300 border-slate-600'
                                                 }`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${contract.status === 'HIRED' ? 'bg-green-500' :
-                                                        contract.status === 'COMPLETED' ? 'bg-blue-500' :
-                                                            contract.status === 'TERMINATED' ? 'bg-red-500' :
-                                                                'bg-slate-400'
+                                                <div className={`w-1.5 h-1.5 rounded-full ${contract.status === 'ACTIVE' ? 'bg-green-500' :
+                                                    contract.status === 'COMPLETED' ? 'bg-blue-500' :
+                                                        contract.status === 'TERMINATED' ? 'bg-red-500' :
+                                                            'bg-slate-400'
                                                     }`} />
-                                                {contract.status === 'HIRED' ? 'Active' : contract.status.charAt(0) + contract.status.slice(1).toLowerCase()}
+                                                {contract.status === 'ACTIVE' ? 'Active' : contract.status.charAt(0) + contract.status.slice(1).toLowerCase()}
                                             </span>
                                             <span className="text-slate-400 text-xs flex items-center gap-1">
                                                 <Clock className="w-3 h-3" />
