@@ -20,18 +20,81 @@ export class CloudsService {
         });
         // add owner as member with OWNER role
         await this.prisma.talentCloudMember.create({
-            data: { cloudId: cloud.id, userId: data.ownerId, role: 'OWNER' },
+            data: { cloudId: cloud.id, userId: data.ownerId, role: 'OWNER', status: 'ACTIVE' },
         });
         // notify user-service about ownership badge
         await this.notifyUserService(data.ownerId, { hasCloudOwnership: true });
         return cloud;
     }
 
+    async inviteMember(cloudId: string, inviteeId: string, inviterId: string) {
+        // Create invitation
+        const invitation = await this.prisma.talentCloudInvitation.create({
+            data: {
+                cloudId,
+                inviteeId,
+                inviterId,
+                status: 'PENDING',
+            }
+        });
+
+        // Add member with INVITED status
+        await this.prisma.talentCloudMember.upsert({
+            where: { cloudId_userId: { cloudId, userId: inviteeId } },
+            update: { status: 'INVITED' },
+            create: { cloudId, userId: inviteeId, status: 'INVITED' }
+        });
+
+        return invitation;
+    }
+
+    async respondToInvitation(invitationId: string, userId: string, accept: boolean) {
+        const invitation = await this.prisma.talentCloudInvitation.findUnique({
+            where: { id: invitationId }
+        });
+
+        if (!invitation || invitation.inviteeId !== userId) {
+            throw new Error('Invitation not found or unauthorized');
+        }
+
+        if (accept) {
+            await this.prisma.talentCloudInvitation.update({
+                where: { id: invitationId },
+                data: { status: 'ACCEPTED' }
+            });
+
+            await this.prisma.talentCloudMember.update({
+                where: { cloudId_userId: { cloudId: invitation.cloudId, userId } },
+                data: { status: 'ACTIVE' }
+            });
+
+            await this.notifyUserService(userId, { isCloudMember: true, cloudId: invitation.cloudId });
+        } else {
+            await this.prisma.talentCloudInvitation.update({
+                where: { id: invitationId },
+                data: { status: 'REJECTED' }
+            });
+
+            await this.prisma.talentCloudMember.delete({
+                where: { cloudId_userId: { cloudId: invitation.cloudId, userId } }
+            });
+        }
+
+        return { success: true };
+    }
+
+    async getInvitations(userId: string) {
+        return this.prisma.talentCloudInvitation.findMany({
+            where: { inviteeId: userId, status: 'PENDING' },
+            include: { cloud: true }
+        });
+    }
+
     async addMember(cloudId: string, userId: string, role: 'ADMIN' | 'MEMBER' = 'MEMBER') {
         const member = await this.prisma.talentCloudMember.upsert({
             where: { cloudId_userId: { cloudId, userId } },
-            update: { role },
-            create: { cloudId, userId, role },
+            update: { role, status: 'ACTIVE' },
+            create: { cloudId, userId, role, status: 'ACTIVE' },
         });
         await this.notifyUserService(userId, { isCloudMember: true, cloudId }).catch(() => { });
         return member;
@@ -41,8 +104,8 @@ export class CloudsService {
         const operations = userIds.map(userId =>
             this.prisma.talentCloudMember.upsert({
                 where: { cloudId_userId: { cloudId, userId } },
-                update: { role },
-                create: { cloudId, userId, role }
+                update: { role, status: 'ACTIVE' },
+                create: { cloudId, userId, role, status: 'ACTIVE' }
             })
         );
         const results = await Promise.all(operations);

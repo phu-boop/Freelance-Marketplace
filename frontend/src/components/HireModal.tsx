@@ -8,14 +8,16 @@ import { Input } from "@/components/ui/input"
 import api from "@/lib/api"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-import { Briefcase } from "lucide-react"
+import { Briefcase, Gavel } from "lucide-react"
+import JurisdictionNotice from "./JurisdictionNotice"
 
 interface HireModalProps {
     freelancerId: string
     freelancerName: string
+    countryCode?: string
 }
 
-export function HireModal({ freelancerId, freelancerName }: HireModalProps) {
+export function HireModal({ freelancerId, freelancerName, countryCode }: HireModalProps) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [jobs, setJobs] = useState<any[]>([])
@@ -124,6 +126,16 @@ export function HireModal({ freelancerId, freelancerName }: HireModalProps) {
                             onChange={(e) => setMessage(e.target.value)}
                         />
                     </div>
+
+                    {countryCode && (
+                        <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                                <Gavel className="w-3 h-3 text-slate-400" />
+                                Jurisdiction & Compliance
+                            </Label>
+                            <JurisdictionNotice countryCode={countryCode} />
+                        </div>
+                    )}
                 </div>
 
                 <DialogFooter>

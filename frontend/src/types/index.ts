@@ -62,6 +62,8 @@ export interface Proposal {
     status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN';
     isShortlisted: boolean;
     estimatedDuration?: string;
+    boostAmount?: number;
+    isBoosted?: boolean;
     createdAt: string;
 }
 

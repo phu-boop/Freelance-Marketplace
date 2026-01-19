@@ -22,6 +22,22 @@ let CloudsController = class CloudsController {
     async create(dto) {
         return this.cloudsService.createCloud(dto);
     }
+    async invite(req, cloudId, dto) {
+        const inviterId = req.user?.sub || 'admin';
+        return this.cloudsService.inviteMember(cloudId, dto.userId, inviterId);
+    }
+    async getMyInvitations(req) {
+        const userId = req.user?.sub;
+        if (!userId)
+            throw new Error('Unauthorized');
+        return this.cloudsService.getInvitations(userId);
+    }
+    async respond(req, invitationId, dto) {
+        const userId = req.user?.sub;
+        if (!userId)
+            throw new Error('Unauthorized');
+        return this.cloudsService.respondToInvitation(invitationId, userId, dto.accept);
+    }
     async addMember(cloudId, dto) {
         return this.cloudsService.addMember(cloudId, dto.userId, dto.role);
     }
@@ -49,6 +65,31 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], CloudsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)(':cloudId/invite'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('cloudId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", Promise)
+], CloudsController.prototype, "invite", null);
+__decorate([
+    (0, common_1.Get)('invitations/my'),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], CloudsController.prototype, "getMyInvitations", null);
+__decorate([
+    (0, common_1.Post)('invitations/:invitationId/respond'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('invitationId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", Promise)
+], CloudsController.prototype, "respond", null);
 __decorate([
     (0, common_1.Post)(':cloudId/members'),
     __param(0, (0, common_1.Param)('cloudId')),

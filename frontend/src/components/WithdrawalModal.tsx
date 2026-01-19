@@ -13,6 +13,7 @@ interface WithdrawalMethod {
     accountNumber: string;
     accountName: string;
     isDefault: boolean;
+    isInstantCapable: boolean;
 }
 
 interface WithdrawalModalProps {
@@ -37,11 +38,13 @@ export default function WithdrawalModal({
     const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [isAddingMethod, setIsAddingMethod] = useState(false);
+    const [isInstant, setIsInstant] = useState(false);
     const [newMethod, setNewMethod] = useState({
         type: 'BANK_ACCOUNT',
         provider: '',
         accountNumber: '',
-        accountName: ''
+        accountName: '',
+        isInstantCapable: false
     });
 
     const fetchMethods = async () => {
@@ -50,8 +53,11 @@ export default function WithdrawalModal({
             const res = await api.get(`/payments/withdrawal-methods/${userId}`);
             setMethods(res.data);
             const defaultMethod = res.data.find((m: WithdrawalMethod) => m.isDefault);
-            if (defaultMethod) setSelectedMethodId(defaultMethod.id);
-            else if (res.data.length > 0) setSelectedMethodId(res.data[0].id);
+            if (defaultMethod) {
+                setSelectedMethodId(defaultMethod.id);
+            } else if (res.data.length > 0) {
+                setSelectedMethodId(res.data[0].id);
+            }
         } catch (error) {
             console.error('Failed to fetch withdrawal methods', error);
         }
@@ -77,7 +83,8 @@ export default function WithdrawalModal({
                 type: 'BANK_ACCOUNT',
                 provider: '',
                 accountNumber: '',
-                accountName: ''
+                accountName: '',
+                isInstantCapable: false
             });
         } catch (error) {
             console.error('Failed to add withdrawal method', error);
@@ -103,11 +110,13 @@ export default function WithdrawalModal({
         try {
             await api.post('/payments/withdraw', {
                 userId,
-                amount: parseFloat(amount)
+                amount: parseFloat(amount),
+                instant: isInstant
             });
             onSuccess();
             onClose();
             setAmount('');
+            setIsInstant(false);
         } catch (error) {
             console.error('Withdrawal failed', error);
             alert(error instanceof Error ? error.message : 'Withdrawal failed');
@@ -158,6 +167,36 @@ export default function WithdrawalModal({
                                             />
                                         </div>
                                     </div>
+
+                                    {/* Instant Pay Toggle */}
+                                    {selectedMethodId && methods.find(m => m.id === selectedMethodId)?.isInstantCapable && (
+                                        <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <CreditCard className="w-4 h-4 text-amber-500" />
+                                                    <span className="text-sm font-bold text-white">Instant Pay</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsInstant(!isInstant)}
+                                                    className={`w-12 h-6 rounded-full transition-all relative ${isInstant ? 'bg-amber-500' : 'bg-slate-700'}`}
+                                                >
+                                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isInstant ? 'left-7' : 'left-1'}`} />
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-slate-400">
+                                                Get your funds in minutes for a 1.5% fee (minimum $2.00).
+                                            </p>
+                                            {isInstant && amount && parseFloat(amount) > 0 && (
+                                                <div className="pt-2 border-t border-amber-500/10 flex justify-between text-xs">
+                                                    <span className="text-slate-400">Estimated Fee:</span>
+                                                    <span className="text-amber-500 font-bold">
+                                                        {formatAmount(Math.max(parseFloat(amount) * 0.015, 2.0))}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center">
@@ -265,6 +304,16 @@ export default function WithdrawalModal({
                                             className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                                             placeholder="e.g. NGUYEN VAN A"
                                         />
+                                    </div>
+                                    <div className="flex items-center gap-3 py-2">
+                                        <input
+                                            type="checkbox"
+                                            id="isInstantCapable"
+                                            checked={newMethod.isInstantCapable}
+                                            onChange={(e) => setNewMethod({ ...newMethod, isInstantCapable: e.target.checked })}
+                                            className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/20"
+                                        />
+                                        <label htmlFor="isInstantCapable" className="text-sm text-slate-300 cursor-pointer">Supports Instant Pay (Debit Card)</label>
                                     </div>
                                     <div className="pt-4 flex gap-3">
                                         <button

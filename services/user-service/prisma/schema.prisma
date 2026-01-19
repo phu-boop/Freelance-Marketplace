@@ -12,7 +12,6 @@ datasource db {
 
 model User {
   id                     String                 @id @default(uuid())
-  availableConnects      Int                    @default(50)
   address                String?
   avatarUrl              String?
   coverImageUrl          String?
@@ -59,6 +58,8 @@ linkedinUsername        String?
   timezone               String?                @default("UTC")
   title                  String?
   trustScore             Int                    @default(100)
+  guardianRiskScore      Int                    @default(0)
+  guardianFlags          String[]               @default([])
   isCloudMember          Boolean                @default(false)
   hasCloudOwnership      Boolean                @default(false)
   languages              Json?                  // e.g. [{ "lang": "English", "level": "NATIVE" }]
@@ -126,8 +127,61 @@ linkedinUsername        String?
   savedByClients         SavedFreelancer[]      @relation("FreelancerSaved")
   certifications         Certification[]
   employeeProfile        EmployeeProfile?
+  assessments           SkillAssessment[]
+
+  identityVerifications IdentityVerification[]
+  trustedDevices          TrustedDevice[]
+
+  awardedBadges           Badge[]
+  specializedProfiles     SpecializedProfile[]
 
   @@map("users")
+  @@schema("users")
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  name        String   // TOP_RATED, RISING_TALENT, EXPERT_VETTED
+  slug        String
+  iconUrl     String?
+  awardedAt   DateTime @default(now())
+  expiresAt   DateTime?
+  metadata    Json?
+
+  @@unique([userId, name])
+  @@schema("users")
+}
+
+model IdentityVerification {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  provider      String   // SUMSUB, ONFIDO
+  status        String   @default("PENDING") // PENDING, VERIFIED, REJECTED
+  transactionId String?
+  data          Json?    // Provider specific data
+  videoUrl      String?  // For Video KYC
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("users")
+}
+
+model TrustedDevice {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  deviceId    String   // Fingerprint hash
+  deviceName  String?
+  lastLoginAt DateTime @default(now())
+  trustScore  Int      @default(100)
+  isBlocked   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, deviceId])
   @@schema("users")
 }
 
@@ -157,6 +211,25 @@ model Certification {
   status          String   @default("PENDING") // PENDING, VERIFIED, REJECTED
   verifiedAt      DateTime?
   metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  specializedProfileId String?
+  specializedProfile   SpecializedProfile? @relation(fields: [specializedProfileId], references: [id])
+
+  @@schema("users")
+}
+
+model SkillAssessment {
+  id              String   @id @default(uuid())
+  userId          String
+  skillName       String
+  questions       Json?    // Array of { question: string, type: string }
+  answers         Json?    // Map of question to answer
+  score           Int?
+  status          String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  verifiedAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -221,6 +294,8 @@ model Education {
   description  String?
   userId       String
   user         User      @relation(fields: [userId], references: [id])
+  specializedProfileId String?
+  specializedProfile   SpecializedProfile? @relation(fields: [specializedProfileId], references: [id])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -238,6 +313,8 @@ model Experience {
   description String?
   userId      String
   user        User      @relation(fields: [userId], references: [id])
+  specializedProfileId String?
+  specializedProfile   SpecializedProfile? @relation(fields: [specializedProfileId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -253,12 +330,37 @@ model PortfolioItem {
   skills         String[]
   completionDate DateTime?
   source         String    @default("MANUAL") // MANUAL, GITHUB, BEHANCE, DRIBBBLE, AI_GENERATED
+  isVerified     Boolean   @default(false)
+  verificationScore Int?
+  aiFeedback     String?
   externalId     String?
   externalUrl    String?
   userId         String
   user           User      @relation(fields: [userId], references: [id])
+  specializedProfileId String?
+  specializedProfile   SpecializedProfile? @relation(fields: [specializedProfileId], references: [id])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@schema("users")
+}
+
+model SpecializedProfile {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  headline          String?
+  bio               String?
+  hourlyRate        Decimal?
+  skills            String[]
+  primaryCategoryId String?
+  isDefault         Boolean  @default(false)
+  portfolioItems    PortfolioItem[]
+  education         Education[]
+  experience        Experience[]
+  certifications    Certification[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@schema("users")
 }

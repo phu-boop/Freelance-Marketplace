@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { CreateProposalDto } from './dto/create-proposal.dto';
@@ -16,6 +17,7 @@ export class JobsService {
     private prisma: PrismaService,
     private readonly httpService: HttpService,
     private readonly aiService: AiService,
+    private readonly configService: ConfigService,
   ) { }
 
   private readonly logger = new Logger(JobsService.name);
@@ -415,7 +417,7 @@ export class JobsService {
 
     return this.prisma.job.create({
       data: {
-        ...jobData,
+        ...(jobData as any),
         title: `${job.title} (Copy)`,
         status: 'PENDING_APPROVAL',
         expiresAt,
@@ -435,6 +437,7 @@ export class JobsService {
       }
     });
   }
+
 
   // Taxonomy - Categories
   async createCategory(createCategoryDto: CreateCategoryDto) {
@@ -722,6 +725,14 @@ export class JobsService {
       throw new ForbiddenException('You cannot submit a proposal to your own job');
     }
 
+    // 2a. Check Talent Cloud restriction
+    if (job.talentCloudId) {
+      const isMember = await this.isUserInTalentCloud(userId, job.talentCloudId);
+      if (!isMember) {
+        throw new ForbiddenException('This job is restricted to a specific Talent Cloud you are not a member of.');
+      }
+    }
+
     // 3. Check for duplicate proposal
     const existingProposal = await this.prisma.proposal.findFirst({
       where: {
@@ -739,16 +750,18 @@ export class JobsService {
       where: { id: userId }
     });
 
-    if (!user || user.availableConnects < 2) {
-      throw new ForbiddenException('Insufficient connects (2 required)');
-    }
+    const boost = dto.boostAmount || 0;
+    const totalConnectsRequired = 2 + boost;
 
-    // 5. Create proposal and deduct connects
+    // 1. Deduct connects via Payment Service
+    await this.deductConnectsFromPaymentService(
+      userId,
+      totalConnectsRequired,
+      `Proposal submission for job ${job.id}${boost > 0 ? ' (Boosted)' : ''}`
+    );
+
+    // 5. Create proposal
     return this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: userId },
-        data: { availableConnects: { decrement: 2 } }
-      });
 
       const proposal = await tx.proposal.create({
         data: {
@@ -758,7 +771,10 @@ export class JobsService {
           bidAmount: dto.bidAmount,
           timeline: dto.timeline,
           attachments: dto.attachments || [],
-          portfolioItemIds: dto.portfolioItemIds || []
+          portfolioItemIds: dto.portfolioItemIds || [],
+          boostAmount: boost,
+          isBoosted: boost > 0,
+          screeningAnswers: dto.screeningAnswers
         }
       });
 
@@ -789,6 +805,36 @@ export class JobsService {
       );
 
       return proposal;
+    });
+  }
+
+  async boostProposal(userId: string, proposalId: string, amount: number) {
+    if (amount <= 0) throw new BadRequestException('Boost amount must be positive');
+
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+    });
+
+    if (!proposal) throw new NotFoundException('Proposal not found');
+    if (proposal.freelancerId !== userId) throw new ForbiddenException('Not your proposal');
+    if (proposal.status !== 'PENDING') throw new ForbiddenException('Can only boost PENDING proposals');
+
+    // Deduct connects via Payment Service
+    await this.deductConnectsFromPaymentService(
+      userId,
+      amount,
+      `Proposal boost for proposal ${proposalId}`
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+
+      return tx.proposal.update({
+        where: { id: proposalId },
+        data: {
+          boostAmount: { increment: amount },
+          isBoosted: true
+        }
+      });
     });
   }
 
@@ -870,18 +916,14 @@ export class JobsService {
         throw new ConflictException('You have already submitted a proposal for this job');
       }
 
-      // Check connects
-      const user = await this.prisma.user.findUnique({ where: { id: userId } });
-      if (!user || user.availableConnects < 2) {
-        throw new ForbiddenException('Insufficient connects (2 required)');
-      }
+      // Check connects via Payment Service
+      await this.deductConnectsFromPaymentService(
+        userId,
+        2,
+        `Cloned proposal for job ${toJobId}`
+      );
 
       return this.prisma.$transaction(async (tx) => {
-        await tx.user.update({
-          where: { id: userId },
-          data: { availableConnects: { decrement: 2 } }
-        });
-
         return tx.proposal.create({
           data: {
             ...cloneData,
@@ -1447,7 +1489,11 @@ export class JobsService {
 
     return this.prisma.proposal.findMany({
       where: { jobId },
-      orderBy: { createdAt: 'desc' }
+      orderBy: [
+        { boostAmount: 'desc' },
+        { aiScore: 'desc' },
+        { createdAt: 'desc' },
+      ]
     });
   }
 
@@ -1700,20 +1746,18 @@ export class JobsService {
       throw new BadRequestException('Job is already promoted');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.availableConnects < PROMOTION_COST) {
-      throw new BadRequestException(`Insufficient connects. Promotion costs ${PROMOTION_COST} connects.`);
-    }
-
     const promotionExpiresAt = new Date();
     promotionExpiresAt.setDate(promotionExpiresAt.getDate() + 7); // Default 7 days promotion
 
+    // Deduct connects via Payment Service
+    await this.deductConnectsFromPaymentService(
+      userId,
+      PROMOTION_COST,
+      `Job promotion for job ${id}`
+    );
+
     const updatedJob = await this.prisma.$transaction(async (tx) => {
-      // Deduct connects
-      await tx.user.update({
-        where: { id: userId },
-        data: { availableConnects: { decrement: PROMOTION_COST } }
-      });
+      // Update job
 
       // Update job
       return tx.job.update({
@@ -1953,6 +1997,22 @@ export class JobsService {
     return { count: createdInvitations.length, invitations: createdInvitations };
   }
 
+  private async isUserInTalentCloud(userId: string, cloudId: string): Promise<boolean> {
+    try {
+      const talentCloudUrl = this.configService.get<string>('TALENT_CLOUD_SERVICE_URL') || 'http://talent-cloud-service:3000';
+      const url = `${talentCloudUrl}/api/clouds/${cloudId}`;
+      const response = await firstValueFrom(this.httpService.get(url));
+      const cloud = response.data;
+
+      if (!cloud || !cloud.members) return false;
+
+      return cloud.members.some((m: any) => m.userId === userId && m.status === 'ACTIVE');
+    } catch (error) {
+      this.logger.error(`Failed to verify talent cloud membership: ${error.message}`);
+      return false;
+    }
+  }
+
   async getFreelancerInvitations(freelancerId: string) {
     return this.prisma.jobInvitation.findMany({
       where: { freelancerId, status: 'PENDING' },
@@ -1986,5 +2046,27 @@ export class JobsService {
     );
 
     return updated;
+  }
+  private async deductConnectsFromPaymentService(userId: string, amount: number, reason: string) {
+    const paymentServiceUrl = this.configService.get('PAYMENT_SERVICE_URL') || 'http://payment-service:3005';
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(`${paymentServiceUrl}/api/payments/connects/deduct`, {
+          userId,
+          amount,
+          reason,
+        })
+      );
+
+      if (!response || response.status < 200 || response.status >= 300) {
+        throw new Error(`Failed to deduct connects: Status ${response.status}`);
+      }
+    } catch (error) {
+      if (error.response?.status === 400 || error.response?.status === 403) {
+        throw new ForbiddenException(`Insufficient connects (Required: ${amount})`);
+      }
+      this.logger.error(`Connects deduction failed for user ${userId}: ${error.message}`);
+      throw new InternalServerErrorException('Failed to process connects fee');
+    }
   }
 }

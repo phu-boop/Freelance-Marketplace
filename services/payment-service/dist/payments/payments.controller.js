@@ -42,6 +42,15 @@ let PaymentsController = class PaymentsController {
     getPredictiveRevenue(userId) {
         return this.paymentsService.getPredictiveRevenue(userId);
     }
+    getConnectsBalance(req) {
+        return this.paymentsService.getConnectsBalance(req.user.sub);
+    }
+    buyConnects(req, amount) {
+        return this.paymentsService.buyConnects(req.user.sub, amount);
+    }
+    deductConnects(body) {
+        return this.paymentsService.deductConnects(body.userId, body.amount, body.reason);
+    }
     deposit(body) {
         return this.paymentsService.deposit(body.userId, body.amount, body.referenceId);
     }
@@ -51,11 +60,13 @@ let PaymentsController = class PaymentsController {
     async getTransactions(query, req) {
         return this.paymentsService.listTransactions(req.user.sub, query);
     }
-    async getTransaction(id) {
-        return this.paymentsService.getTransactionById(id);
+    async getTransaction(id, req) {
+        const roles = req.user?.realm_access?.roles || [];
+        const isAdmin = roles.includes('ADMIN');
+        return this.paymentsService.getTransactionById(id, req.user?.sub, isAdmin);
     }
-    async updateTransactionStatus(id, body) {
-        return this.paymentsService.updateTransactionStatus(id, body.status);
+    async updateTransactionStatus(id, body, req) {
+        return this.paymentsService.updateTransactionStatus(id, body.status, req.user?.sub || 'admin');
     }
     async getAllTransactionsAdmin(query) {
         return this.paymentsService.listTransactions(undefined, query);
@@ -97,8 +108,14 @@ let PaymentsController = class PaymentsController {
             periodEnd: new Date(body.periodEnd),
         });
     }
+    previewPayroll(contractId, grossAmount, employeeId) {
+        return this.paymentsService.calculatePayroll(contractId, Number(grossAmount), employeeId);
+    }
     transfer(body) {
         return this.paymentsService.transfer(body.fromUserId, body.toUserId, body.amount, body.description, body.referenceId, body.teamId, body.departmentId, body.costCenter);
+    }
+    deductArbitrationFee(body) {
+        return this.paymentsService.deductArbitrationFee(body.userId, body.amount, body.contractId);
     }
 };
 exports.PaymentsController = PaymentsController;
@@ -130,7 +147,9 @@ __decorate([
 ], PaymentsController.prototype, "updatePreferredCurrency", null);
 __decorate([
     (0, common_1.Get)('wallet'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
+    (0, nest_keycloak_connect_1.Roles)({
+        roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+    }),
     __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -152,6 +171,31 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "getPredictiveRevenue", null);
 __decorate([
+    (0, common_1.Get)('connects/balance'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getConnectsBalance", null);
+__decorate([
+    (0, common_1.Post)('connects/buy'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)('amount')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Number]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "buyConnects", null);
+__decorate([
+    (0, common_1.Post)('connects/deduct'),
+    (0, nest_keycloak_connect_1.Public)(),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "deductConnects", null);
+__decorate([
     (0, common_1.Post)('deposit'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -168,7 +212,9 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "withdraw", null);
 __decorate([
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
+    (0, nest_keycloak_connect_1.Roles)({
+        roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+    }),
     (0, common_1.Get)('transactions'),
     __param(0, (0, common_1.Query)()),
     __param(1, (0, common_1.Request)()),
@@ -177,11 +223,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getTransactions", null);
 __decorate([
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),
+    (0, nest_keycloak_connect_1.Roles)({
+        roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+    }),
     (0, common_1.Get)('transactions/:id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getTransaction", null);
 __decorate([
@@ -189,8 +238,9 @@ __decorate([
     (0, common_1.Patch)('transactions/:id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_transaction_status_dto_1.UpdateTransactionStatusDto]),
+    __metadata("design:paramtypes", [String, update_transaction_status_dto_1.UpdateTransactionStatusDto, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "updateTransactionStatus", null);
 __decorate([
@@ -287,12 +337,22 @@ __decorate([
 ], PaymentsController.prototype, "refundEscrow", null);
 __decorate([
     (0, common_1.Post)('payroll/process'),
-    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN', 'realm:CLIENT', 'CLIENT'] }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "processPayroll", null);
+__decorate([
+    (0, common_1.Get)('payroll/preview'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN', 'realm:CLIENT', 'CLIENT'] }),
+    __param(0, (0, common_1.Query)('contractId')),
+    __param(1, (0, common_1.Query)('grossAmount')),
+    __param(2, (0, common_1.Query)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "previewPayroll", null);
 __decorate([
     (0, common_1.Post)('transfer'),
     (0, nest_keycloak_connect_1.Public)(),
@@ -301,6 +361,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "transfer", null);
+__decorate([
+    (0, common_1.Post)('arbitration/deduct'),
+    (0, nest_keycloak_connect_1.Public)(),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "deductArbitrationFee", null);
 exports.PaymentsController = PaymentsController = __decorate([
     (0, common_1.Controller)('api/payments'),
     __metadata("design:paramtypes", [payments_service_1.PaymentsService])

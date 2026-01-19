@@ -13,7 +13,7 @@ import { Public } from 'nest-keycloak-connect';
 @Controller('api/auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Public()
   @Post('register')

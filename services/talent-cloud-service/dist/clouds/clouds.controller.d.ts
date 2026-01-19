@@ -18,16 +18,25 @@ export declare class CloudsController {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    invite(req: any, cloudId: string, dto: {
+        userId: string;
+    }): Promise<any>;
+    getMyInvitations(req: any): Promise<any>;
+    respond(req: any, invitationId: string, dto: {
+        accept: boolean;
+    }): Promise<{
+        success: boolean;
+    }>;
     addMember(cloudId: string, dto: {
         userId: string;
         role?: 'ADMIN' | 'MEMBER';
     }): Promise<{
         id: string;
+        cloudId: string;
         userId: string;
         joinedAt: Date;
         role: import(".prisma/client").$Enums.CloudRole;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
-        cloudId: string;
     }>;
     addMembersBulk(cloudId: string, dto: {
         userIds: string[];
@@ -52,21 +61,21 @@ export declare class CloudsController {
         };
     } & {
         id: string;
+        cloudId: string;
         userId: string;
         joinedAt: Date;
         role: import(".prisma/client").$Enums.CloudRole;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
-        cloudId: string;
     })[]>;
     getOne(id: string): Promise<{
         members: {
             userProfile: any;
             id: string;
+            cloudId: string;
             userId: string;
             joinedAt: Date;
             role: import(".prisma/client").$Enums.CloudRole;
             metadata: import("@prisma/client/runtime/library").JsonValue | null;
-            cloudId: string;
         }[];
         id: string;
         name: string;

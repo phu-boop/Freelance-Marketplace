@@ -15,6 +15,7 @@ const currency_converter_service_1 = require("./currency-converter.service");
 const withdrawal_scheduler_service_1 = require("./withdrawal-scheduler.service");
 const subscription_scheduler_service_1 = require("./subscription-scheduler.service");
 const regional_gateway_service_1 = require("./regional-gateway.service");
+const tax_calculation_service_1 = require("./tax-calculation.service");
 let PaymentsModule = class PaymentsModule {
 };
 exports.PaymentsModule = PaymentsModule;
@@ -28,6 +29,7 @@ exports.PaymentsModule = PaymentsModule = __decorate([
             subscription_scheduler_service_1.SubscriptionSchedulerService,
             currency_converter_service_1.CurrencyConverterService,
             regional_gateway_service_1.RegionalGatewayService,
+            tax_calculation_service_1.TaxCalculationService,
         ],
     })
 ], PaymentsModule);

@@ -5,6 +5,9 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { AuthController } from './auth.controller';
 import { AiService } from './ai.service';
+import { SecurityService } from './security.service';
+import { BadgesService } from './badges.service';
+import { JurisdictionService } from './jurisdiction.service';
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { KeycloakModule } from '../keycloak/keycloak.module';
@@ -27,7 +30,7 @@ import { HttpModule } from '@nestjs/axios';
     }),
   ],
   controllers: [UsersController, AuthController],
-  providers: [UsersService, AiService],
-  exports: [UsersService, AiService],
+  providers: [UsersService, AiService, SecurityService, BadgesService, JurisdictionService],
+  exports: [UsersService, AiService, SecurityService, BadgesService, JurisdictionService],
 })
 export class UsersModule { }

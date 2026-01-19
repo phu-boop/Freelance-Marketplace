@@ -113,7 +113,7 @@ export default function ProfileView({ user, reviews }: ProfileViewProps) {
                                     user.title || 'Freelancer'
                                 )}
                             </p>
-                            <BadgeList user={user} />
+                            <BadgeList userId={user.id} />
                             {user.roles && !user.roles.includes('CLIENT') && user.isAvailable && (
                                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border transition-all w-fit bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                                     Available for Work
@@ -130,7 +130,7 @@ export default function ProfileView({ user, reviews }: ProfileViewProps) {
                     >
                         <Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
                     </button>
-                    <HireModal freelancerId={user.id} freelancerName={user.firstName} />
+                    <HireModal freelancerId={user.id} freelancerName={user.firstName} countryCode={user.country} />
                     <button className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all">
                         Message
                     </button>

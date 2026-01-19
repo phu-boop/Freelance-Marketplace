@@ -63,4 +63,13 @@ export class CreateJobDto {
     @IsString()
     @IsOptional()
     preferredCommunicationStyle?: string;
+
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    screeningQuestions?: string[];
+
+    @IsString()
+    @IsOptional()
+    talentCloudId?: string;
 }

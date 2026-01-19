@@ -17,6 +17,7 @@ model Contract {
   client_id     String   // User ID from User Service
   proposal_id   String   // Proposal ID from Proposal Service
   agencyId      String?  // Optional: linked agency ID
+  agencyRevenueSplit Decimal @default(0.0) // Percentage split for agency
   departmentId  String?  // Optional: linked department ID
   costCenter    String?  // Optional: linked cost center for budgeting
   attachments   String[] // Array of file names
@@ -128,13 +129,33 @@ model Dispute {
   contract      Contract @relation(fields: [contractId], references: [id])
   raisedById    String   // User ID who raised the dispute
   reason        String
-  evidence      String[] // URLs to files
+  
+  // Replaced simple array with relation
+  // evidence      String[] 
+
   status        String   @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
   resolution    String?  // Final decision text
   resolvedAt    DateTime?
   disputeTimeoutAt DateTime?
+  
+  evidence      Evidence[]
+  arbitrationCase ArbitrationCase?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@schema("contracts")
+}
+
+model Evidence {
+  id          String   @id @default(uuid())
+  disputeId   String
+  dispute     Dispute  @relation(fields: [disputeId], references: [id])
+  uploaderId  String   // User ID
+  fileUrl     String
+  fileType    String?  // PDF, IMAGE, LOG
+  description String?
+  createdAt   DateTime @default(now())
 
   @@schema("contracts")
 }
@@ -175,9 +196,15 @@ model ArbitrationCase {
   id             String   @id @default(uuid())
   contractId     String
   contract       Contract @relation(fields: [contractId], references: [id])
+  
+  disputeId      String   @unique
+  dispute        Dispute  @relation(fields: [disputeId], references: [id])
+
   status         String   @default("OPEN") // OPEN, IN_REVIEW, RESOLVED, CLOSED
   investigatorId String?  // User ID of assigned investigator
   decision       String?  // Decision text
+  fees           Decimal  @default(0.0) // Arbitration fee
+  
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

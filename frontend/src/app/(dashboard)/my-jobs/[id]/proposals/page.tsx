@@ -27,6 +27,9 @@ interface Proposal {
     createdAt: string;
     status: string;
     matchScore?: number;
+    isBoosted?: boolean;
+    boostAmount?: number;
+    aiScore?: number;
 }
 
 export default function JobProposalsPage() {
@@ -191,8 +194,14 @@ export default function JobProposalsPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: idx * 0.1 }}
-                                className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/30 transition-all shadow-xl"
+                                className={`p-6 rounded-2xl bg-slate-900 border transition-all shadow-xl relative overflow-hidden ${proposal.isBoosted ? 'border-blue-500/50 ring-1 ring-blue-500/20 shadow-blue-500/5' : 'border-slate-800 hover:border-blue-500/30'}`}
                             >
+                                {proposal.isBoosted && (
+                                    <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 bg-blue-500 text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-blue-500/20 z-10">
+                                        <Sparkles className="w-3 h-3" />
+                                        Boosted Bid
+                                    </div>
+                                )}
                                 <div className="flex flex-col xl:flex-row gap-8">
                                     {/* Freelancer Info */}
                                     <div className="xl:w-1/4 space-y-4">
@@ -203,9 +212,19 @@ export default function JobProposalsPage() {
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <h3 className="font-bold text-white">{proposal.freelancerName}</h3>
+                                                    {proposal.isBoosted && (
+                                                        <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20">
+                                                            🚀 Boosted
+                                                        </span>
+                                                    )}
+                                                    {proposal.aiScore && proposal.aiScore >= 85 && (
+                                                        <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold border border-purple-500/20">
+                                                            ✨ Best Match
+                                                        </span>
+                                                    )}
                                                     {proposal.matchScore && (
                                                         <span className="px-2 py-0.5 rounded-md bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20">
-                                                            ✨ {proposal.matchScore}%
+                                                            💎 {proposal.matchScore}%
                                                         </span>
                                                     )}
                                                 </div>

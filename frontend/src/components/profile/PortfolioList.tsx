@@ -13,6 +13,9 @@ interface PortfolioItem {
     description: string;
     imageUrl: string;
     projectUrl?: string;
+    isVerified?: boolean;
+    verificationScore?: number;
+    aiFeedback?: string;
 }
 
 interface PortfolioListProps {
@@ -121,6 +124,12 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
                                     <ImageIcon className="w-8 h-8" />
                                 </div>
                             )}
+                            {item.isVerified && (
+                                <div className="absolute top-3 left-3 px-2 py-1 rounded-lg bg-emerald-500/90 text-white text-[10px] font-bold flex items-center gap-1 shadow-lg backdrop-blur-sm">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    AI VERIFIED {item.verificationScore && `(${item.verificationScore}%)`}
+                                </div>
+                            )}
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                 <button onClick={() => handleEdit(item)} className="p-2 bg-slate-800/80 rounded-full hover:bg-white hover:text-slate-900 transition-all">
                                     <Pencil className="w-4 h-4" />
@@ -133,6 +142,11 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
                         <div className="p-4">
                             <h4 className="font-bold text-white truncate">{item.title}</h4>
                             <p className="text-slate-500 text-sm line-clamp-2 mt-1">{item.description}</p>
+                            {item.aiFeedback && item.isVerified && (
+                                <div className="mt-3 p-2 rounded-lg bg-slate-950 border border-slate-800 text-[10px] text-slate-400 italic">
+                                    &quot;{item.aiFeedback}&quot;
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}

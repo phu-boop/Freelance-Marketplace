@@ -13,21 +13,28 @@ export class ProposalsService {
 
   async create(createProposalDto: CreateProposalDto) {
     const CONNECTS_COST = 2;
-    const userServiceUrl = this.configService.get('USER_SERVICE_URL') || 'http://localhost:3001';
+    const boostAmount = createProposalDto.boostAmount || 0;
+    const totalConnects = CONNECTS_COST + boostAmount;
+
+    const paymentServiceUrl = this.configService.get('PAYMENT_SERVICE_URL') || 'http://payment-service:3005';
 
     // 1. Deduct connects
     try {
-      const res = await fetch(`${userServiceUrl}/api/users/${createProposalDto.freelancer_id}/deduct-connects`, {
+      const res = await fetch(`${paymentServiceUrl}/api/payments/connects/deduct`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: CONNECTS_COST }),
+        body: JSON.stringify({
+          userId: createProposalDto.freelancer_id,
+          amount: totalConnects,
+          reason: `Proposal submission for job ${createProposalDto.job_id}${boostAmount > 0 ? ' (Boosted)' : ''}`
+        }),
       });
 
       if (!res.ok) {
-        if (res.status === 403) {
-          throw new HttpException('Insufficient connects to submit a proposal (Required: 2)', HttpStatus.FORBIDDEN);
+        if (res.status === 400 || res.status === 403) {
+          throw new HttpException(`Insufficient connects to submit a proposal (Required: ${totalConnects})`, HttpStatus.FORBIDDEN);
         }
-        throw new Error(`Failed to deduct connects: ${res.statusText}`);
+        throw new Error(`Failed to deduct connects from payment service: ${res.statusText}`);
       }
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -38,10 +45,16 @@ export class ProposalsService {
     // 2. Create proposal
     try {
       const proposal = await this.prisma.proposal.create({
-        data: createProposalDto,
+        data: {
+          ...createProposalDto,
+          isBoosted: boostAmount > 0,
+        },
       });
 
-      this.trackEvent('proposal_sent', createProposalDto.freelancer_id, createProposalDto.job_id);
+      this.trackEvent('proposal_sent', createProposalDto.freelancer_id, createProposalDto.job_id, {
+        isBoosted: boostAmount > 0,
+        boostAmount,
+      });
 
       return proposal;
     } catch (error) {
@@ -66,6 +79,11 @@ export class ProposalsService {
   async findByJob(jobId: string) {
     const proposals = await this.prisma.proposal.findMany({
       where: { job_id: jobId },
+      orderBy: [
+        { isBoosted: 'desc' },
+        { boostAmount: 'desc' },
+        { createdAt: 'desc' }
+      ],
     });
 
     const enrichedProposals = await Promise.all(proposals.map(async (p) => {

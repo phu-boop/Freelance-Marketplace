@@ -31,4 +31,12 @@ export class CreateProposalDto {
     @IsString()
     @IsOptional()
     invitationId?: string;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    boostAmount?: number;
+
+    @IsOptional()
+    screeningAnswers?: any;
 }

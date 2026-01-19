@@ -63,6 +63,13 @@ export class ProposalsController {
         return this.jobsService.withdrawProposal(userId, id);
     }
 
+    @Post(':id/boost')
+    @Roles({ roles: ['realm:FREELANCER'] })
+    async boost(@Request() req, @Param('id') id: string, @Body('amount') amount: number) {
+        const userId = req.user.sub;
+        return this.jobsService.boostProposal(userId, id, amount);
+    }
+
     @Post('/:id/duplicate')
     duplicate(@AuthenticatedUser() user: any, @Param('id') id: string, @Body('toJobId') toJobId?: string) {
         return this.jobsService.duplicateProposal(user.sub, id, toJobId);

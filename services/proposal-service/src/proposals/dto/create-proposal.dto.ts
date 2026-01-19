@@ -20,4 +20,8 @@ export class CreateProposalDto {
     @IsString()
     @IsOptional()
     status?: string;
+
+    @IsNumber()
+    @IsOptional()
+    boostAmount?: number;
 }

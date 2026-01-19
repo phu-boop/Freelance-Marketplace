@@ -17,11 +17,18 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
 import { AiService } from './ai.service';
 
+import { SecurityService } from './security.service';
+
+import { BadgesService } from './badges.service';
+import { JurisdictionService } from './jurisdiction.service';
 @Controller('api/users')
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly aiService: AiService,
+    private readonly securityService: SecurityService,
+    private readonly badgesService: BadgesService,
+    private readonly jurisdictionService: JurisdictionService,
   ) { }
 
   @Public()
@@ -69,6 +76,18 @@ export class UsersController {
   findOne(@Param('id') id: string, @Request() req) {
     const viewerId = req.user?.sub;
     return this.usersService.findOne(id, viewerId);
+  }
+
+  @Get('profile/badges/:id')
+  @Public()
+  getBadges(@Param('id') id: string) {
+    return this.badgesService.getBadges(id);
+  }
+
+  @Get('jurisdiction/:countryCode')
+  @Public()
+  getJurisdiction(@Param('countryCode') countryCode: string) {
+    return this.jurisdictionService.getRequirement(countryCode);
   }
 
   @Get(':id/export')
@@ -240,11 +259,6 @@ export class UsersController {
     return this.usersService.activateUser(id);
   }
 
-  @Post(':id/deduct-connects')
-  deductConnects(@Param('id') id: string, @Body() body: { amount: number }) {
-    return this.usersService.deductConnects(id, body.amount);
-  }
-
   @Get(':id/availability')
   getAvailability(@Param('id') id: string) {
     return this.usersService.getAvailability(id);
@@ -276,6 +290,11 @@ export class UsersController {
     return this.usersService.verifyCertification(certId);
   }
 
+  @Patch('certifications/:certId')
+  updateCertification(@Param('certId') certId: string, @Body() data: any) {
+    return this.usersService.updateCertification(certId, data);
+  }
+
   @Delete('certifications/:certId')
   deleteCertification(@Param('certId') certId: string) {
     return this.usersService.deleteCertification(certId);
@@ -293,6 +312,35 @@ export class UsersController {
     @Body() body: { status: 'COMPLETED' | 'REJECTED' },
   ) {
     return this.usersService.verifyBackgroundCheck(id, body.status);
+  }
+
+  // Identity Verification (New)
+  @Post('verification/start')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  startVerification(
+    @Request() req,
+    @Body() body: { provider?: 'SUMSUB' | 'ONFIDO' },
+  ) {
+    return this.usersService.startVerification(req.user.sub, body.provider);
+  }
+
+  @Public() // Webhook from provider
+  @Post('verification/webhook')
+  handleKycWebhook(@Body() body: any) {
+    return this.usersService.handleKycWebhook(body);
+  }
+
+  // Device Security
+  @Post('devices/validate')
+  validateDevice(
+    @Request() req,
+    @Body() body: { deviceId: string; metadata?: any },
+  ) {
+    return this.securityService.validateDevice(
+      req.user.sub,
+      body.deviceId,
+      body.metadata || {},
+    );
   }
 
   // Tax Compliance
@@ -335,7 +383,9 @@ export class UsersController {
   }
 
   @Post('me/subscription')
-  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  @Roles({
+    roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+  })
   upgradeSubscription(@Request() req, @Body('planId') planId: string) {
     return this.usersService.upgradeSubscription(req.user.sub, planId);
   }
@@ -363,7 +413,10 @@ export class UsersController {
 
   @Post(':id/portfolio/ai-generate')
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
-  generateAiPortfolio(@Param('id') id: string, @Body('contractId') contractId: string) {
+  generateAiPortfolio(
+    @Param('id') id: string,
+    @Body('contractId') contractId: string,
+  ) {
     return this.aiService.generatePortfolioItem(id, contractId);
   }
 
@@ -371,5 +424,49 @@ export class UsersController {
   @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
   getContractRiskAnalysis(@Param('contractId') contractId: string) {
     return this.aiService.analyzeContractRisk(contractId);
+  }
+
+  // AI Skill Assessments
+  @Post(':id/assessments')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  generateSkillAssessment(
+    @Param('id') id: string,
+    @Body('skillName') skillName: string,
+  ) {
+    return this.aiService.generateSkillAssessment(id, skillName);
+  }
+
+  @Post('assessments/:assessmentId/submit')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  submitSkillAssessment(
+    @Param('assessmentId') assessmentId: string,
+    @Body() body: { answers: any },
+  ) {
+    return this.aiService.evaluateSkillAssessment(assessmentId, body.answers);
+  }
+
+  @Get(':id/assessments')
+  getUserAssessments(@Param('id') id: string) {
+    return this.usersService.getUserAssessments(id);
+  }
+
+  @Post(':id/kyc/initiate')
+  initiateVideoKyc(@Param('id') id: string) {
+    return this.usersService.initiateVideoKyc(id);
+  }
+
+  @Post(':id/kyc/video')
+  completeVideoKyc(@Param('id') id: string, @Body() body: any) {
+    return this.usersService.completeVideoKyc(id, body);
+  }
+
+  @Post(':id/kyc/admin-verify') // Renamed to avoid conflict with Line 188/Plan
+  verifyVideoKyc(@Param('id') id: string, @Body('success') success: boolean) {
+    return this.usersService.verifyVideoKyc(id, success);
+  }
+
+  @Post(':id/fingerprint')
+  updateFingerprint(@Param('id') id: string, @Body('fingerprint') fingerprint: string) {
+    return this.usersService.updateDeviceFingerprint(id, fingerprint);
   }
 }

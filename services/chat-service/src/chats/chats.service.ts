@@ -18,6 +18,7 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 
 import { ConversationMetadata } from './schemas/conversation-metadata.schema';
+import { GuardianService } from '../guardian/guardian.service';
 
 @Injectable()
 export class ChatsService {
@@ -27,6 +28,7 @@ export class ChatsService {
     @InjectModel(ConversationMetadata.name) private metadataModel: Model<ConversationMetadata>,
     private httpService: HttpService,
     private configService: ConfigService,
+    private guardianService: GuardianService,
   ) { }
 
   async create(createChatDto: CreateChatDto): Promise<Message> {
@@ -36,10 +38,20 @@ export class ChatsService {
       createChatDto.content.toLowerCase().includes(word)
     );
 
+    // Guardian AI Scan
+    const guardianResult = this.guardianService.analyzeContent(createChatDto.content, createChatDto.senderId);
+    if (guardianResult.riskScore > 0) {
+      if (guardianResult.flags.length > 0) {
+        // Could decide to block here if risk > 80
+      }
+    }
+
     const createdMessage = new this.messageModel({
       ...createChatDto,
-      isFlagged: createChatDto.isFlagged || containsBadWord,
-      flagReason: createChatDto.flagReason || (containsBadWord ? 'Profanity/Blacklisted content detected' : undefined)
+      isFlagged: createChatDto.isFlagged || containsBadWord || guardianResult.riskScore > 50, // Flag if high risk
+      flagReason: createChatDto.flagReason ||
+        (containsBadWord ? 'Profanity/Blacklisted content detected' :
+          (guardianResult.riskScore > 50 ? `Guardian Flag: ${guardianResult.flags.join(', ')}` : undefined))
     });
     const message = await createdMessage.save();
 

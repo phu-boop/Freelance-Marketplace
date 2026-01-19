@@ -15,9 +15,14 @@ import { UpdateContractDto } from './dto/update-contract.dto';
 import { DisputeContractDto } from './dto/dispute-contract.dto';
 import { Roles, Public } from 'nest-keycloak-connect';
 
+import { DisputesService } from './disputes.service';
+
 @Controller('api/contracts')
 export class ContractsController {
-  constructor(private readonly contractsService: ContractsService) { }
+  constructor(
+    private readonly contractsService: ContractsService,
+    private readonly disputesService: DisputesService
+  ) { }
 
   @Get('between/:otherUserId')
   @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
@@ -202,11 +207,29 @@ export class ContractsController {
     @Request() req,
   ) {
     const token = req.headers.authorization;
+    // Legacy simple resolution or redirect to new flow?
+    // Maintaining for backward compatibility but using new service for logic if possible
     return this.contractsService.resolveDispute(
       id,
       resolutionData.resolution,
       token,
     );
+  }
+
+  @Post('disputes/:id/escalate')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
+  escalateDispute(@Param('id') id: string, @Request() req) {
+    return this.disputesService.escalateToArbitration(id, req.user.sub);
+  }
+
+  @Post('disputes/:id/evidence')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
+  addEvidence(
+    @Param('id') id: string,
+    @Body() data: { fileUrl: string; description: string; fileType?: string },
+    @Request() req
+  ) {
+    return this.disputesService.addEvidence(id, req.user.sub, data);
   }
 
   @Post(':id/log-time')
@@ -380,7 +403,7 @@ export class ContractsController {
     @Param('caseId') caseId: string,
     @Body() data: { investigatorId: string },
   ) {
-    return this.contractsService.assignInvestigator(
+    return this.disputesService.assignInvestigator(
       caseId,
       data.investigatorId,
     );
@@ -393,8 +416,10 @@ export class ContractsController {
   submitDecision(
     @Param('caseId') caseId: string,
     @Body() data: { decision: string },
+    @Request() req
   ) {
-    return this.contractsService.submitDecision(caseId, data.decision);
+    // Pass user ID as investigator ID for verification
+    return this.disputesService.resolveCase(caseId, data.decision, req.user?.sub);
   }
 
   @Get('arbitration/list')
@@ -402,6 +427,11 @@ export class ContractsController {
     roles: ['realm:ADMIN', 'ADMIN', 'realm:INVESTIGATOR', 'INVESTIGATOR'],
   })
   listArbitrations(@Request() req) {
+    // Reuse existing service for listing as it might be complex query, or implement in disputesService
+    // For now, let's keep using contractsService for read-only lists if it exists
+    // But actually, implementation plan said new service. Let's redirect to new logic if we added it, 
+    // otherwise fallback or add to DisputesService.
+    // ContractsService had listArbitrations.
     const roles = req.user.realm_access?.roles || [];
     const userId = req.user.sub;
 
@@ -416,7 +446,7 @@ export class ContractsController {
     roles: ['realm:ADMIN', 'ADMIN', 'realm:INVESTIGATOR', 'INVESTIGATOR'],
   })
   getArbitration(@Param('caseId') caseId: string) {
-    return this.contractsService.getArbitrationCase(caseId);
+    return this.disputesService.getCaseDetails(caseId);
   }
 
   @Get('approvals/pending')

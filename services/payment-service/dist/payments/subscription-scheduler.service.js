@@ -38,11 +38,11 @@ let SubscriptionSchedulerService = SubscriptionSchedulerService_1 = class Subscr
                 this.logger.log(`Renewing subscription ${sub.id} for user ${sub.userId}`);
                 await this.paymentsService.createSubscription(sub.userId, {
                     planId: sub.planId,
-                    price: Number(sub.price)
+                    price: Number(sub.price),
                 });
                 await this.prisma.subscription.update({
                     where: { id: sub.id },
-                    data: { status: 'EXPIRED' }
+                    data: { status: 'EXPIRED' },
                 });
                 this.logger.log(`Successfully renewed subscription for user ${sub.userId}`);
             }
@@ -50,7 +50,7 @@ let SubscriptionSchedulerService = SubscriptionSchedulerService_1 = class Subscr
                 this.logger.error(`Failed to renew subscription for user ${sub.userId}: ${error.message}`);
                 await this.prisma.subscription.update({
                     where: { id: sub.id },
-                    data: { status: 'PAST_DUE' }
+                    data: { status: 'PAST_DUE' },
                 });
             }
         }

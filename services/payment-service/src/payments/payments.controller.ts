@@ -7,7 +7,6 @@ import {
   Delete,
   Patch,
   Request,
-  StreamableFile,
   Res,
   Query,
   Put,
@@ -15,7 +14,6 @@ import {
 import { PaymentsService } from './payments.service';
 import { Roles, Public } from 'nest-keycloak-connect';
 import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
-import { GetTransactionDto } from './dto/get-transaction.dto';
 import { ListTransactionsDto } from './dto/list-transactions.dto';
 import { UpdateTransactionStatusDto } from './dto/update-transaction-status.dto';
 
@@ -42,7 +40,9 @@ export class PaymentsController {
   }
 
   @Get('wallet')
-  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  @Roles({
+    roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+  })
   getWalletMe(@Request() req) {
     return this.paymentsService.getWallet(req.user.sub);
   }
@@ -58,11 +58,39 @@ export class PaymentsController {
     return this.paymentsService.getPredictiveRevenue(userId);
   }
 
+  @Get('connects/balance')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  getConnectsBalance(@Request() req) {
+    return this.paymentsService.getConnectsBalance(req.user.sub);
+  }
+
+  @Post('connects/buy')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  buyConnects(@Request() req, @Body('amount') amount: number) {
+    return this.paymentsService.buyConnects(req.user.sub, amount);
+  }
+
+  @Post('connects/deduct')
+  @Public() // Usually internal-only
+  deductConnects(
+    @Body() body: { userId: string; amount: number; reason: string },
+  ) {
+    return this.paymentsService.deductConnects(
+      body.userId,
+      body.amount,
+      body.reason,
+    );
+  }
+
   @Post('deposit')
   deposit(
     @Body() body: { userId: string; amount: number; referenceId: string },
   ) {
-    return this.paymentsService.deposit(body.userId, body.amount, body.referenceId);
+    return this.paymentsService.deposit(
+      body.userId,
+      body.amount,
+      body.referenceId,
+    );
   }
 
   @Post('withdraw')
@@ -71,19 +99,29 @@ export class PaymentsController {
     @Request() req,
     @Body() body: { amount: number; methodId: string; instant?: boolean },
   ) {
-    return this.paymentsService.withdraw(req.user.sub, body.amount, body.instant || false);
+    return this.paymentsService.withdraw(
+      req.user.sub,
+      body.amount,
+      body.instant || false,
+    );
   }
 
-  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  @Roles({
+    roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+  })
   @Get('transactions')
   async getTransactions(@Query() query: ListTransactionsDto, @Request() req) {
     return this.paymentsService.listTransactions(req.user.sub, query);
   }
 
-  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  @Roles({
+    roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+  })
   @Get('transactions/:id')
-  async getTransaction(@Param('id') id: string) {
-    return this.paymentsService.getTransactionById(id);
+  async getTransaction(@Param('id') id: string, @Request() req: any) {
+    const roles = req.user?.realm_access?.roles || [];
+    const isAdmin = roles.includes('ADMIN');
+    return this.paymentsService.getTransactionById(id, req.user?.sub, isAdmin);
   }
 
   @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
@@ -91,8 +129,13 @@ export class PaymentsController {
   async updateTransactionStatus(
     @Param('id') id: string,
     @Body() body: UpdateTransactionStatusDto,
+    @Request() req: any,
   ) {
-    return this.paymentsService.updateTransactionStatus(id, body.status);
+    return this.paymentsService.updateTransactionStatus(
+      id,
+      body.status,
+      req.user?.sub || 'admin',
+    );
   }
 
   @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
@@ -124,11 +167,11 @@ export class PaymentsController {
 
   @Patch('auto-withdrawal')
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
-  updateAutoWithdrawal(
-    @Request() req,
-    @Body() body: UpdateAutoWithdrawalDto,
-  ) {
-    return this.paymentsService.updateAutoWithdrawalSettings(req.user.sub, body);
+  updateAutoWithdrawal(@Request() req, @Body() body: UpdateAutoWithdrawalDto) {
+    return this.paymentsService.updateAutoWithdrawalSettings(
+      req.user.sub,
+      body,
+    );
   }
 
   @Post('tax-settings')
@@ -195,7 +238,7 @@ export class PaymentsController {
 
   // EOR
   @Post('payroll/process')
-  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN', 'realm:CLIENT', 'CLIENT'] })
   processPayroll(
     @Body()
     body: {
@@ -211,6 +254,20 @@ export class PaymentsController {
       periodStart: new Date(body.periodStart),
       periodEnd: new Date(body.periodEnd),
     });
+  }
+
+  @Get('payroll/preview')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN', 'realm:CLIENT', 'CLIENT'] })
+  previewPayroll(
+    @Query('contractId') contractId: string,
+    @Query('grossAmount') grossAmount: number,
+    @Query('employeeId') employeeId: string,
+  ) {
+    return this.paymentsService.calculatePayroll(
+      contractId,
+      Number(grossAmount),
+      employeeId,
+    );
   }
 
   @Post('transfer')
@@ -237,6 +294,18 @@ export class PaymentsController {
       body.teamId,
       body.departmentId,
       body.costCenter,
+    );
+  }
+
+  @Post('arbitration/deduct')
+  @Public()
+  deductArbitrationFee(
+    @Body() body: { userId: string; amount: number; contractId: string },
+  ) {
+    return this.paymentsService.deductArbitrationFee(
+      body.userId,
+      body.amount,
+      body.contractId,
     );
   }
 }

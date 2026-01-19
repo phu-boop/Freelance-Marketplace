@@ -25,19 +25,22 @@ const pdfkit_1 = __importDefault(require("pdfkit"));
 const date_fns_1 = require("date-fns");
 const currency_converter_service_1 = require("./currency-converter.service");
 const regional_gateway_service_1 = require("./regional-gateway.service");
+const tax_calculation_service_1 = require("./tax-calculation.service");
 let PaymentsService = PaymentsService_1 = class PaymentsService {
     prisma;
     httpService;
     configService;
     currencyConverter;
     regionalGateway;
+    taxCalculationService;
     logger = new common_1.Logger(PaymentsService_1.name);
-    constructor(prisma, httpService, configService, currencyConverter, regionalGateway) {
+    constructor(prisma, httpService, configService, currencyConverter, regionalGateway, taxCalculationService) {
         this.prisma = prisma;
         this.httpService = httpService;
         this.configService = configService;
         this.currencyConverter = currencyConverter;
         this.regionalGateway = regionalGateway;
+        this.taxCalculationService = taxCalculationService;
     }
     async updateCryptoAddress(userId, cryptoAddress) {
         const wallet = await this.getWallet(userId);
@@ -96,7 +99,91 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             });
             return updatedWallet;
         }
-        return wallet;
+        const result = { ...wallet };
+        if (wallet.preferredCurrency && wallet.preferredCurrency !== 'USD') {
+            const rate = (await this.currencyConverter.getExchangeRates('USD'))[wallet.preferredCurrency] || 1.0;
+            result.localBalance = {
+                currency: wallet.preferredCurrency,
+                amount: Number(wallet.balance) * rate,
+                pendingAmount: Number(wallet.pendingBalance) * rate,
+            };
+        }
+        return result;
+    }
+    async deductConnects(userId, amount, reason) {
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+        if (!wallet)
+            throw new common_1.NotFoundException('Wallet not found');
+        if (wallet.connectsBalance < amount) {
+            throw new common_1.BadRequestException('Insufficient connects balance');
+        }
+        const updated = await this.prisma.wallet.update({
+            where: { id: wallet.id },
+            data: { connectsBalance: { decrement: amount } },
+        });
+        await this.logFinancialEvent({
+            service: 'payment-service',
+            eventType: 'CONNECTS_DEDUCTED',
+            actorId: userId,
+            amount: 0,
+            referenceId: wallet.id,
+            metadata: {
+                amountDeducted: amount,
+                reason,
+                remainingBalance: updated.connectsBalance,
+            },
+        });
+        return updated;
+    }
+    async buyConnects(userId, amount) {
+        const CONNECT_PRICE = 0.15;
+        const totalCost = amount * CONNECT_PRICE;
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+        if (!wallet)
+            throw new common_1.NotFoundException('Wallet not found');
+        if (Number(wallet.balance) < totalCost) {
+            throw new common_1.BadRequestException('Insufficient funds to buy connects');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            await prisma.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { decrement: totalCost } },
+            });
+            const updated = await prisma.wallet.update({
+                where: { id: wallet.id },
+                data: { connectsBalance: { increment: amount } },
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: new Decimal(totalCost),
+                    type: 'CONNECTS_PURCHASE',
+                    status: 'COMPLETED',
+                    description: `Purchased ${amount} connects`,
+                },
+            });
+            await this.logFinancialEvent({
+                service: 'payment-service',
+                eventType: 'CONNECTS_PURCHASED',
+                actorId: userId,
+                amount: totalCost,
+                referenceId: wallet.id,
+                metadata: {
+                    connectsAdded: amount,
+                    totalConnects: updated.connectsBalance,
+                },
+            });
+            return { success: true, connectsAdded: amount, cost: totalCost, totalConnects: updated.connectsBalance };
+        });
+    }
+    async getConnectsBalance(userId) {
+        const wallet = await this.prisma.wallet.findUnique({
+            where: { userId },
+            select: { connectsBalance: true },
+        });
+        if (!wallet)
+            throw new common_1.NotFoundException('Wallet not found');
+        return wallet.connectsBalance;
     }
     async deposit(userId, amount, referenceId) {
         const wallet = await this.getWallet(userId);
@@ -183,9 +270,18 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 where: { userId, isDefault: true },
             });
             if (defaultMethod) {
-                const regionalTypes = ['MOMO', 'PIX', 'PROMPTPAY', 'M_PESA'];
+                const regionalTypes = [
+                    'MOMO',
+                    'PIX',
+                    'PROMPTPAY',
+                    'M_PESA',
+                    'WISE',
+                    'PAYONEER',
+                ];
                 if (regionalTypes.includes(defaultMethod.type)) {
-                    await this.regionalGateway.processRegionalPayout(userId, amount, defaultMethod.id);
+                    const targetCurrency = wallet.preferredCurrency || 'USD';
+                    const localAmount = await this.currencyConverter.convert(amount, 'USD', targetCurrency);
+                    await this.regionalGateway.processRegionalPayout(userId, localAmount, defaultMethod.id);
                 }
             }
             await this.logFinancialEvent({
@@ -314,7 +410,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             return { success: true, invoiceId: invoice.id };
         });
     }
-    async getTransactionById(id) {
+    async getTransactionById(id, userId, isAdmin = false) {
         const transaction = await this.prisma.transaction.findUnique({
             where: { id },
             include: {
@@ -324,6 +420,9 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         });
         if (!transaction)
             throw new common_1.NotFoundException('Transaction not found');
+        if (!isAdmin && userId && transaction.wallet.userId !== userId) {
+            throw new common_1.NotFoundException('Transaction not found');
+        }
         return transaction;
     }
     async listTransactions(userId, opts = {}) {
@@ -351,7 +450,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         ]);
         return { total, data };
     }
-    async updateTransactionStatus(id, status) {
+    async updateTransactionStatus(id, status, actorId) {
         const transaction = await this.prisma.transaction.findUnique({
             where: { id },
         });
@@ -364,7 +463,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         await this.logFinancialEvent({
             service: 'payment-service',
             eventType: 'TRANSACTION_STATUS_UPDATED',
-            actorId: 'admin',
+            actorId: actorId,
             amount: Number(transaction.amount),
             referenceId: transaction.id,
             metadata: {
@@ -722,9 +821,10 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             throw new common_1.NotFoundException('No active escrow hold found for this milestone');
         }
         const contractUrl = this.configService.get('CONTRACT_SERVICE_URL', 'http://contract-service:3003');
+        let contract;
         try {
             const contractRes = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${contractUrl}/api/contracts/${contractId}`));
-            const contract = contractRes.data;
+            contract = contractRes.data;
             if (contract.status === 'DISPUTED') {
                 throw new common_1.BadRequestException('Cannot release escrow while contract is in DISPUTED status. Please resolve arbitration first.');
             }
@@ -737,9 +837,32 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
         const freelancerWallet = await this.getWallet(freelancerId);
         return this.prisma.$transaction(async (prisma) => {
+            let freelancerAmount = hold.amount;
+            let agencyAmount = new Decimal(0);
+            const agencyId = contract.agencyId;
+            const agencySplit = contract.agencyRevenueSplit ? new Decimal(contract.agencyRevenueSplit) : new Decimal(0);
+            if (agencyId && agencySplit.greaterThan(0)) {
+                agencyAmount = hold.amount.mul(agencySplit).div(100);
+                freelancerAmount = hold.amount.sub(agencyAmount);
+                const agencyWallet = await this.getWallet(agencyId);
+                await prisma.wallet.update({
+                    where: { id: agencyWallet.id },
+                    data: { balance: { increment: agencyAmount } },
+                });
+                await prisma.transaction.create({
+                    data: {
+                        walletId: agencyWallet.id,
+                        amount: agencyAmount,
+                        type: 'AGENCY_REVENUE_SHARE',
+                        status: 'COMPLETED',
+                        costCenter: hold.costCenter,
+                        description: `Agency Revenue Share for Contract ${contractId} Milestone ${milestoneId}`,
+                    },
+                });
+            }
             await prisma.wallet.update({
                 where: { id: freelancerWallet.id },
-                data: { balance: { increment: hold.amount } },
+                data: { balance: { increment: freelancerAmount } },
             });
             await prisma.escrowHold.update({
                 where: { id: hold.id },
@@ -748,7 +871,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             const tx = await prisma.transaction.create({
                 data: {
                     walletId: freelancerWallet.id,
-                    amount: hold.amount,
+                    amount: freelancerAmount,
                     type: 'ESCROW_RELEASE',
                     status: 'COMPLETED',
                     costCenter: hold.costCenter,
@@ -765,6 +888,8 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     contractId,
                     holdId: hold.id,
                     transactionId: tx.id,
+                    agencyAmount: Number(agencyAmount),
+                    freelancerAmount: Number(freelancerAmount),
                 },
             });
             return tx;
@@ -810,18 +935,47 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             return tx;
         });
     }
-    async processPayroll(contractId, data) {
+    async calculatePayroll(contractId, grossAmount, employeeId) {
         const contractUrl = this.configService.get('CONTRACT_SERVICE_URL', 'http://contract-service:3003');
         const contractRes = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${contractUrl}/api/contracts/${contractId}`));
         const contract = contractRes.data;
         if (contract.type !== 'EOR')
             throw new common_1.BadRequestException('Not an EOR contract');
-        const gross = new Decimal(data.grossAmount);
+        const userUrl = this.configService.get('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000/api/users');
+        const userRes = await (0, rxjs_1.firstValueFrom)(this.httpService.get(`${userUrl}/${employeeId}`));
+        const employee = userRes.data;
+        const countryCode = employee.country || 'US';
+        const gross = new Decimal(grossAmount);
         const eorFee = gross.mul(contract.eorFeePercentage || 5.0).div(100);
-        const taxRate = 0.2;
-        const benefitsCost = 150.0;
-        const taxAmount = gross.mul(taxRate);
-        const netAmount = gross.sub(taxAmount).sub(benefitsCost);
+        const { taxAmount, taxRate } = await this.taxCalculationService.calculateTax(gross, countryCode);
+        const benefitPlans = await this.prisma.benefitPlan.findMany({
+            where: { isActive: true },
+        });
+        let totalBenefitsCost = new Decimal(0);
+        const payrollBenefitsData = [];
+        for (const plan of benefitPlans) {
+            const amount = plan.monthlyCost.div(4);
+            totalBenefitsCost = totalBenefitsCost.add(amount);
+            payrollBenefitsData.push({
+                benefitPlanId: plan.id,
+                amount,
+            });
+        }
+        const netAmount = gross.sub(taxAmount).sub(totalBenefitsCost);
+        return {
+            contract,
+            employee,
+            gross,
+            eorFee,
+            taxAmount,
+            taxRate,
+            totalBenefitsCost,
+            netAmount,
+            payrollBenefitsData,
+        };
+    }
+    async processPayroll(contractId, data) {
+        const { contract, gross, eorFee, taxAmount, taxRate, totalBenefitsCost, netAmount, payrollBenefitsData, } = await this.calculatePayroll(contractId, data.grossAmount, data.employeeId);
         const clientWallet = await this.getWallet(contract.client_id);
         return this.prisma.$transaction(async (prisma) => {
             const totalCharge = gross.add(eorFee);
@@ -849,10 +1003,10 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     amount: netAmount,
                     type: 'PAYROLL_RECEIPT',
                     status: 'COMPLETED',
-                    description: `Salary Payment (Net after Tax/Benefits)`,
+                    description: `Salary Payment (Net after ${taxRate}% Tax & Benefits)`,
                 },
             });
-            return prisma.payroll.create({
+            const payroll = await prisma.payroll.create({
                 data: {
                     contractId,
                     employeeId: data.employeeId,
@@ -860,11 +1014,21 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     periodEnd: data.periodEnd,
                     grossAmount: gross,
                     taxAmount,
-                    benefitsAmount: benefitsCost,
+                    benefitsAmount: totalBenefitsCost,
                     netAmount,
                     status: 'PAID',
                 },
             });
+            if (payrollBenefitsData.length > 0) {
+                await prisma.payrollBenefit.createMany({
+                    data: payrollBenefitsData.map(pb => ({
+                        benefitPlanId: pb.benefitPlanId,
+                        amount: pb.amount,
+                        payrollId: payroll.id,
+                    })),
+                });
+            }
+            return payroll;
         });
     }
     async addPaymentMethod(userId, data) {
@@ -1055,7 +1219,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         const auditSecret = this.configService.get('AUDIT_SECRET', 'fallback-secret');
         try {
             await (0, rxjs_1.firstValueFrom)(this.httpService.post(`${auditServiceUrl}/api/audit/logs`, data, {
-                headers: { 'x-audit-secret': auditSecret }
+                headers: { 'x-audit-secret': auditSecret },
             }));
         }
         catch (error) {
@@ -1304,6 +1468,31 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             this.logger.error(`Failed to log financial event to analytics-service: ${error.message}`);
         }
     }
+    async deductArbitrationFee(userId, amount, contractId) {
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+        if (!wallet)
+            throw new common_1.NotFoundException('Wallet not found');
+        if (Number(wallet.balance) < amount) {
+            throw new common_1.BadRequestException('Insufficient funds for arbitration fee');
+        }
+        return this.prisma.$transaction(async (prisma) => {
+            const updated = await prisma.wallet.update({
+                where: { id: wallet.id },
+                data: { balance: { decrement: amount } },
+            });
+            await prisma.transaction.create({
+                data: {
+                    walletId: wallet.id,
+                    amount: new Decimal(amount),
+                    type: 'ARBITRATION_FEE',
+                    status: 'COMPLETED',
+                    referenceId: contractId,
+                    description: `Arbitration fee for contract ${contractId}`,
+                },
+            });
+            return updated;
+        });
+    }
 };
 exports.PaymentsService = PaymentsService;
 exports.PaymentsService = PaymentsService = PaymentsService_1 = __decorate([
@@ -1312,6 +1501,7 @@ exports.PaymentsService = PaymentsService = PaymentsService_1 = __decorate([
         axios_1.HttpService,
         config_1.ConfigService,
         currency_converter_service_1.CurrencyConverterService,
-        regional_gateway_service_1.RegionalGatewayService])
+        regional_gateway_service_1.RegionalGatewayService,
+        tax_calculation_service_1.TaxCalculationService])
 ], PaymentsService);
 //# sourceMappingURL=payments.service.js.map

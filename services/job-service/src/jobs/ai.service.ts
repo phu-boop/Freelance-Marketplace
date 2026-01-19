@@ -51,6 +51,11 @@ export class AiService {
 
         const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
 
+        const portfolioItems = userProfile?.portfolio || [];
+        const portfolioContext = portfolioItems.map((item: any, index: number) =>
+            `Portfolio Item ${index + 1}: ID=${item.id}, Title=${item.title}, Description=${item.description}`
+        ).join('\n');
+
         const prompt = `
       You are a professional freelancer on a marketplace. 
       Write a compelling job proposal for the following job:
@@ -64,19 +69,38 @@ export class AiService {
       Freelancer Skills: ${userProfile?.skills?.join(', ') || 'N/A'}
       Freelancer Bio: ${userProfile?.overview || 'N/A'}
       
+      Portfolio Items Available:
+      ${portfolioContext || 'None'}
+
       Instructions:
       1. Be professional and persuasive.
       2. Highlight relevant skills and experience.
       3. Keep it concise (3-4 paragraphs).
-      4. Use a friendly yet professional tone.
-      5. Don't use placeholders like [Your Name], use the provided name.
-      6. Focus on how you can solve the client's problem.
+      4. Select top 2-3 most relevant Portfolio Item IDs if any exist.
+      5. Use a friendly yet professional tone.
+      6. Don't use placeholders like [Your Name], use the provided name.
+      
+      Return the result EXCLUSIVELY as a JSON object:
+      {
+        "content": "The proposal cover letter text",
+        "recommendedPortfolioIds": ["id1", "id2"]
+      }
     `;
 
         try {
             const result = await model.generateContent(prompt);
             const response = await result.response;
-            return { content: response.text() };
+            const text = response.text();
+
+            // Extract JSON if there's markdown fluff
+            const jsonMatch = text.match(/\{.*\}/s);
+            const cleanJson = jsonMatch ? jsonMatch[0] : text;
+            const parsed = JSON.parse(cleanJson);
+
+            return {
+                content: parsed.content,
+                recommendedPortfolioIds: parsed.recommendedPortfolioIds || []
+            };
         } catch (error) {
             this.logger.error(`Gemini Error: ${error.message}`);
             return this.mockProposal(job, userProfile);
@@ -157,6 +181,48 @@ export class AiService {
         } catch (error) {
             this.logger.error(`Gemini Error in style analysis: ${error.message}`);
             return 'Proactive';
+        }
+    }
+
+    async generateDailyStandup(contractId: string, messages: string[]) {
+        if (!this.genAI || messages.length === 0) {
+            return { summary: "No recent activity recorded for today." };
+        }
+
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+        const history = messages.join('\n');
+        const prompt = `
+      You are an AI project assistant. 
+      Summarize the following recent project communication into a concise "Daily Standup" update.
+      Focus on progress made, blockers mentioned, and next steps.
+      
+      Communication History:
+      ${history}
+      
+      Instructions:
+      1. Keep it professional and brief (max 150 words).
+      2. Use bullet points for clarity.
+      3. If no clear progress is found, state that "Coordination is ongoing".
+      
+      Return as a JSON object:
+      {
+        "summary": "The standup update text"
+      }
+    `;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+
+            const jsonMatch = text.match(/\{.*\}/s);
+            const cleanJson = jsonMatch ? jsonMatch[0] : text;
+
+            return JSON.parse(cleanJson);
+        } catch (error) {
+            this.logger.error(`Gemini Error in daily standup: ${error.message}`);
+            return { summary: "Daily update is temporarily unavailable." };
         }
     }
 
@@ -246,18 +312,20 @@ export class AiService {
       Description: ${job.description}
       Preferred Communication Style: ${job.preferredCommunicationStyle || 'Not specified'}
       Required Skills: ${job.skills.map(s => s.skill.name).join(', ')}
+      Screening Questions: ${JSON.stringify(job.screeningQuestions || [])}
       
       PROPOSAL:
       Cover Letter: ${proposal.coverLetter}
       Bid Amount: $${proposal.bidAmount}
       Timeline: ${proposal.timeline}
+      Screening Answers: ${JSON.stringify(proposal.screeningAnswers || {})}
       
       FREELANCER:
       Skills: ${freelancerProfile?.skills?.join(', ') || 'N/A'}
       Bio: ${freelancerProfile?.overview || 'N/A'}
       
       Instructions:
-      1. Rate the match from 0 to 100 based on skill overlap, proposal quality, and alignment with job requirements.
+      1. Rate the match from 0 to 100 based on skill overlap, proposal quality, and alignment with job requirements, specifically evaluating the quality of their answers to the screening questions.
       2. Provide a 2-3 sentence analysis of why this freelancer is or isn't a good fit.
       
       Return the result EXCLUSIVELY as a JSON object:
@@ -357,6 +425,7 @@ export class AiService {
     private mockProposal(job: any, user: any) {
         return {
             content: `Hello! I noticed your job posting for "${job.title}" and I'm very interested in helping you. With my background in ${user?.skills?.slice(0, 3).join(', ') || 'related fields'}, I am confident that I can deliver high-quality results. I have experience with ${job.skills.slice(0, 2).map(s => s.skill.name).join(' and ')} which aligns perfectly with your requirements. Looking forward to discussing this further!`,
+            recommendedPortfolioIds: user?.portfolio?.slice(0, 2).map((p: any) => p.id) || [],
             isMock: true
         };
     }

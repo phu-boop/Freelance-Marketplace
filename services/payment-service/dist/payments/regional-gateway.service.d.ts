@@ -7,6 +7,8 @@ export declare class RegionalGatewayService {
         success: boolean;
         txnId: string;
     }>;
+    private processWise;
+    private processPayoneer;
     private processMomo;
     private processPix;
     private processPromptPay;

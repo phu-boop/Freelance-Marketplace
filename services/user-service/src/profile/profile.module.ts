@@ -6,6 +6,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from '../users/users.module';
+import { SpecializedProfilesService } from './specialized-profiles.service';
+import { SpecializedProfilesController } from './specialized-profiles.controller';
 
 @Module({
   imports: [
@@ -21,8 +23,8 @@ import { UsersModule } from '../users/users.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [ProfileController],
-  providers: [ProfileService],
-  exports: [ProfileService],
+  controllers: [ProfileController, SpecializedProfilesController],
+  providers: [ProfileService, SpecializedProfilesService],
+  exports: [ProfileService, SpecializedProfilesService],
 })
-export class ProfileModule {}
+export class ProfileModule { }
