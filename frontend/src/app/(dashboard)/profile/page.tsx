@@ -42,6 +42,7 @@ import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { SpecializedProfileModal } from '@/components/SpecializedProfileModal';
 import { VideoKYCModal } from '@/components/VideoKYCModal';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface Review {
     id: string;
@@ -211,8 +212,33 @@ export default function ProfilePage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+                <div className="relative">
+                    <Skeleton className="h-48 rounded-3xl" />
+                    <div className="absolute -bottom-12 left-8 flex items-end gap-6">
+                        <Skeleton className="w-32 h-32 rounded-3xl border-4 border-slate-950" />
+                        <div className="pb-4 space-y-2">
+                            <Skeleton className="h-8 w-48" />
+                            <Skeleton className="h-4 w-32" />
+                        </div>
+                    </div>
+                </div>
+                <div className="pt-12 flex gap-8 border-b border-slate-800">
+                    {[1, 2, 3, 4, 5].map(i => (
+                        <Skeleton key={i} className="w-20 h-4 mb-4" />
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="space-y-6">
+                        <Skeleton className="h-64 rounded-2xl" />
+                        <Skeleton className="h-32 rounded-2xl" />
+                        <Skeleton className="h-48 rounded-2xl" />
+                    </div>
+                    <div className="lg:col-span-2 space-y-6">
+                        <Skeleton className="h-48 rounded-2xl" />
+                        <Skeleton className="h-96 rounded-2xl" />
+                    </div>
+                </div>
             </div>
         );
     }

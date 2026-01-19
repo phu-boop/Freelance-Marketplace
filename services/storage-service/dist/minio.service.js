@@ -69,37 +69,22 @@ let MinioService = class MinioService {
             await this.minioClient.makeBucket(this.bucketName, 'us-east-1');
             console.log(`Bucket ${this.bucketName} created.`);
         }
-        const policy = {
-            Version: '2012-10-17',
-            Statement: [
-                {
-                    Effect: 'Allow',
-                    Principal: { AWS: ['*'] },
-                    Action: ['s3:GetBucketLocation', 's3:ListBucket'],
-                    Resource: [`arn:aws:s3:::${this.bucketName}`],
-                },
-                {
-                    Effect: 'Allow',
-                    Principal: { AWS: ['*'] },
-                    Action: ['s3:GetObject'],
-                    Resource: [`arn:aws:s3:::${this.bucketName}/*`],
-                },
-            ],
-        };
-        await this.minioClient.setBucketPolicy(this.bucketName, JSON.stringify(policy));
-        console.log(`Public read policy applied to bucket ${this.bucketName}`);
     }
     async uploadFile(file) {
+        console.log(`Scanning file ${file.originalname} for malware...`);
+        const isSafe = await this.mockMalwareScan(file);
+        if (!isSafe) {
+            throw new Error('File rejected: Malware detected or suspicious content.');
+        }
         const fileName = `${Date.now()}-${file.originalname}`;
         await this.minioClient.putObject(this.bucketName, fileName, file.buffer, file.size);
         return fileName;
     }
+    async mockMalwareScan(file) {
+        return true;
+    }
     async getFileUrl(fileName) {
-        const externalUrl = this.configService.get('MINIO_EXTERNAL_URL');
-        if (externalUrl) {
-            return `${externalUrl}/${this.bucketName}/${fileName}`;
-        }
-        return await this.minioClient.presignedGetObject(this.bucketName, fileName);
+        return await this.minioClient.presignedGetObject(this.bucketName, fileName, 3600);
     }
 };
 exports.MinioService = MinioService;

@@ -167,6 +167,7 @@ model Proposal {
   jobId           String
   job             Job      @relation(fields: [jobId], references: [id])
   freelancerId    String   // User ID from User Service
+  specializedProfileId String? // ID of specialized profile from user-service
   coverLetter     String
   bidAmount       Decimal?
   timeline        String?  // e.g. "3 days", "1 week"
@@ -192,6 +193,8 @@ model Proposal {
   // Boosting
   boostAmount     Int      @default(0)
   isBoosted       Boolean  @default(false)
+  isViewed        Boolean  @default(false)
+  viewedAt        DateTime?
 
   @@schema("jobs")
 }

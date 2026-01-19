@@ -101,7 +101,7 @@ const LinkPreview = ({ url }: { url: string }) => {
 };
 
 const MessagesPage = () => {
-    const { userId } = useKeycloak();
+    const { userId, roles } = useKeycloak();
     const searchParams = useSearchParams();
     const participantId = searchParams.get('participantId');
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -169,9 +169,17 @@ const MessagesPage = () => {
     const [reportReason, setReportReason] = useState('');
     const [reporting, setReporting] = useState(false);
 
-    // Rate Limiting
     const [lastSendTime, setLastSendTime] = useState(0);
     const MESSAGE_COOLDOWN = 1000; // 1 second
+
+    // Refs for socket listeners to avoid reconnections
+    const selectedChatRef = useRef<Conversation | null>(null);
+    const contractRef = useRef<any>(null);
+    const userIdRef = useRef<string | null>(null);
+
+    useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
+    useEffect(() => { contractRef.current = contract; }, [contract]);
+    useEffect(() => { userIdRef.current = userId; }, [userId]);
 
     // Initialize Socket
     useEffect(() => {
@@ -245,7 +253,7 @@ const MessagesPage = () => {
 
         newSocket.on('user_status_change', (data: { userId: string, status: string, lastSeen?: string }) => {
             if (data.status === 'offline') {
-                if (data.userId === selectedChat?.otherId) {
+                if (data.userId === selectedChatRef.current?.otherId) {
                     setLastSeen(data.lastSeen || new Date().toISOString());
                 }
                 setOnlineUsers(prev => {
@@ -260,15 +268,16 @@ const MessagesPage = () => {
         });
 
         newSocket.on('newMessage', (message: Message) => {
-            if (selectedChat && (message.senderId === selectedChat.otherId || message.receiverId === selectedChat.otherId)) {
+            const currentSelectedChat = selectedChatRef.current;
+            if (currentSelectedChat && (message.senderId === currentSelectedChat.otherId || message.receiverId === currentSelectedChat.otherId)) {
                 setMessages(prev => [...prev, message]);
                 scrollToBottom();
                 setIsTyping(false);
 
                 // If message is from other and we are in chat, mark as read
-                if (message.senderId === selectedChat.otherId) {
-                    api.post(`/chat/conversations/${selectedChat.otherId}/read`, { userId });
-                    newSocket.emit('messageRead', { senderId: userId || '', receiverId: selectedChat.otherId });
+                if (message.senderId === currentSelectedChat.otherId) {
+                    api.post(`/chat/conversations/${currentSelectedChat.otherId}/read`, { userId: userIdRef.current });
+                    newSocket.emit('messageRead', { senderId: userIdRef.current || '', receiverId: currentSelectedChat.otherId });
                 }
             }
             // Refresh conversations to update last message
@@ -276,14 +285,14 @@ const MessagesPage = () => {
         });
 
         newSocket.on('typing', (data: { senderId: string }) => {
-            if (selectedChat && data.senderId === selectedChat.otherId) {
+            if (selectedChatRef.current && data.senderId === selectedChatRef.current.otherId) {
                 setIsTyping(true);
                 scrollToBottom();
             }
         });
 
         newSocket.on('stopTyping', (data: { senderId: string }) => {
-            if (selectedChat && data.senderId === selectedChat.otherId) {
+            if (selectedChatRef.current && data.senderId === selectedChatRef.current.otherId) {
                 setIsTyping(false);
             }
         });
@@ -302,9 +311,11 @@ const MessagesPage = () => {
 
         newSocket.on('newNotification', (data: any) => {
             console.log('Notification received:', data);
+            const currentSelectedChat = selectedChatRef.current;
+            const currentContract = contractRef.current;
             // If the notification has a contractId and it matches current, refresh contract
-            if (data.metadata?.contractId && selectedChat?.id && contract?.id === data.metadata.contractId) {
-                fetchContractContext(selectedChat.otherId);
+            if (data.metadata?.contractId && currentSelectedChat?.id && currentContract?.id === data.metadata.contractId) {
+                fetchContractContext(currentSelectedChat.otherId);
             }
         });
 
@@ -325,10 +336,10 @@ const MessagesPage = () => {
         return () => {
             newSocket.disconnect();
         };
-    }, [userId, selectedChat, contract]);
+    }, [userId]); // Only reconnect on userId change
 
-    // Fetch Conversations and Handle ParticipantId
-    const fetchConversations = async () => {
+    // Fetch Conversations
+    const fetchConversations = React.useCallback(async () => {
         if (!userId) return;
         try {
             const res = await api.get('/chat/conversations');
@@ -337,48 +348,56 @@ const MessagesPage = () => {
             const enrichedConvs = await Promise.all(convs.map(async (c: any) => {
                 try {
                     const userRes = await api.get(`/users/${c.otherId}`);
-                    return { ...c, user: userRes.data, id: c._id }; // Add id for context menu
+                    return { ...c, user: userRes.data, id: c._id };
                 } catch (e) {
                     return { ...c, user: { firstName: 'Unknown', lastName: 'User', email: '' }, id: c._id };
                 }
             }));
 
             setConversations(enrichedConvs);
-
-            // Handle Deep Link to Chat
-            if (participantId && enrichedConvs) {
-                const existingConv = enrichedConvs.find(c => c.otherId === participantId);
-                if (existingConv) {
-                    setSelectedChat(existingConv);
-                } else {
-                    // Fetch user details for new chat
-                    try {
-                        const userRes = await api.get(`/users/${participantId}`);
-                        const newConv: Conversation = {
-                            otherId: participantId,
-                            lastMessage: '',
-                            timestamp: new Date().toISOString(),
-                            isRead: true,
-                            user: userRes.data,
-                            id: `temp-${participantId}` // Temporary ID for new chat
-                        };
-                        setConversations(prev => [newConv, ...prev]);
-                        setSelectedChat(newConv);
-                    } catch (e) {
-                        console.error('Failed to fetch participant for new chat', e);
-                    }
-                }
-            }
         } catch (error) {
             console.error('Failed to fetch conversations', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId]);
 
     useEffect(() => {
         fetchConversations();
-    }, [userId, participantId]);
+    }, [fetchConversations]);
+
+    // Handle Deep Link to Chat
+    useEffect(() => {
+        if (!participantId || !userId || loading) return;
+
+        const handleDeepLink = async () => {
+            const existingConv = conversations.find(c => c.otherId === participantId);
+            if (existingConv) {
+                if (selectedChatRef.current?.otherId !== participantId) {
+                    setSelectedChat(existingConv);
+                }
+            } else {
+                try {
+                    const userRes = await api.get(`/users/${participantId}`);
+                    const newConv: Conversation = {
+                        otherId: participantId,
+                        lastMessage: '',
+                        timestamp: new Date().toISOString(),
+                        isRead: true,
+                        user: userRes.data,
+                        id: `temp-${participantId}`
+                    };
+                    if (selectedChatRef.current?.otherId !== participantId) {
+                        setSelectedChat(newConv);
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch participant for new chat', e);
+                }
+            }
+        };
+
+        handleDeepLink();
+    }, [participantId, userId, conversations, loading]);
 
     // Global Search Logic
     useEffect(() => {
@@ -440,8 +459,10 @@ const MessagesPage = () => {
                     await api.post(`/chat/conversations/${selectedChat.otherId}/read`, { userId });
                     socket?.emit('messageRead', { senderId: userId, receiverId: selectedChat.otherId });
 
-                    // Refresh conversations to clear badge
-                    fetchConversations();
+                    // Refresh conversations locally to clear badge
+                    setConversations(prev => prev.map(c =>
+                        c.otherId === selectedChat.otherId ? { ...c, unreadCount: 0, isRead: true } : c
+                    ));
                 }
 
             } catch (error) {
@@ -1132,7 +1153,7 @@ const MessagesPage = () => {
                                                 const showDateSeparator = idx === 0 || new Date(messages[idx - 1].createdAt).toDateString() !== new Date(msg.createdAt).toDateString();
 
                                                 return (
-                                                    <div key={idx} id={`msg-${msg._id}`}>
+                                                    <div key={msg._id} id={`msg-${msg._id}`}>
                                                         {showDateSeparator && (
                                                             <div className="flex justify-center my-4">
                                                                 <span className="text-xs text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full">
@@ -1208,8 +1229,8 @@ const MessagesPage = () => {
                                                                                         key={i}
                                                                                         onClick={() => handleToggleReaction(msg._id, r.emoji)}
                                                                                         className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all ${r.userIds.includes(userId!)
-                                                                                                ? 'bg-blue-500/30 text-blue-200 border border-blue-500/50'
-                                                                                                : 'bg-slate-700/50 text-slate-400 border border-white/5'
+                                                                                            ? 'bg-blue-500/30 text-blue-200 border border-blue-500/50'
+                                                                                            : 'bg-slate-700/50 text-slate-400 border border-white/5'
                                                                                             }`}
                                                                                         title={r.userIds.length > 0 ? "Users: " + r.userIds.join(', ') : ""}
                                                                                     >
@@ -1417,6 +1438,9 @@ const MessagesPage = () => {
                         <ContractContextSidebar
                             contract={contract}
                             loading={contractLoading}
+                            participantId={selectedChat.otherId}
+                            participantName={selectedChat.user ? `${selectedChat.user.firstName} ${selectedChat.user.lastName}` : undefined}
+                            showHireButton={roles?.includes('CLIENT')}
                         />
                     )}
                 </div>

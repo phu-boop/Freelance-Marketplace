@@ -51,6 +51,9 @@ let PaymentsController = class PaymentsController {
     deductConnects(body) {
         return this.paymentsService.deductConnects(body.userId, body.amount, body.reason);
     }
+    refundConnects(body) {
+        return this.paymentsService.refundConnects(body.userId, body.amount, body.reason);
+    }
     deposit(body) {
         return this.paymentsService.deposit(body.userId, body.amount, body.referenceId);
     }
@@ -195,6 +198,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "deductConnects", null);
+__decorate([
+    (0, common_1.Post)('connects/refund'),
+    (0, nest_keycloak_connect_1.Public)(),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "refundConnects", null);
 __decorate([
     (0, common_1.Post)('deposit'),
     __param(0, (0, common_1.Body)()),

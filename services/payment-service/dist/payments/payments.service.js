@@ -135,9 +135,38 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         });
         return updated;
     }
+    async refundConnects(userId, amount, reason) {
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+        if (!wallet)
+            throw new common_1.NotFoundException('Wallet not found');
+        const updated = await this.prisma.wallet.update({
+            where: { id: wallet.id },
+            data: { connectsBalance: { increment: amount } },
+        });
+        await this.logFinancialEvent({
+            service: 'payment-service',
+            eventType: 'CONNECTS_REFUNDED',
+            actorId: userId,
+            amount: 0,
+            referenceId: wallet.id,
+            metadata: {
+                reason,
+                amount,
+                newBalance: updated.connectsBalance,
+            },
+        });
+        return updated;
+    }
     async buyConnects(userId, amount) {
-        const CONNECT_PRICE = 0.15;
-        const totalCost = amount * CONNECT_PRICE;
+        const BUNDLES = {
+            10: 1.50,
+            50: 7.00,
+            100: 12.00,
+        };
+        if (!BUNDLES[amount]) {
+            throw new common_1.BadRequestException('Invalid connects bundle amount');
+        }
+        const totalCost = BUNDLES[amount];
         const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
         if (!wallet)
             throw new common_1.NotFoundException('Wallet not found');
@@ -159,7 +188,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     amount: new Decimal(totalCost),
                     type: 'CONNECTS_PURCHASE',
                     status: 'COMPLETED',
-                    description: `Purchased ${amount} connects`,
+                    description: `Purchased ${amount} connects bundle`,
                 },
             });
             await this.logFinancialEvent({
@@ -171,6 +200,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 metadata: {
                     connectsAdded: amount,
                     totalConnects: updated.connectsBalance,
+                    bundlePrice: totalCost,
                 },
             });
             return { success: true, connectsAdded: amount, cost: totalCost, totalConnects: updated.connectsBalance };
@@ -744,6 +774,20 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                     status: 'ACTIVE',
                 },
             });
+            if (data.planId === 'FREELANCER_PLUS') {
+                await prisma.wallet.update({
+                    where: { id: wallet.id },
+                    data: { connectsBalance: { increment: 80 } }
+                });
+                await prisma.connectsHistory.create({
+                    data: {
+                        userId,
+                        amount: 80,
+                        type: 'SUBSCRIPTION_BONUS',
+                        reason: 'Monthly Freelancer Plus bonus'
+                    }
+                });
+            }
             try {
                 const userServiceUrl = this.configService.get('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000/api/users');
                 await (0, rxjs_1.firstValueFrom)(this.httpService.patch(`${userServiceUrl}/${userId}/subscription-status`, {

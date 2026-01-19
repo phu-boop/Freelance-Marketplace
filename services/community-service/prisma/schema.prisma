@@ -76,3 +76,76 @@ model ForumVote {
   @@map("forum_votes")
   @@schema("community")
 }
+
+model HelpArticle {
+  id        String   @id @default(uuid())
+  title     String
+  slug      String   @unique
+  content   String
+  category  String
+  keywords  String[]
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("help_articles")
+  @@schema("community")
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  userId      String   // User ID from user-service
+  subject     String
+  description String
+  status      String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority    String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("support_tickets")
+  @@schema("community")
+}
+
+model Course {
+  id              String          @id @default(uuid())
+  title           String
+  description     String
+  thumbnail       String?
+  badgeName       String? // The badge awarded upon completion
+  lessons         Lesson[]
+  certifications  Certification[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("academy_courses")
+  @@schema("community")
+}
+
+model Lesson {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  order     Int
+  duration  Int      // in minutes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("academy_lessons")
+  @@schema("community")
+}
+
+model Certification {
+  id        String   @id @default(uuid())
+  userId    String   // User ID from user-service
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  issuedAt  DateTime @default(now())
+  metadata  Json?
+
+  @@unique([userId, courseId])
+  @@map("academy_certifications")
+  @@schema("community")
+}

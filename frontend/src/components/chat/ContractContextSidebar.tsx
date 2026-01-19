@@ -3,13 +3,23 @@
 import React from 'react';
 import { ShieldCheck, Calendar, DollarSign, ArrowRight, ExternalLink, Clock } from 'lucide-react';
 import Link from 'next/link';
+import { HireModal } from '../HireModal';
 
 interface ContractContextSidebarProps {
     contract: any;
     loading: boolean;
+    participantId?: string;
+    participantName?: string;
+    showHireButton?: boolean;
 }
 
-export const ContractContextSidebar: React.FC<ContractContextSidebarProps> = ({ contract, loading }) => {
+export const ContractContextSidebar: React.FC<ContractContextSidebarProps> = ({
+    contract,
+    loading,
+    participantId,
+    participantName,
+    showHireButton = false
+}) => {
     if (loading) {
         return (
             <div className="w-80 border-l border-slate-800 bg-slate-950/20 p-4 animate-pulse">
@@ -30,10 +40,14 @@ export const ContractContextSidebar: React.FC<ContractContextSidebarProps> = ({ 
                     <ShieldCheck className="w-6 h-6 opacity-20" />
                 </div>
                 <h3 className="text-slate-400 font-medium mb-1">No Active Contract</h3>
-                <p className="text-xs text-slate-500">Hire this freelancer to start working and see contract details here.</p>
-                <button className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors">
-                    Create Offer
-                </button>
+                <p className="text-xs text-slate-500 mb-6">Start a contract with this freelancer to see project details here.</p>
+
+                {showHireButton && participantId && (
+                    <HireModal
+                        freelancerId={participantId}
+                        freelancerName={participantName || 'Freelancer'}
+                    />
+                )}
             </div>
         );
     }

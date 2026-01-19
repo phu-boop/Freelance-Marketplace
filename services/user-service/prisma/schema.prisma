@@ -13,6 +13,7 @@ datasource db {
 model User {
   id                     String                 @id @default(uuid())
   address                String?
+  addressEncrypted       String?
   avatarUrl              String?
   coverImageUrl          String?
   badges                 String[]
@@ -73,6 +74,7 @@ linkedinUsername        String?
   keycloakId             String?                @unique
   isEmailVerified        Boolean                @default(false)
   taxId                  String?
+  taxIdEncrypted         String?
   taxIdType              String?                // SSN, EIN, VAT
   taxVerifiedStatus      String                 @default("UNVERIFIED")
   taxFormType            String?                // W8BEN, W9
@@ -80,6 +82,10 @@ linkedinUsername        String?
   taxSignatureDate       DateTime?
   taxSignatureIp         String?
   billingAddress         String?
+  billingAddressEncrypted String?
+  totalSpend             Decimal                @default(0.0)
+  jobsPostedCount       Int                    @default(0)
+  jobsHiredCount        Int                    @default(0)
 
   // Advanced KYC
   kycMethod              String?                // DOCUMENT, VIDEO

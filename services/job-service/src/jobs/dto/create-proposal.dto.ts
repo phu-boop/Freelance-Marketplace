@@ -39,4 +39,8 @@ export class CreateProposalDto {
 
     @IsOptional()
     screeningAnswers?: any;
+
+    @IsString()
+    @IsOptional()
+    specializedProfileId?: string;
 }

@@ -28,6 +28,9 @@ model Review {
   ratingQuality       Int @default(0)
   ratingValue         Int @default(0)
   ratingSchedule      Int @default(0)
+  privateRating       Int @default(0)
+  recommendToOthers   Boolean @default(true)
+  contractValue       Decimal @default(0.0)
   comment       String?
   reply         String?
   repliedAt     DateTime?

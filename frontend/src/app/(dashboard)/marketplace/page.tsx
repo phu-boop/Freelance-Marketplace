@@ -13,6 +13,7 @@ import {
     Loader2
 } from 'lucide-react';
 import api from '@/lib/api';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { ProposalModal } from '@/components/ProposalModal';
 import { useKeycloak } from '@/components/KeycloakProvider';
 
@@ -195,9 +196,27 @@ export default function JobsPage() {
                 {/* Jobs List */}
                 <div className="lg:col-span-3 space-y-4">
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-                            <p className="text-slate-400">Searching for the best opportunities...</p>
+                        <div className="space-y-4">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-2">
+                                            <Skeleton className="h-6 w-64" />
+                                            <div className="flex gap-2">
+                                                <Skeleton className="h-4 w-20" />
+                                                <Skeleton className="h-4 w-20" />
+                                            </div>
+                                        </div>
+                                        <Skeleton className="h-6 w-24" />
+                                    </div>
+                                    <Skeleton className="h-4 w-full" />
+                                    <Skeleton className="h-4 w-3/4" />
+                                    <div className="flex gap-4 pt-2">
+                                        <Skeleton className="h-4 w-32" />
+                                        <Skeleton className="h-4 w-32" />
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     ) : error ? (
                         <div className="p-8 rounded-2xl bg-red-500/10 border border-red-500/20 text-center">
@@ -232,8 +251,8 @@ export default function JobsPage() {
                                                     {job.matchScore !== undefined && job.matchScore > 0 && (
                                                         <div className="flex items-center gap-1">
                                                             <div className={`px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 ${job.matchScore >= 80 ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                                                                    job.matchScore >= 50 ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                                                                        'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                                                job.matchScore >= 50 ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                                                    'bg-slate-500/10 text-slate-400 border-slate-500/20'
                                                                 }`}>
                                                                 ✨ {job.matchScore}% Match
                                                             </div>

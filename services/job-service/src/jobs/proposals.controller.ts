@@ -70,6 +70,13 @@ export class ProposalsController {
         return this.jobsService.boostProposal(userId, id, amount);
     }
 
+    @Post(':id/view')
+    @Roles({ roles: ['realm:CLIENT'] })
+    async markViewed(@Request() req, @Param('id') id: string) {
+        const userId = req.user.sub;
+        return this.jobsService.markProposalAsViewed(id, userId);
+    }
+
     @Post('/:id/duplicate')
     duplicate(@AuthenticatedUser() user: any, @Param('id') id: string, @Body('toJobId') toJobId?: string) {
         return this.jobsService.duplicateProposal(user.sub, id, toJobId);

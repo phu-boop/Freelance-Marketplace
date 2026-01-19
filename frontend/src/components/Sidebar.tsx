@@ -15,7 +15,8 @@ import {
     Search,
     PlusCircle,
     BarChart2,
-    Users
+    Users,
+    GraduationCap
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,8 @@ const menuItems = [
     { icon: Briefcase, label: 'My Contracts', href: '/contracts' },
     { icon: Users, label: 'Talent Clouds', href: '/clouds' },
     { icon: BarChart2, label: 'Analytics', href: '/analytics' },
+    { icon: GraduationCap, label: 'Academy', href: '/academy' },
+    { icon: MessageSquare, label: 'Forum', href: '/community/forum' },
     { icon: MessageSquare, label: 'Messages', href: '/messages' },
     { icon: Bell, label: 'Notifications', href: '/notifications' },
     { icon: User, label: 'Profile', href: '/profile' },

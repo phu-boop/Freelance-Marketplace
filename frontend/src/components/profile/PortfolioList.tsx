@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, CheckCircle2, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, Loader2, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import api from '@/lib/api';
 import { getPublicUrl } from '@/lib/utils';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import { toast } from 'sonner';
 
 interface PortfolioItem {
     id: string;
@@ -13,6 +13,7 @@ interface PortfolioItem {
     description: string;
     imageUrl: string;
     projectUrl?: string;
+    externalUrl?: string;
     isVerified?: boolean;
     verificationScore?: number;
     aiFeedback?: string;
@@ -27,6 +28,7 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
     const [items, setItems] = useState<PortfolioItem[]>(initialData);
     const [isEditing, setIsEditing] = useState<string | null>(null); // 'new' or id
     const [loading, setLoading] = useState(false);
+    const [verifyingId, setVerifyingId] = useState<string | null>(null);
     const [formData, setFormData] = useState<Partial<PortfolioItem>>({});
 
     const handleEdit = (item: PortfolioItem) => {
@@ -35,7 +37,7 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
     };
 
     const handleNew = () => {
-        setFormData({ title: '', description: '', imageUrl: '' });
+        setFormData({ title: '', description: '', imageUrl: '', projectUrl: '' });
         setIsEditing('new');
     };
 
@@ -49,8 +51,24 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
         try {
             await api.delete(`/users/portfolio/${id}`);
             setItems(prev => prev.filter(i => i.id !== id));
+            toast.success('Project deleted');
         } catch (error) {
             console.error('Failed to delete portfolio item', error);
+            toast.error('Failed to delete project');
+        }
+    };
+
+    const handleVerify = async (id: string) => {
+        setVerifyingId(id);
+        try {
+            const res = await api.post(`/users/portfolio/${id}/verify`);
+            setItems(prev => prev.map(i => i.id === id ? res.data : i));
+            toast.success('AI Verification Complete');
+        } catch (error: any) {
+            console.error('Failed to verify portfolio item', error);
+            toast.error(error.response?.data?.message || 'Verification failed. Check project URL.');
+        } finally {
+            setVerifyingId(null);
         }
     };
 
@@ -61,13 +79,16 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
             if (isEditing === 'new') {
                 const res = await api.post(`/users/${userId}/portfolio`, formData);
                 setItems(prev => [...prev, res.data]);
+                toast.success('Project added');
             } else {
                 const res = await api.patch(`/users/portfolio/${isEditing}`, formData);
                 setItems(prev => prev.map(i => i.id === isEditing ? res.data : i));
+                toast.success('Project updated');
             }
             setIsEditing(null);
         } catch (error) {
             console.error('Failed to save portfolio item', error);
+            toast.error('Failed to save project');
         } finally {
             setLoading(false);
         }
@@ -90,6 +111,12 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
                         label="Project Title"
                         value={formData.title || ''}
                         onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    />
+                    <Input
+                        label="Project / Source URL (GitHub, Behance, etc.)"
+                        value={formData.projectUrl || formData.externalUrl || ''}
+                        onChange={e => setFormData({ ...formData, projectUrl: e.target.value })}
+                        placeholder="https://github.com/user/repo"
                     />
                     <Input
                         label="Image URL"
@@ -134,6 +161,16 @@ export const PortfolioList: React.FC<PortfolioListProps> = ({ initialData }) => 
                                 <button onClick={() => handleEdit(item)} className="p-2 bg-slate-800/80 rounded-full hover:bg-white hover:text-slate-900 transition-all">
                                     <Pencil className="w-4 h-4" />
                                 </button>
+                                {!item.isVerified && (
+                                    <button
+                                        onClick={() => handleVerify(item.id)}
+                                        disabled={verifyingId === item.id}
+                                        className="p-2 bg-slate-800/80 rounded-full hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50"
+                                        title="Verify with AI"
+                                    >
+                                        {verifyingId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-purple-400 group-hover:text-white" />}
+                                    </button>
+                                )}
                                 <button onClick={() => handleDelete(item.id)} className="p-2 bg-slate-800/80 rounded-full hover:bg-red-500 hover:text-white transition-all">
                                     <Trash2 className="w-4 h-4" />
                                 </button>

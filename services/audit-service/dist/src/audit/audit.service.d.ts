@@ -1,9 +1,12 @@
+import { OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAuditLogDto } from './dto/create-audit-log.dto';
-export declare class AuditService {
+export declare class AuditService implements OnModuleInit {
     private prisma;
     private readonly logger;
     constructor(prisma: PrismaService);
+    onModuleInit(): Promise<void>;
+    runRetentionPolicy(): Promise<void>;
     create(dto: CreateAuditLogDto): Promise<{
         id: string;
         timestamp: Date;

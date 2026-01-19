@@ -234,8 +234,8 @@ export class UsersController {
   }
 
   @Post(':id/stats')
-  updateStats(@Param('id') id: string, @Body() statsData: { rating: number }) {
-    return this.usersService.updateStats(id, statsData.rating);
+  updateStats(@Param('id') id: string, @Body() statsData: { rating: number, jss?: number }) {
+    return this.usersService.updateStats(id, statsData.rating, statsData.jss);
   }
 
   @Post(':id/suspend')
@@ -468,5 +468,11 @@ export class UsersController {
   @Post(':id/fingerprint')
   updateFingerprint(@Param('id') id: string, @Body('fingerprint') fingerprint: string) {
     return this.usersService.updateDeviceFingerprint(id, fingerprint);
+  }
+
+  @Post('portfolio/:itemId/verify')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  verifyPortfolioItem(@Param('itemId') itemId: string) {
+    return this.aiService.verifyPortfolioItem(itemId);
   }
 }

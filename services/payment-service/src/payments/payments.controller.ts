@@ -82,6 +82,18 @@ export class PaymentsController {
     );
   }
 
+  @Post('connects/refund')
+  @Public() // Internal-only
+  refundConnects(
+    @Body() body: { userId: string; amount: number; reason: string },
+  ) {
+    return this.paymentsService.refundConnects(
+      body.userId,
+      body.amount,
+      body.reason,
+    );
+  }
+
   @Post('deposit')
   deposit(
     @Body() body: { userId: string; amount: number; referenceId: string },

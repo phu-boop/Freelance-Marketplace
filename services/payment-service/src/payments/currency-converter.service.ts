@@ -9,7 +9,7 @@ export class CurrencyConverterService {
   private lastFetch: number = 0;
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(private readonly httpService: HttpService) { }
 
   async getExchangeRates(
     base: string = 'USD',
@@ -62,6 +62,12 @@ export class CurrencyConverterService {
 
     // Convert to USD first, then to target currency
     const inUsd = amount / fromRate;
-    return inUsd * toRate;
+    const rawConverted = inUsd * toRate;
+
+    // Apply 0.5% FX spread (Platform Profit Margin)
+    // We take more from the user (charge) or give less (payout)
+    // For simplicity, we just apply a fee to the final amount
+    const SPREAD = 0.005;
+    return rawConverted * (1 - SPREAD);
   }
 }

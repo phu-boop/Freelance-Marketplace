@@ -25,6 +25,7 @@ import * as crypto from 'crypto';
 
 import { BadgesService } from './badges.service';
 import { AiService } from './ai.service';
+import { EncryptionService } from './encryption.service';
 
 @Injectable()
 export class UsersService {
@@ -38,6 +39,7 @@ export class UsersService {
     private configService: ConfigService,
     private badgesService: BadgesService,
     private aiService: AiService,
+    private encryptionService: EncryptionService,
   ) { }
 
   async checkBadges(userId: string) {
@@ -125,36 +127,13 @@ export class UsersService {
     }
   }
 
-  // Encryption helpers
+  // Encryption helpers (updated to use EncryptionService)
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const key = crypto.scryptSync(
-      process.env.JWT_SECRET || 'secret',
-      'salt',
-      32,
-    );
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString('hex') + ':' + encrypted.toString('hex');
+    return this.encryptionService.encrypt(text);
   }
 
   private decrypt(text: string): string {
-    const textParts = text.split(':');
-    const ivHex = textParts.shift();
-    if (!ivHex) throw new Error('Invalid encrypted text');
-
-    const iv = Buffer.from(ivHex, 'hex');
-    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    const key = crypto.scryptSync(
-      process.env.JWT_SECRET || 'secret',
-      'salt',
-      32,
-    );
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    return this.encryptionService.decrypt(text);
   }
 
   async login(credentials: { email: string; password: string }) {
@@ -617,15 +596,18 @@ export class UsersService {
     userId: string,
     data: { taxId: string; taxIdType: string; billingAddress: string },
   ) {
-    // Simple mock encryption (Base64 + salt for demonstration)
-    const encryptedTaxId = Buffer.from(`SALT_${data.taxId}`).toString('base64');
+    // Secure AES-256-GCM encryption
+    const encryptedTaxId = this.encryptionService.encrypt(data.taxId);
+    const encryptedAddress = this.encryptionService.encrypt(data.billingAddress);
 
     return this.prisma.user.update({
       where: { id: userId },
       data: {
-        taxId: encryptedTaxId,
+        taxId: data.taxId.replace(/./g, '*').slice(-4).padStart(data.taxId.length, '*'), // Masked version for UI
+        taxIdEncrypted: encryptedTaxId,
         taxIdType: data.taxIdType,
-        billingAddress: data.billingAddress,
+        billingAddress: data.billingAddress.split(' ')[0] + ' ***', // Partially masked
+        billingAddressEncrypted: encryptedAddress,
         taxVerifiedStatus: 'PENDING',
       },
     });
@@ -701,7 +683,7 @@ export class UsersService {
     return user;
   }
 
-  async updateStats(userId: string, rating: number) {
+  async updateStats(userId: string, rating: number, jss?: number) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return;
 
@@ -739,9 +721,13 @@ export class UsersService {
       data: {
         rating: newRating,
         reviewCount: newCount,
-        jobSuccessScore: newJss,
+        jobSuccessScore: jss !== undefined ? jss : newJss,
       },
     });
+
+    // Trigger badge eligibility check
+    await this.badgesService.checkEligibility(userId);
+    return updatedUser;
 
     await this.checkBadges(userId);
     return updatedUser;
@@ -1638,6 +1624,27 @@ export class UsersService {
           lastActiveAt: new Date().toISOString(),
         } as any,
       },
+    });
+  }
+
+  async incrementJobPostedCount(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { jobsPostedCount: { increment: 1 } },
+    });
+  }
+
+  async incrementJobHiredCount(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { jobsHiredCount: { increment: 1 } },
+    });
+  }
+
+  async updateTotalSpend(userId: string, amount: number) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { totalSpend: { increment: amount } },
     });
   }
 }

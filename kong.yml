@@ -33,6 +33,7 @@ services:
         paths:
           - /api/users
           - /api/user/teams
+          - /api/profiles
         methods:
           - GET
           - POST

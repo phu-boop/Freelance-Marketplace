@@ -1,13 +1,37 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAuditLogDto } from './dto/create-audit-log.dto';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class AuditService {
+export class AuditService implements OnModuleInit {
     private readonly logger = new Logger(AuditService.name);
 
     constructor(private prisma: PrismaService) { }
+
+    async onModuleInit() {
+        this.logger.log('AuditService initialized. Running initial retention check...');
+        await this.runRetentionPolicy();
+    }
+
+    async runRetentionPolicy() {
+        const retentionPeriodYears = 7;
+        const cutoffDate = new Date();
+        cutoffDate.setFullYear(cutoffDate.getFullYear() - retentionPeriodYears);
+
+        try {
+            const deleteResult = await this.prisma.auditLog.deleteMany({
+                where: {
+                    timestamp: {
+                        lt: cutoffDate,
+                    },
+                },
+            });
+            this.logger.log(`Retention policy applied: Removed ${deleteResult.count} logs older than ${retentionPeriodYears} years.`);
+        } catch (error) {
+            this.logger.error(`Failed to apply retention policy: ${error.message}`);
+        }
+    }
 
     async create(dto: CreateAuditLogDto) {
         const checksum = this.generateChecksum(dto);

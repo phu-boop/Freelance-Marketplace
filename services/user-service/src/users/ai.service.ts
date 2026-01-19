@@ -1,9 +1,15 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { PrismaService } from '../prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { BadgesService } from './badges.service';
 
 @Injectable()
 export class AiService {
@@ -14,6 +20,7 @@ export class AiService {
     private configService: ConfigService,
     private prisma: PrismaService,
     private httpService: HttpService,
+    private badgesService: BadgesService,
   ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (apiKey) {
@@ -314,6 +321,9 @@ export class AiService {
         },
       });
 
+      // Trigger automatic badge check
+      await this.badgesService.checkEligibility(updatedAssessment.userId);
+
       return { ...updatedAssessment, feedback: evaluation.feedback };
     } catch (error) {
       this.logger.error(
@@ -382,5 +392,30 @@ export class AiService {
         feedback: 'AI Verification Failed',
       };
     }
+  }
+
+  async verifyPortfolioItem(itemId: string) {
+    const item = await this.prisma.portfolioItem.findUnique({
+      where: { id: itemId },
+    });
+
+    if (!item) throw new NotFoundException('Portfolio item not found');
+
+    const url = item.projectUrl || item.externalUrl;
+    if (!url) {
+      throw new BadRequestException('Portfolio item must have a URL for verification');
+    }
+
+    const result = await this.verifyPortfolio(item.userId, url);
+
+    return this.prisma.portfolioItem.update({
+      where: { id: itemId },
+      data: {
+        isVerified: result.isVerified,
+        verificationScore: Math.round(result.confidence * 100),
+        aiFeedback: result.feedback,
+        skills: { set: result.tags },
+      },
+    });
   }
 }

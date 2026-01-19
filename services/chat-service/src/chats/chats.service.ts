@@ -39,7 +39,7 @@ export class ChatsService {
     );
 
     // Guardian AI Scan
-    const guardianResult = this.guardianService.analyzeContent(createChatDto.content, createChatDto.senderId);
+    const guardianResult = await this.guardianService.analyzeContent(createChatDto.content, createChatDto.senderId);
     if (guardianResult.riskScore > 0) {
       if (guardianResult.flags.length > 0) {
         // Could decide to block here if risk > 80

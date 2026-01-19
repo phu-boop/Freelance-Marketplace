@@ -151,9 +151,43 @@ export class PaymentsService {
     return updated;
   }
 
+  async refundConnects(userId: string, amount: number, reason: string) {
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+
+    const updated = await this.prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { connectsBalance: { increment: amount } },
+    });
+
+    await this.logFinancialEvent({
+      service: 'payment-service',
+      eventType: 'CONNECTS_REFUNDED',
+      actorId: userId,
+      amount: 0,
+      referenceId: wallet.id,
+      metadata: {
+        reason,
+        amount,
+        newBalance: updated.connectsBalance,
+      },
+    });
+
+    return updated;
+  }
+
   async buyConnects(userId: string, amount: number) {
-    const CONNECT_PRICE = 0.15; // $0.15 per connect
-    const totalCost = amount * CONNECT_PRICE;
+    const BUNDLES = {
+      10: 1.50,
+      50: 7.00,
+      100: 12.00,
+    };
+
+    if (!BUNDLES[amount]) {
+      throw new BadRequestException('Invalid connects bundle amount');
+    }
+
+    const totalCost = BUNDLES[amount];
 
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new NotFoundException('Wallet not found');
@@ -182,7 +216,7 @@ export class PaymentsService {
           amount: new Decimal(totalCost),
           type: 'CONNECTS_PURCHASE',
           status: 'COMPLETED',
-          description: `Purchased ${amount} connects`,
+          description: `Purchased ${amount} connects bundle`,
         },
       });
 
@@ -195,6 +229,7 @@ export class PaymentsService {
         metadata: {
           connectsAdded: amount,
           totalConnects: updated.connectsBalance,
+          bundlePrice: totalCost,
         },
       });
 
@@ -965,6 +1000,23 @@ export class PaymentsService {
           status: 'ACTIVE',
         },
       });
+
+      // 3b. Special Logic for Freelancer Plus: Credit 80 connects
+      if (data.planId === 'FREELANCER_PLUS') {
+        await prisma.wallet.update({
+          where: { id: wallet.id },
+          data: { connectsBalance: { increment: 80 } }
+        });
+
+        await prisma.connectsHistory.create({
+          data: {
+            userId,
+            amount: 80,
+            type: 'SUBSCRIPTION_BONUS',
+            reason: 'Monthly Freelancer Plus bonus'
+          }
+        });
+      }
 
       // 4. Notify User Service (Update Tier / Cache)
       try {
