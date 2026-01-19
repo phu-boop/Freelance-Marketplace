@@ -23,17 +23,32 @@ import { firstValueFrom } from 'rxjs';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 
+import { BadgesService } from './badges.service';
+import { AiService } from './ai.service';
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
   constructor(
     private prisma: PrismaService,
-    private keycloakService: KeycloakService, // Fixed typo
+    private keycloakService: KeycloakService,
     private jwtService: JwtService,
     private httpService: HttpService,
     private configService: ConfigService,
+    private badgesService: BadgesService,
+    private aiService: AiService,
   ) { }
+
+  async checkBadges(userId: string) {
+    try {
+      await this.badgesService.checkEligibility(userId);
+    } catch (error) {
+      this.logger.error(
+        `Failed to check badges for user ${userId}: ${error.message}`,
+      );
+    }
+  }
 
   private async sendWelcomeEmail(email: string, name: string) {
     const url = 'http://freelance_email_service:3012/email/send';
@@ -327,6 +342,8 @@ export class UsersService {
         portfolio: true,
         certifications: true,
         availability: true,
+        awardedBadges: true,
+        specializedProfiles: true,
       },
     });
 
@@ -350,15 +367,19 @@ export class UsersService {
             portfolio: true,
             certifications: true,
             availability: true,
+            awardedBadges: true,
+            specializedProfiles: true,
           },
         });
 
         if (existingUser) {
-          console.warn(`User collision by email: ${kcUser.email}. Mapping Keycloak ID ${id} to existing User ID ${existingUser.id}`);
+          console.warn(
+            `User collision by email: ${kcUser.email}. Mapping Keycloak ID ${id} to existing User ID ${existingUser.id}`,
+          );
           if (existingUser.keycloakId !== id) {
             await this.prisma.user.update({
               where: { id: existingUser.id },
-              data: { keycloakId: id }
+              data: { keycloakId: id },
             });
             (existingUser as any).keycloakId = id;
           }
@@ -407,6 +428,8 @@ export class UsersService {
           portfolio: true,
           certifications: true,
           availability: true,
+          awardedBadges: true,
+          specializedProfiles: true,
         },
       });
 
@@ -414,7 +437,10 @@ export class UsersService {
       try {
         await this.keycloakService.assignRole(user.id, 'FREELANCER');
       } catch (error) {
-        console.error(`Failed to assign default role to Keycloak user ${id}:`, error.message);
+        console.error(
+          `Failed to assign default role to Keycloak user ${id}:`,
+          error.message,
+        );
       }
 
       // SSO JIT: Auto-join team if domain matches
@@ -536,21 +562,43 @@ export class UsersService {
     return result;
   }
 
-  addPortfolio(userId: string, data: any) {
-    return this.prisma.portfolioItem.create({
+  async addPortfolio(userId: string, data: any) {
+    const item = await this.prisma.portfolioItem.create({
       data: { ...data, userId },
     });
+
+    if (item.projectUrl) {
+      this.verifyPortfolio(userId, item.projectUrl).catch((err) =>
+        this.logger.error(
+          `AI Verification failed for item ${item.id}: ${err.message}`,
+        ),
+      );
+    }
+
+    return item;
   }
 
-  updatePortfolio(id: string, data: any) {
-    return this.prisma.portfolioItem.update({
+  async updatePortfolio(id: string, data: any) {
+    const item = await this.prisma.portfolioItem.update({
       where: { id },
       data,
     });
+
+    if (data.projectUrl) {
+      this.verifyPortfolio(item.userId, data.projectUrl).catch((err) =>
+        this.logger.error(
+          `AI Verification failed for item ${item.id}: ${err.message}`,
+        ),
+      );
+    }
+
+    return item;
   }
 
   async deletePortfolio(id: string) {
-    const record = await this.prisma.portfolioItem.findUnique({ where: { id } });
+    const record = await this.prisma.portfolioItem.findUnique({
+      where: { id },
+    });
     const result = await this.prisma.portfolioItem.delete({ where: { id } });
     if (record) await this.recordTombstone('PortfolioItem', id, record.userId);
     return result;
@@ -699,93 +747,11 @@ export class UsersService {
     return updatedUser;
   }
 
-  async checkBadges(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        experience: true,
-        education: true,
-        portfolio: true,
-        certifications: true,
-      },
+  async getUserAssessments(userId: string) {
+    return this.prisma.skillAssessment.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
-
-    if (!user) return;
-
-    const newBadges: string[] = [];
-
-    // 1. Identity & Payment
-    if (user.isIdentityVerified) newBadges.push('IDENTITY_VERIFIED');
-    if (user.isPaymentVerified) newBadges.push('PAYMENT_VERIFIED');
-    if (user.certifications.some((c) => c.status === 'VERIFIED'))
-      newBadges.push('SKILL_VERIFIED');
-
-    // 2. Rating & Review counts
-    if (
-      Number(user.rating) >= 4.8 &&
-      user.reviewCount >= 10 &&
-      user.jobSuccessScore >= 90
-    ) {
-      newBadges.push('TOP_RATED');
-    } else if (Number(user.rating) >= 4.5 && user.reviewCount >= 3) {
-      newBadges.push('RISING_STAR');
-    }
-
-    // 3. Profile Completeness
-    if (user.completionPercentage >= 90) {
-      newBadges.push('PROFILE_ORACLE');
-    }
-
-    // 4. Veteran (Experience)
-    if (user.experience.length >= 3) {
-      newBadges.push('VETERAN');
-    }
-
-    // 5. Background Check
-    if (user.backgroundCheckStatus === 'COMPLETED') {
-      newBadges.push('SAFE_TO_WORK');
-    }
-
-    // 6. Tax Verification
-    if (user.taxVerifiedStatus === 'VERIFIED') {
-      newBadges.push('TAX_VERIFIED');
-    }
-
-    // 7. Insurance
-    const metadata = user.metadata as any;
-    if (metadata?.hasActiveInsurance) {
-      newBadges.push('INSURED_PRO');
-    }
-
-    // 8. Talent Cloud
-    if (user.isCloudMember) {
-      newBadges.push('CLOUD_MEMBER');
-    }
-    if (user.hasCloudOwnership) {
-      newBadges.push('CLOUD_OWNER');
-    }
-
-    // 9. Subscription Tiers
-    if (user.subscriptionTier === 'PLUS') {
-      newBadges.push('PLUS_MEMBER');
-    } else if (user.subscriptionTier === 'ENTERPRISE') {
-      newBadges.push('ENTERPRISE_PARTNER');
-    }
-
-    // Update if changed
-    const currentBadges = user.badges || [];
-    const changed =
-      newBadges.length !== currentBadges.length ||
-      !newBadges.every((b) => currentBadges.includes(b));
-
-    if (changed) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { badges: newBadges },
-      });
-    }
-
-    await this.recalculateTrustScore(userId);
   }
 
   async recalculateTrustScore(userId: string) {
@@ -828,6 +794,12 @@ export class UsersService {
       score += 10;
     }
 
+    // Add assessment scores
+    const assessments = await this.prisma.skillAssessment.findMany({
+      where: { userId, status: 'COMPLETED' },
+    });
+    score += assessments.length * 10; // 10 points per verified skill
+
     // Caps at 100
     const finalScore = Math.min(100, score);
 
@@ -837,6 +809,35 @@ export class UsersService {
     });
   }
 
+  async verifyPortfolio(userId: string, itemUrl: string) {
+    const evaluation = await this.aiService.verifyPortfolio(userId, itemUrl);
+
+    // Update the portfolio item with AI verification results
+    // We assume the URL is unique enough for the user or we find the most recent/matching one
+    const portfolioItem = await this.prisma.portfolioItem.findFirst({
+      where: { userId, projectUrl: itemUrl },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (portfolioItem) {
+      await (this.prisma.portfolioItem as any).update({
+        where: { id: portfolioItem.id },
+        data: {
+          isVerified: evaluation.isVerified,
+          verificationScore: Math.round(evaluation.confidence * 100),
+          aiFeedback: evaluation.feedback,
+          skills: {
+            push: evaluation.tags.filter(
+              (tag) => !portfolioItem.skills.includes(tag),
+            ),
+          },
+        },
+      });
+    }
+
+    return evaluation;
+  }
+
   addCertification(
     userId: string,
     data: {
@@ -844,6 +845,7 @@ export class UsersService {
       issuer: string;
       issuerId: string;
       verificationUrl: string;
+      specializedProfileId?: string;
     },
   ) {
     return this.prisma.certification.create({
@@ -852,6 +854,13 @@ export class UsersService {
         userId,
         status: 'PENDING',
       },
+    });
+  }
+
+  updateCertification(id: string, data: any) {
+    return this.prisma.certification.update({
+      where: { id },
+      data,
     });
   }
 
@@ -884,11 +893,14 @@ export class UsersService {
   }
 
   async deleteCertification(certId: string) {
-    const record = await this.prisma.certification.findUnique({ where: { id: certId } });
+    const record = await this.prisma.certification.findUnique({
+      where: { id: certId },
+    });
     const result = await this.prisma.certification.delete({
       where: { id: certId },
     });
-    if (record) await this.recordTombstone('Certification', certId, record.userId);
+    if (record)
+      await this.recordTombstone('Certification', certId, record.userId);
     return result;
   }
 
@@ -920,6 +932,75 @@ export class UsersService {
 
     await this.checkBadges(userId);
     return user;
+  }
+
+  async startVerification(
+    userId: string,
+    provider: 'SUMSUB' | 'ONFIDO' = 'SUMSUB',
+  ) {
+    // 1. Create IdentityVerification record
+    const verification = await this.prisma.identityVerification.create({
+      data: {
+        userId,
+        provider,
+        status: 'PENDING',
+        transactionId: `TXN_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      },
+    });
+
+    // 2. Generate Mock URL (In prod, call provider API)
+    const verificationUrl = `https://mock-kyc-provider.com/verify/${verification.transactionId}?user=${userId}`;
+
+    return {
+      verificationId: verification.id,
+      url: verificationUrl,
+      status: 'PENDING',
+    };
+  }
+
+  async handleKycWebhook(payload: {
+    transactionId: string;
+    status: string;
+    data?: any;
+  }) {
+    const verification = await this.prisma.identityVerification.findFirst({
+      where: { transactionId: payload.transactionId },
+    });
+
+    if (!verification)
+      throw new NotFoundException('Verification transaction not found');
+
+    // Update Verification Record
+    const updatedVerification = await this.prisma.identityVerification.update({
+      where: { id: verification.id },
+      data: {
+        status: payload.status, // VERIFIED, REJECTED
+        data: payload.data || {},
+        updatedAt: new Date(),
+      },
+    });
+
+    // If Verified, update User status
+    if (payload.status === 'VERIFIED') {
+      await this.prisma.user.update({
+        where: { id: verification.userId },
+        data: {
+          isIdentityVerified: true,
+          kycStatus: 'VERIFIED',
+          kycMethod: verification.provider,
+        },
+      });
+      await this.checkBadges(verification.userId);
+    } else if (payload.status === 'REJECTED') {
+      await this.prisma.user.update({
+        where: { id: verification.userId },
+        data: {
+          kycStatus: 'REJECTED',
+        },
+      });
+    }
+
+    return updatedVerification;
   }
 
   async submitTaxForm(
@@ -1081,13 +1162,16 @@ export class UsersService {
         where: { id: user.id }, // Use actual user ID from DB
         data: {
           roles: [pendingRole],
-          keycloakId: userId
-        }
+          keycloakId: userId,
+        },
       });
       try {
         await this.keycloakService.assignRole(userId, pendingRole);
       } catch (e) {
-        console.error(`Failed to assign role ${pendingRole} in Keycloak:`, e.message);
+        console.error(
+          `Failed to assign role ${pendingRole} in Keycloak:`,
+          e.message,
+        );
       }
       user.roles = [pendingRole];
     } else if (!user.roles || user.roles.length === 0) {
@@ -1098,14 +1182,12 @@ export class UsersService {
     if (!(user as any).keycloakId && user.id !== userId) {
       await (this.prisma.user.update as any)({
         where: { id: user.id },
-        data: { keycloakId: userId }
+        data: { keycloakId: userId },
       });
     }
 
     return { ...user, requiresOnboarding: false };
   }
-
-
 
   async socialOnboarding(userId: string, role: string) {
     const user = await this.findOne(userId);
@@ -1156,22 +1238,6 @@ export class UsersService {
     // Remove sensitive data before export
     const { password, twoFactorSecret, ...safeData } = user;
     return safeData;
-  }
-
-  async deductConnects(userId: string, amount: number) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-
-    if (user.availableConnects < amount) {
-      throw new ForbiddenException('Insufficient connects');
-    }
-
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { availableConnects: { decrement: amount } },
-    });
-
-    return { success: true, remaining: updatedUser.availableConnects };
   }
 
   async getAvailability(userId: string) {
@@ -1241,19 +1307,8 @@ export class UsersService {
         },
       });
 
-      // Award Connects
-      // Referrer gets 50
-      await this.prisma.user.update({
-        where: { id: referrer.id },
-        data: { availableConnects: { increment: 50 } },
-      });
-
-      // Referred user gets 20 bonus
-      await this.prisma.user.update({
-        where: { id: referredId },
-        data: { availableConnects: { increment: 20 } },
-      });
-
+      // Reward logic moved to payment-service connects wallet
+      // TODO: Integrate with payment-service to award connects
       console.log(
         `Referral processed for referredId: ${referredId} by referrerId: ${referrer.id}`,
       );
@@ -1347,7 +1402,11 @@ export class UsersService {
     }
   }
 
-  private async recordTombstone(entity: string, recordId: string, userId: string) {
+  private async recordTombstone(
+    entity: string,
+    recordId: string,
+    userId: string,
+  ) {
     try {
       await this.prisma.syncTombstone.create({
         data: { entity, recordId, userId },
@@ -1361,7 +1420,9 @@ export class UsersService {
 
   async sync(since: string, entities: string[], requestingUserId: string) {
     try {
-      this.logger.log(`Sync request for user ${requestingUserId}: since=${since}, entities=${entities}`);
+      this.logger.log(
+        `Sync request for user ${requestingUserId}: since=${since}, entities=${entities}`,
+      );
       const sinceDate = new Date(since);
       const newSince = new Date();
       const result: any = {
@@ -1379,19 +1440,37 @@ export class UsersService {
 
       const syncableEntities = [
         { name: 'Education', prismaName: 'education', entityName: 'education' },
-        { name: 'Experience', prismaName: 'experience', entityName: 'experience' },
-        { name: 'PortfolioItem', prismaName: 'portfolioItem', entityName: 'portfolioItems' },
-        { name: 'Certification', prismaName: 'certification', entityName: 'certifications' },
+        {
+          name: 'Experience',
+          prismaName: 'experience',
+          entityName: 'experience',
+        },
+        {
+          name: 'PortfolioItem',
+          prismaName: 'portfolioItem',
+          entityName: 'portfolioItems',
+        },
+        {
+          name: 'Certification',
+          prismaName: 'certification',
+          entityName: 'certifications',
+        },
       ];
 
       for (const e of syncableEntities) {
         if (entities.includes(e.name)) {
-          result.upserted[e.entityName] = await (this.prisma[e.prismaName] as any).findMany({
+          result.upserted[e.entityName] = await (
+            this.prisma[e.prismaName] as any
+          ).findMany({
             where: { userId: requestingUserId, updatedAt: { gt: sinceDate } },
           });
 
           const tombstones = await this.prisma.syncTombstone.findMany({
-            where: { entity: e.name, userId: requestingUserId, deletedAt: { gt: sinceDate } },
+            where: {
+              entity: e.name,
+              userId: requestingUserId,
+              deletedAt: { gt: sinceDate },
+            },
             select: { recordId: true },
           });
           result.deleted[e.entityName] = tombstones.map((t) => t.recordId);
@@ -1400,7 +1479,9 @@ export class UsersService {
 
       return result;
     } catch (error) {
-      this.logger.error(`Sync failed for user ${requestingUserId}: ${error.message}`);
+      this.logger.error(
+        `Sync failed for user ${requestingUserId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -1483,9 +1564,16 @@ export class UsersService {
     });
   }
 
-  private async trackEvent(eventType: string, userId: string, metadata: any = {}) {
+  private async trackEvent(
+    eventType: string,
+    userId: string,
+    metadata: any = {},
+  ) {
     try {
-      const analyticsUrl = this.configService.get<string>('ANALYTICS_SERVICE_URL', 'http://analytics-service:3014');
+      const analyticsUrl = this.configService.get<string>(
+        'ANALYTICS_SERVICE_URL',
+        'http://analytics-service:3014',
+      );
       await firstValueFrom(
         this.httpService.post(`${analyticsUrl}/api/analytics/events`, {
           event_type: eventType,
@@ -1496,5 +1584,60 @@ export class UsersService {
     } catch (error) {
       this.logger.error(`Failed to track event ${eventType}: ${error.message}`);
     }
+  }
+  async initiateVideoKyc(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Mock Video KYC initiation
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'PENDING',
+        kycMethod: 'VIDEO',
+        videoInterviewAt: new Date(Date.now() + 86400000), // Scheduled for tomorrow
+        videoInterviewLink: `https://kyc-provider.com/meeting/${userId}`,
+      },
+    });
+  }
+
+  async verifyVideoKyc(userId: string, success: boolean) {
+    const status = success ? 'VERIFIED' : 'REJECTED';
+    const isIdentityVerified = success;
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: status,
+        isIdentityVerified,
+      },
+    });
+  }
+
+  async completeVideoKyc(userId: string, videoBlob?: any) {
+    // In a real app, we'd save videoBlob to storage-service
+    this.logger.log(`Received video KYC blob for user ${userId}`);
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'VERIFIED',
+        isIdentityVerified: true,
+        kycMethod: 'VIDEO',
+      },
+    });
+  }
+
+  async updateDeviceFingerprint(userId: string, fingerprint: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        documentData: {
+          ...(typeof this.prisma.user.fields.documentData === 'object' ? (this.prisma.user.fields.documentData as any) : {}),
+          deviceFingerprint: fingerprint,
+          lastActiveAt: new Date().toISOString(),
+        } as any,
+      },
+    });
   }
 }

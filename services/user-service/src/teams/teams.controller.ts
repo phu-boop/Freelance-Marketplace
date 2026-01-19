@@ -12,7 +12,7 @@ import {
 import { TeamsService } from './teams.service';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
-import { Roles } from 'nest-keycloak-connect';
+import { Roles, Public } from 'nest-keycloak-connect';
 
 @Controller('api/user/teams')
 export class TeamsController {
@@ -165,5 +165,12 @@ export class TeamsController {
   @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
   getClauses(@Param('id') id: string, @Request() req) {
     return this.teamsService.getClauses(id, req.user.sub);
+  }
+
+  @Public()
+  @Get('internal/primary/:userId')
+  async getPrimaryTeam(@Param('userId') userId: string) {
+    const teams = await this.teamsService.findAllForUser(userId);
+    return teams[0] || null;
   }
 }

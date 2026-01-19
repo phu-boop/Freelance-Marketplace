@@ -11,15 +11,17 @@ interface CertificationModalProps {
     onSuccess: () => void;
     userId: string;
     initialData?: any;
+    specializedProfiles?: any[];
 }
 
-export const CertificationModal = ({ isOpen, onClose, onSuccess, userId, initialData }: CertificationModalProps) => {
+export const CertificationModal = ({ isOpen, onClose, onSuccess, userId, initialData, specializedProfiles = [] }: CertificationModalProps) => {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
         issuer: '',
         issuerId: '',
-        verificationUrl: ''
+        verificationUrl: '',
+        specializedProfileId: ''
     });
 
     useEffect(() => {
@@ -28,14 +30,16 @@ export const CertificationModal = ({ isOpen, onClose, onSuccess, userId, initial
                 title: initialData.title || '',
                 issuer: initialData.issuer || '',
                 issuerId: initialData.issuerId || '',
-                verificationUrl: initialData.verificationUrl || ''
+                verificationUrl: initialData.verificationUrl || '',
+                specializedProfileId: initialData.specializedProfileId || ''
             });
         } else {
             setFormData({
                 title: '',
                 issuer: '',
                 issuerId: '',
-                verificationUrl: ''
+                verificationUrl: '',
+                specializedProfileId: ''
             });
         }
     }, [initialData, isOpen]);
@@ -45,19 +49,10 @@ export const CertificationModal = ({ isOpen, onClose, onSuccess, userId, initial
         setLoading(true);
         try {
             if (initialData?.id) {
-                // Currently API might not support patch for Certs, but let's assume or just allow add for now
-                // Actually controller didn't show updateCertification, only addCertification.
-                // Checking controller again... only addCertification exists usually.
-                // Let's assume we can only ADD for now, or I need to add Update logic to backend.
-                // For MVP Phase 2, let's stick to ADD. If edit is needed, I'll add update endpoint later.
-                // Wait, users.controller.ts HAS verifyCertification but NO updateCertification.
-                // So I will only allow adding new ones for now, or fail on edit.
-                // To be safe, if initialData exists, we might need to delete and re-create or implement update.
-                // Let's implement ADD first.
-                console.warn("Update certification not fully supported yet in backend, creating new one instead for now if needed");
+                await api.patch(`/users/certifications/${initialData.id}`, formData);
+            } else {
+                await api.post(`/users/${userId}/certifications`, formData);
             }
-
-            await api.post(`/users/${userId}/certifications`, formData);
 
             onSuccess();
             onClose();
@@ -115,6 +110,24 @@ export const CertificationModal = ({ isOpen, onClose, onSuccess, userId, initial
                                 placeholder="e.g. Amazon Web Services"
                             />
                         </div>
+
+                        {specializedProfiles.length > 0 && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-400">Link to Specialized Profile (Optional)</label>
+                                <select
+                                    value={formData.specializedProfileId}
+                                    onChange={(e) => setFormData({ ...formData, specializedProfileId: e.target.value })}
+                                    className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="">General Profile</option>
+                                    {specializedProfiles.map((profile) => (
+                                        <option key={profile.id} value={profile.id}>
+                                            {profile.headline}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">

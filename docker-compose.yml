@@ -178,6 +178,7 @@ services:
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - USER_SERVICE_INTERNAL_URL=http://user-service:3000/api/users
+      - PAYMENT_SERVICE_URL=http://payment-service:3005
       - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
       - GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE

@@ -21,6 +21,7 @@ model TalentCloud {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   members     TalentCloudMember[]
+  invitations TalentCloudInvitation[]
 
   @@schema("talent_clouds")
 }
@@ -31,11 +32,28 @@ model TalentCloudMember {
   userId      String   // reference to User (freelancer)
   joinedAt    DateTime @default(now())
   role        CloudRole @default(MEMBER)
+  status      MembershipStatus @default(ACTIVE)
   metadata    Json?
   
   cloud       TalentCloud @relation(fields: [cloudId], references: [id])
   
   @@unique([cloudId, userId])
+  @@schema("talent_clouds")
+}
+
+model TalentCloudInvitation {
+  id          String   @id @default(uuid())
+  cloudId     String
+  inviteeId   String   // User ID of the freelancer
+  inviterId   String   // User ID of the person who sent the invite
+  email       String?
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cloud       TalentCloud @relation(fields: [cloudId], references: [id])
+
   @@schema("talent_clouds")
 }
 
@@ -49,5 +67,20 @@ enum CloudRole {
   OWNER
   ADMIN
   MEMBER
+  @@schema("talent_clouds")
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  REMOVED
+  @@schema("talent_clouds")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
   @@schema("talent_clouds")
 }

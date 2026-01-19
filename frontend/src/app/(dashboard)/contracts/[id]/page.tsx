@@ -11,6 +11,7 @@ import ContractChat from '@/components/contracts/ContractChat';
 import { TransactionHistory } from '@/components/contracts/TransactionHistory';
 import TimesheetView from '@/components/contracts/TimesheetView';
 import CollaborativeEditor from '@/components/workspace/CollaborativeEditor';
+import AiStandupWidget from '@/components/contracts/AiStandupWidget';
 
 export default function ContractDetailsPage() {
     const params = useParams();
@@ -824,6 +825,7 @@ export default function ContractDetailsPage() {
 
                     {/* Sidebar */}
                     <div className="space-y-6">
+                        <AiStandupWidget contractId={params.id as string} />
                         <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
                             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                                 <DollarSign className="w-5 h-5 text-green-500" />

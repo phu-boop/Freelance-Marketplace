@@ -11,9 +11,10 @@ interface ExperienceModalProps {
     onSuccess: () => void;
     userId: string;
     initialData?: any;
+    specializedProfiles?: any[];
 }
 
-export const ExperienceModal = ({ isOpen, onClose, onSuccess, userId, initialData }: ExperienceModalProps) => {
+export const ExperienceModal = ({ isOpen, onClose, onSuccess, userId, initialData, specializedProfiles = [] }: ExperienceModalProps) => {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         company: '',
@@ -22,7 +23,8 @@ export const ExperienceModal = ({ isOpen, onClose, onSuccess, userId, initialDat
         startDate: '',
         endDate: '',
         current: false,
-        description: ''
+        description: '',
+        specializedProfileId: ''
     });
 
     useEffect(() => {
@@ -34,7 +36,8 @@ export const ExperienceModal = ({ isOpen, onClose, onSuccess, userId, initialDat
                 startDate: initialData.startDate ? new Date(initialData.startDate).toISOString().split('T')[0] : '',
                 endDate: initialData.endDate ? new Date(initialData.endDate).toISOString().split('T')[0] : '',
                 current: initialData.current || false,
-                description: initialData.description || ''
+                description: initialData.description || '',
+                specializedProfileId: initialData.specializedProfileId || ''
             });
         } else {
             setFormData({
@@ -44,7 +47,8 @@ export const ExperienceModal = ({ isOpen, onClose, onSuccess, userId, initialDat
                 startDate: '',
                 endDate: '',
                 current: false,
-                description: ''
+                description: '',
+                specializedProfileId: ''
             });
         }
     }, [initialData, isOpen]);
@@ -137,6 +141,24 @@ export const ExperienceModal = ({ isOpen, onClose, onSuccess, userId, initialDat
                             />
                             <label htmlFor="current" className="text-sm text-slate-300 cursor-pointer">I am currently working here</label>
                         </div>
+
+                        {specializedProfiles.length > 0 && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-400">Link to Specialized Profile (Optional)</label>
+                                <select
+                                    value={formData.specializedProfileId}
+                                    onChange={(e) => setFormData({ ...formData, specializedProfileId: e.target.value })}
+                                    className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="">General Profile</option>
+                                    {specializedProfiles.map((profile) => (
+                                        <option key={profile.id} value={profile.id}>
+                                            {profile.headline}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">

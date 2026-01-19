@@ -30,6 +30,7 @@ model Wallet {
   autoDepositThreshold    Decimal?
   autoDepositAmount       Decimal?
   paymentMethodId         String?
+  connectsBalance         Int           @default(10) // Initial connects for new users
 
   transactions            Transaction[]
 
@@ -170,6 +171,50 @@ model EscrowHold {
   status        String   @default("HELD") // HELD, RELEASED, REFUNDED
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@schema("payments")
+}
+
+model Payroll {
+  id              String           @id @default(uuid())
+  contractId      String
+  employeeId      String
+  periodStart     DateTime
+  periodEnd       DateTime
+  grossAmount     Decimal
+  taxAmount       Decimal
+  benefitsAmount  Decimal
+  netAmount       Decimal
+  status          String           @default("PENDING") // PENDING, PAID, FAILED
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  payrollBenefits PayrollBenefit[]
+
+  @@schema("payments")
+}
+
+model BenefitPlan {
+  id              String           @id @default(uuid())
+  name            String
+  type            String           // HEALTH, RETIREMENT, GYM, etc.
+  provider        String?
+  monthlyCost     Decimal
+  employerShare   Decimal          // Percentage or Fixed amount - let's assume percentage
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  payrollBenefits PayrollBenefit[]
+
+  @@schema("payments")
+}
+
+model PayrollBenefit {
+  id            String      @id @default(uuid())
+  payrollId     String
+  benefitPlanId String
+  amount        Decimal     // The calculated amount for this specific payroll
+  payroll       Payroll     @relation(fields: [payrollId], references: [id])
+  benefitPlan   BenefitPlan @relation(fields: [benefitPlanId], references: [id])
 
   @@schema("payments")
 }

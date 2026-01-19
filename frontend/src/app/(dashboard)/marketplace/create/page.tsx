@@ -36,7 +36,9 @@ export default function PostJobPage() {
         skills: [] as string[],
         currentSkill: '',
         preferredCommunicationStyle: 'Proactive',
-        attachments: [] as string[]
+        attachments: [] as string[],
+        screeningQuestions: [] as string[],
+        currentQuestion: ''
     });
 
     const [uploading, setUploading] = useState(false);
@@ -59,6 +61,23 @@ export default function PostJobPage() {
         setFormData(prev => ({
             ...prev,
             skills: prev.skills.filter(skill => skill !== skillToRemove)
+        }));
+    };
+
+    const handleAddQuestion = () => {
+        if (formData.currentQuestion && !formData.screeningQuestions.includes(formData.currentQuestion)) {
+            setFormData(prev => ({
+                ...prev,
+                screeningQuestions: [...prev.screeningQuestions, prev.currentQuestion],
+                currentQuestion: ''
+            }));
+        }
+    };
+
+    const handleRemoveQuestion = (questionToRemove: string) => {
+        setFormData(prev => ({
+            ...prev,
+            screeningQuestions: prev.screeningQuestions.filter(q => q !== questionToRemove)
         }));
     };
 
@@ -101,7 +120,8 @@ export default function PostJobPage() {
                 type: formData.type,
                 preferredCommunicationStyle: formData.preferredCommunicationStyle,
                 skills: formData.skills,
-                attachments: formData.attachments
+                attachments: formData.attachments,
+                screeningQuestions: formData.screeningQuestions
             });
             setSuccess(true);
             setTimeout(() => {
@@ -307,21 +327,39 @@ export default function PostJobPage() {
                         )}
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-300">Attachments</label>
-                        <div className="flex items-center gap-4">
-                            <label className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center gap-2 transition-colors">
-                                <Upload className="w-4 h-4" />
-                                {uploading ? 'Uploading...' : 'Upload File'}
-                                <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                                {formData.attachments.map((file, i) => (
-                                    <span key={i} className="text-sm text-slate-400 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
-                                        {file}
-                                    </span>
-                                ))}
-                            </div>
+                    <div className="space-y-4">
+                        <label className="text-sm font-medium text-slate-300">Screening Questions (AI Evaluated)</label>
+                        <p className="text-xs text-slate-500">Ask candidates specific questions. AI will evaluate their answers for fit.</p>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                placeholder="e.g. Do you have experience with NestJS?"
+                                value={formData.currentQuestion}
+                                onChange={(e) => setFormData({ ...formData, currentQuestion: e.target.value })}
+                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddQuestion())}
+                                className="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleAddQuestion}
+                                className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-all"
+                            >
+                                <Plus className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-2">
+                            {formData.screeningQuestions.map((q, i) => (
+                                <div key={i} className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl group">
+                                    <span className="text-sm text-slate-300">{q}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveQuestion(q)}
+                                        className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     </div>
 

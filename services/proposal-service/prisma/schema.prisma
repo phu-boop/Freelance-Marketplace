@@ -30,6 +30,11 @@ model Proposal {
   counterOfferTerms  String?
 
   @@unique([job_id, freelancer_id])
+  
+  // Boosting
+  boostAmount   Int      @default(0)
+  isBoosted     Boolean  @default(false)
+
   @@schema("proposals")
 }
 model SyncTombstone {

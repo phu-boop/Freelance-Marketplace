@@ -22,13 +22,18 @@ export declare class CloudsService {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    inviteMember(cloudId: string, inviteeId: string, inviterId: string): Promise<any>;
+    respondToInvitation(invitationId: string, userId: string, accept: boolean): Promise<{
+        success: boolean;
+    }>;
+    getInvitations(userId: string): Promise<any>;
     addMember(cloudId: string, userId: string, role?: 'ADMIN' | 'MEMBER'): Promise<{
         id: string;
+        cloudId: string;
         userId: string;
         joinedAt: Date;
         role: import(".prisma/client").$Enums.CloudRole;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
-        cloudId: string;
     }>;
     addMembersBulk(cloudId: string, userIds: string[], role?: 'ADMIN' | 'MEMBER'): Promise<{
         count: number;
@@ -50,21 +55,21 @@ export declare class CloudsService {
         };
     } & {
         id: string;
+        cloudId: string;
         userId: string;
         joinedAt: Date;
         role: import(".prisma/client").$Enums.CloudRole;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
-        cloudId: string;
     })[]>;
     getCloud(cloudId: string): Promise<{
         members: {
             userProfile: any;
             id: string;
+            cloudId: string;
             userId: string;
             joinedAt: Date;
             role: import(".prisma/client").$Enums.CloudRole;
             metadata: import("@prisma/client/runtime/library").JsonValue | null;
-            cloudId: string;
         }[];
         id: string;
         name: string;

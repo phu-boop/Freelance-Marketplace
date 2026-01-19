@@ -36,9 +36,21 @@ let RegionalGatewayService = RegionalGatewayService_1 = class RegionalGatewaySer
                 return this.processPromptPay(amount, method.accountNumber);
             case 'M_PESA':
                 return this.processMPesa(amount, method.accountNumber);
+            case 'WISE':
+                return this.processWise(amount, method.accountNumber);
+            case 'PAYONEER':
+                return this.processPayoneer(amount, method.accountNumber);
             default:
                 throw new common_1.BadRequestException(`Regional gateway for ${method.type} not implemented`);
         }
+    }
+    async processWise(amount, email) {
+        this.logger.log(`[Wise] Sending ${amount} to ${email}`);
+        return { success: true, txnId: `WISE_${Date.now()}` };
+    }
+    async processPayoneer(amount, email) {
+        this.logger.log(`[Payoneer] Sending ${amount} to ${email}`);
+        return { success: true, txnId: `PAYO_${Date.now()}` };
     }
     async processMomo(amount, phone) {
         this.logger.log(`[Momo] Sending ${amount} to ${phone}`);

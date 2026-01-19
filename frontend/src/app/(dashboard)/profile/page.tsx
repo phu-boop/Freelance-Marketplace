@@ -21,11 +21,10 @@ import {
     Trash2,
     CheckCircle2,
     XCircle,
-    ShieldCheck,
-    ShieldAlert,
     Building2,
     Lock,
-    Unlock
+    Unlock,
+    ShieldCheck
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
@@ -39,6 +38,10 @@ import { BadgeList } from '@/components/BadgeList';
 import { VerificationModal } from '@/components/VerificationModal';
 import { LanguageModal } from '@/components/LanguageModal';
 import AvailabilityCalendar from '@/components/AvailabilityCalendar';
+import { ProfileSwitcher } from '@/components/ProfileSwitcher';
+import { SpecializedProfileModal } from '@/components/SpecializedProfileModal';
+import { VideoKYCModal } from '@/components/VideoKYCModal';
+import { Button } from '@/components/ui/button';
 
 interface Review {
     id: string;
@@ -86,6 +89,7 @@ interface UserData {
     linkedinUsername?: string;
     twitterUsername?: string;
     linkedinId?: string;
+    specializedProfiles: any[];
 }
 
 export default function ProfilePage() {
@@ -97,6 +101,8 @@ export default function ProfilePage() {
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
     const [replyLoading, setReplyLoading] = useState(false);
+    const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+    const [specializedProfiles, setSpecializedProfiles] = useState<any[]>([]);
 
     // Modal states
     const [eduModal, setEduModal] = useState({ open: false, data: null });
@@ -105,6 +111,24 @@ export default function ProfilePage() {
     const [certModal, setCertModal] = useState({ open: false, data: null });
     const [verifyModal, setVerifyModal] = useState(false);
     const [langModal, setLangModal] = useState(false);
+    const [specModal, setSpecModal] = useState({ open: false, data: null });
+    const [videoKycModal, setVideoKycModal] = useState(false);
+
+    const portfolioItemsToDisplay = (user?.portfolio || []).filter(item =>
+        selectedProfileId ? item.specializedProfileId === selectedProfileId : true
+    );
+
+    const educationToDisplay = (user?.education || []).filter(item =>
+        selectedProfileId ? item.specializedProfileId === selectedProfileId : true
+    );
+
+    const experienceToDisplay = (user?.experience || []).filter(item =>
+        selectedProfileId ? item.specializedProfileId === selectedProfileId : true
+    );
+
+    const certificationsToDisplay = (user?.certifications || []).filter(item =>
+        selectedProfileId ? item.specializedProfileId === selectedProfileId : true
+    );
 
     const fetchProfileData = async () => {
         if (!userId) return;
@@ -115,6 +139,9 @@ export default function ProfilePage() {
             ]);
             setUser(userRes.data);
             setReviews(reviewsRes.data);
+            if (userRes.data.specializedProfiles) {
+                setSpecializedProfiles(userRes.data.specializedProfiles);
+            }
         } catch (error) {
             console.error('Failed to fetch profile data', error);
         } finally {
@@ -139,15 +166,6 @@ export default function ProfilePage() {
     const handleDelete = async (type: 'education' | 'experience' | 'portfolio' | 'certifications', id: string) => {
         if (!confirm('Are you sure you want to delete this?')) return;
         try {
-            // Adjust endpoint if needed. Assuming /users/certifications/:id or similar.
-            // Based on users.controller.ts, there is NO deleteCertification endpoint yet explicitly showed in view_file.
-            // I must check if I can delete.
-            // users.controller.ts had deleteEducation, deleteExperience, deletePortfolio.
-            // It did NOT have deleteCertification.
-            // I will assume I need to ADD it to backend if I want to delete.
-            // For now, I'll try to call a delete endpoint, if fails, user will see error.
-            // But I should probably add it to backend first.
-            // Wait, I am in frontend task. Let's add it to backend quickly if missing.
             await api.delete(`/users/${type === 'certifications' ? 'certifications' : type}/${id}`);
             fetchProfileData();
         } catch (error) {
@@ -202,6 +220,9 @@ export default function ProfilePage() {
     if (!user) {
         return <div className="text-center text-slate-400">User not found</div>;
     }
+
+    const selectedProfile = selectedProfileId ? specializedProfiles.find(p => p.id === selectedProfileId) : null;
+
     return (
         <div className="max-w-5xl mx-auto space-y-8">
             {/* Profile Header */}
@@ -232,10 +253,10 @@ export default function ProfilePage() {
                                         <Building2 className="w-4 h-4" /> {user.companyName || 'Client'}
                                     </span>
                                 ) : (
-                                    user.title || 'Freelancer'
+                                    selectedProfile?.headline || user.title || 'Freelancer'
                                 )}
                             </p>
-                            <BadgeList user={user} />
+                            <BadgeList userId={user.id} />
                             {!user.roles.includes('CLIENT') && (
                                 <button
                                     onClick={handleToggleAvailability}
@@ -284,7 +305,7 @@ export default function ProfilePage() {
                     className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'portfolio' ? 'text-blue-500' : 'text-slate-400 hover:text-white'
                         }`}
                 >
-                    Portfolio ({user.portfolio?.length || 0})
+                    Portfolio ({portfolioItemsToDisplay?.length || 0})
                     {activeTab === 'portfolio' && (
                         <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
                     )}
@@ -318,12 +339,39 @@ export default function ProfilePage() {
                     <>
                         {/* Left Column: Info & Socials */}
                         <div className="space-y-6">
+                            {!user.roles.includes('CLIENT') && (
+                                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="font-semibold text-white text-sm uppercase tracking-wider">Profile View</h3>
+                                        <button
+                                            onClick={() => setSpecModal({ open: true, data: null })}
+                                            className="p-1 hover:bg-slate-800 rounded text-blue-500 transition-all"
+                                            title="Add Specialized Profile"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <ProfileSwitcher
+                                        profiles={specializedProfiles}
+                                        selectedId={selectedProfileId}
+                                        onSelect={setSelectedProfileId}
+                                    />
+                                    {selectedProfileId && (
+                                        <button
+                                            onClick={() => setSpecModal({ open: true, data: specializedProfiles.find(p => p.id === selectedProfileId) })}
+                                            className="w-full mt-2 py-2 text-xs font-bold text-slate-400 hover:text-white bg-slate-800/50 rounded-lg border border-slate-700/50 transition-all"
+                                        >
+                                            Edit This Specialized Profile
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             <ProfileCompleteness user={user} />
 
                             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
                                 <h3 className="font-semibold text-white">About</h3>
                                 <p className="text-sm text-slate-400 leading-relaxed">
-                                    {user.overview || 'No overview provided yet.'}
+                                    {selectedProfile?.bio || user.overview || 'No overview provided yet.'}
                                 </p>
                                 <div className="space-y-3 pt-4 border-t border-slate-800">
                                     <div className="flex items-center gap-3 text-sm text-slate-400">
@@ -409,7 +457,7 @@ export default function ProfilePage() {
                                     </button>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {user.skills?.length > 0 ? user.skills.map((skill) => (
+                                    {(selectedProfile?.skills || user.skills)?.length > 0 ? (selectedProfile?.skills || user.skills).map((skill: string) => (
                                         <span
                                             key={skill}
                                             className="px-4 py-1.5 rounded-xl bg-slate-800 text-sm text-slate-300 border border-slate-700 hover:border-blue-500/50 transition-all cursor-default"
@@ -433,7 +481,7 @@ export default function ProfilePage() {
                                     </button>
                                 </div>
                                 <div className="space-y-8">
-                                    {user.experience?.length > 0 ? user.experience.map((exp, idx) => (
+                                    {experienceToDisplay?.length > 0 ? experienceToDisplay.map((exp) => (
                                         <div key={exp.id} className="relative pl-8 group before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:bg-blue-500 before:rounded-full after:absolute after:left-[3px] after:top-6 after:bottom-[-32px] after:w-[2px] after:bg-slate-800 last:after:hidden">
                                             <div className="flex justify-between items-start">
                                                 <div>
@@ -465,7 +513,6 @@ export default function ProfilePage() {
                                 </div>
                             </div>
 
-                            {/* Certifications Section */}
                             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
                                 <div className="flex justify-between items-center">
                                     <h3 className="font-semibold text-white">Certifications</h3>
@@ -477,7 +524,7 @@ export default function ProfilePage() {
                                     </button>
                                 </div>
                                 <div className="space-y-4">
-                                    {user.certifications?.length > 0 ? user.certifications.map((cert: any) => (
+                                    {certificationsToDisplay?.length > 0 ? certificationsToDisplay.map((cert: any) => (
                                         <div key={cert.id} className="flex items-start gap-4 p-4 rounded-xl bg-slate-800/50 border border-slate-800 hover:border-blue-500/30 transition-all group">
                                             <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
                                                 <Award className="w-6 h-6 text-orange-500" />
@@ -518,7 +565,6 @@ export default function ProfilePage() {
                                 </div>
                             </div>
 
-                            {/* Education Section */}
                             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
                                 <div className="flex justify-between items-center">
                                     <h3 className="font-semibold text-white">Education</h3>
@@ -530,7 +576,7 @@ export default function ProfilePage() {
                                     </button>
                                 </div>
                                 <div className="space-y-8">
-                                    {user.education?.length > 0 ? user.education.map((edu, idx) => (
+                                    {educationToDisplay?.length > 0 ? educationToDisplay.map((edu) => (
                                         <div key={edu.id} className="relative pl-8 group before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:bg-indigo-500 before:rounded-full after:absolute after:left-[3px] after:top-6 after:bottom-[-32px] after:w-[2px] after:bg-slate-800 last:after:hidden">
                                             <div className="flex justify-between items-start">
                                                 <div>
@@ -669,9 +715,9 @@ export default function ProfilePage() {
                                 <Plus className="w-4 h-4" /> Add Project
                             </button>
                         </div>
-                        {user.portfolio?.length > 0 ? (
+                        {portfolioItemsToDisplay?.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {user.portfolio.map((item) => (
+                                {portfolioItemsToDisplay.map((item) => (
                                     <div key={item.id} className="group relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-blue-500/50 transition-all">
                                         <div className="aspect-video relative overflow-hidden">
                                             <img src={getPublicUrl(item.imageUrl)} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -758,12 +804,20 @@ export default function ProfilePage() {
                                     <p className="text-sm text-slate-400 mt-1">Verify your identity to increase trust and unlock higher limits.</p>
                                 </div>
                                 {user.kycStatus === 'NOT_STARTED' && (
-                                    <button
-                                        onClick={() => setVerifyModal(true)}
-                                        className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition-all"
-                                    >
-                                        Start Verification
-                                    </button>
+                                    <div className="flex flex-col gap-3">
+                                        <Button
+                                            onClick={() => setVerifyModal(true)}
+                                            className="w-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                                        >
+                                            Verify Identity Document
+                                        </Button>
+                                        <Button
+                                            onClick={() => setVideoKycModal(true)}
+                                            className="w-full bg-purple-600 hover:bg-purple-500 text-white"
+                                        >
+                                            Verify via Video KYC (Instant)
+                                        </Button>
+                                    </div>
                                 )}
                             </div>
 
@@ -811,6 +865,7 @@ export default function ProfilePage() {
                 onSuccess={fetchProfileData}
                 userId={userId!}
                 initialData={eduModal.data}
+                specializedProfiles={specializedProfiles}
             />
             <ExperienceModal
                 isOpen={expModal.open}
@@ -818,6 +873,7 @@ export default function ProfilePage() {
                 onSuccess={fetchProfileData}
                 userId={userId!}
                 initialData={expModal.data}
+                specializedProfiles={specializedProfiles}
             />
             <PortfolioModal
                 isOpen={portModal.open}
@@ -825,13 +881,22 @@ export default function ProfilePage() {
                 onSuccess={fetchProfileData}
                 userId={userId!}
                 initialData={portModal.data}
+                specializedProfiles={specializedProfiles}
             />
+            <VideoKYCModal
+                isOpen={videoKycModal}
+                onClose={() => setVideoKycModal(false)}
+                onSuccess={fetchProfileData}
+                userId={userId || ''}
+            />
+
             <CertificationModal
                 isOpen={certModal.open}
                 onClose={() => setCertModal({ open: false, data: null })}
                 onSuccess={fetchProfileData}
                 userId={userId!}
                 initialData={certModal.data}
+                specializedProfiles={specializedProfiles}
             />
             <VerificationModal
                 isOpen={verifyModal}
@@ -845,6 +910,13 @@ export default function ProfilePage() {
                 onSuccess={fetchProfileData}
                 userId={userId!}
                 existingLanguages={user.languages || []}
+            />
+            <SpecializedProfileModal
+                isOpen={specModal.open}
+                onClose={() => setSpecModal({ open: false, data: null })}
+                onSuccess={fetchProfileData}
+                userId={userId!}
+                initialData={specModal.data}
             />
         </div>
     );

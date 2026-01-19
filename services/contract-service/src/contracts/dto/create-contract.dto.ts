@@ -68,4 +68,8 @@ export class CreateContractDto {
 
   @IsOptional()
   milestones?: any[];
+
+  @IsNumber()
+  @IsOptional()
+  agencyRevenueSplit?: number;
 }

@@ -4,10 +4,11 @@ import { ContractsService } from './contracts.service';
 import { ContractsController } from './contracts.controller';
 import { EscrowSchedulerService } from './escrow-scheduler.service';
 import { JurisdictionService } from './jurisdiction.service';
+import { DisputesService } from './disputes.service';
 
 @Module({
   imports: [HttpModule],
   controllers: [ContractsController],
-  providers: [ContractsService, EscrowSchedulerService, JurisdictionService],
+  providers: [ContractsService, EscrowSchedulerService, JurisdictionService, DisputesService],
 })
 export class ContractsModule { }

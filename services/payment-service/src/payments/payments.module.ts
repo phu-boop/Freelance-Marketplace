@@ -6,6 +6,7 @@ import { CurrencyConverterService } from './currency-converter.service';
 import { WithdrawalSchedulerService } from './withdrawal-scheduler.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { RegionalGatewayService } from './regional-gateway.service';
+import { TaxCalculationService } from './tax-calculation.service';
 
 @Module({
   imports: [HttpModule],
@@ -16,6 +17,7 @@ import { RegionalGatewayService } from './regional-gateway.service';
     SubscriptionSchedulerService,
     CurrencyConverterService,
     RegionalGatewayService,
+    TaxCalculationService,
   ],
 })
 export class PaymentsModule { }

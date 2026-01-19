@@ -12,9 +12,10 @@ interface PortfolioModalProps {
     onSuccess: () => void;
     userId: string;
     initialData?: any;
+    specializedProfiles?: any[];
 }
 
-export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData }: PortfolioModalProps) => {
+export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData, specializedProfiles = [] }: PortfolioModalProps) => {
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -22,7 +23,8 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
         title: '',
         description: '',
         imageUrl: '',
-        projectUrl: ''
+        projectUrl: '',
+        specializedProfileId: ''
     });
     const [previewUrl, setPreviewUrl] = useState('');
 
@@ -32,7 +34,8 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
                 title: initialData.title || '',
                 description: initialData.description || '',
                 imageUrl: initialData.imageUrl || '',
-                projectUrl: initialData.projectUrl || ''
+                projectUrl: initialData.projectUrl || '',
+                specializedProfileId: initialData.specializedProfileId || ''
             });
             setPreviewUrl(initialData.imageUrl ? getPublicUrl(initialData.imageUrl) : '');
         } else {
@@ -40,7 +43,8 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
                 title: '',
                 description: '',
                 imageUrl: '',
-                projectUrl: ''
+                projectUrl: '',
+                specializedProfileId: ''
             });
             setPreviewUrl('');
         }
@@ -172,6 +176,23 @@ export const PortfolioModal = ({ isOpen, onClose, onSuccess, userId, initialData
                                 className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
                                 placeholder="https://myproject.com"
                             />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-400">Specialized Profile Link (Optional)</label>
+                            <select
+                                value={formData.specializedProfileId}
+                                onChange={(e) => setFormData({ ...formData, specializedProfileId: e.target.value })}
+                                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                            >
+                                <option value="">General (None)</option>
+                                {specializedProfiles.map((profile: any) => (
+                                    <option key={profile.id} value={profile.id}>
+                                        {profile.headline}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-slate-500">Pick a sub-profile to feature this project specifically.</p>
                         </div>
 
                         <div className="space-y-2">

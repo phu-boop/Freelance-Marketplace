@@ -26,6 +26,19 @@ export class JobsController {
     return { style };
   }
 
+  @Post(':id/ai/generate-proposal')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  async generateAiProposal(@Param('id') id: string, @Request() req) {
+    const userId = req.user.sub;
+    return this.aiService.generateProposal(id, userId);
+  }
+
+  @Post('contracts/:contractId/ai/standup')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  async generateDailyStandup(@Param('contractId') contractId: string, @Body() body: { messages: string[] }) {
+    return this.aiService.generateDailyStandup(contractId, body.messages);
+  }
+
   @Post('ai/detect-fraud')
   @Public()
   async detectFraud(@Body() body: { content: string }) {

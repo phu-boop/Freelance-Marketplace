@@ -21,9 +21,15 @@ export class CurrencyConverterService {
 
     try {
       this.logger.log(`Fetching latest exchange rates with base ${base}`);
-      const response = await firstValueFrom(
-        this.httpService.get(`https://api.frankfurter.app/latest?from=${base}`),
-      );
+
+      const appId = process.env.OPEN_EXCHANGE_RATES_APP_ID;
+      let url = `https://api.frankfurter.app/latest?from=${base}`;
+
+      if (appId) {
+        url = `https://openexchangerates.org/api/latest.json?app_id=${appId}&base=${base}`;
+      }
+
+      const response = await firstValueFrom(this.httpService.get(url));
       this.rates = response.data.rates;
       this.rates[base] = 1.0; // Base rate is always 1
       this.lastFetch = now;
@@ -38,6 +44,11 @@ export class CurrencyConverterService {
         JPY: 150.0,
         CAD: 1.35,
         AUD: 1.52,
+        VND: 24500.0,
+        BRL: 4.95,
+        THB: 35.5,
+        KES: 160.0,
+        NGN: 1400.0,
       };
     }
   }

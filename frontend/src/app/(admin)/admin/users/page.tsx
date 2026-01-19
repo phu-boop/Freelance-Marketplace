@@ -21,6 +21,8 @@ interface User {
     roles: string[];
     status: string;
     createdAt: string;
+    guardianRiskScore?: number;
+    guardianFlags?: string[];
 }
 
 export default function UserManagementPage() {
@@ -93,6 +95,7 @@ export default function UserManagementPage() {
                                     <th className="p-4 text-sm font-medium text-slate-400">User</th>
                                     <th className="p-4 text-sm font-medium text-slate-400">Roles</th>
                                     <th className="p-4 text-sm font-medium text-slate-400">Status</th>
+                                    <th className="p-4 text-sm font-medium text-slate-400">Risk</th>
                                     <th className="p-4 text-sm font-medium text-slate-400">Joined</th>
                                     <th className="p-4 text-sm font-medium text-slate-400 text-right">Actions</th>
                                 </tr>
@@ -129,8 +132,30 @@ export default function UserManagementPage() {
                                                     : 'bg-red-500/10 text-red-400 border-red-500/20'
                                                 }`}>
                                                 {user.status === 'ACTIVE' ? <CheckCircle2 className="w-3 h-3" /> : user.status === 'SUSPENDED' ? <AlertTriangle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                                                {user.status}
                                             </span>
+                                        </td>
+                                        <td className="p-4">
+                                            {user.guardianRiskScore !== undefined && user.guardianRiskScore > 0 ? (
+                                                <div className="flex flex-col gap-1">
+                                                    <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${user.guardianRiskScore > 70
+                                                            ? 'bg-red-500/20 text-red-500 border-red-500/30'
+                                                            : user.guardianRiskScore > 30
+                                                                ? 'bg-amber-500/20 text-amber-500 border-amber-500/30'
+                                                                : 'bg-blue-500/20 text-blue-500 border-blue-500/30'
+                                                        }`}>
+                                                        <Shield className="w-3 h-3" />
+                                                        {user.guardianRiskScore}%
+                                                    </div>
+                                                    {user.guardianFlags && user.guardianFlags.length > 0 && (
+                                                        <span className="text-[9px] text-slate-500 truncate w-32" title={user.guardianFlags.join(', ')}>
+                                                            {user.guardianFlags[0]}
+                                                            {user.guardianFlags.length > 1 && ` +${user.guardianFlags.length - 1}`}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-slate-600">Low Risk</span>
+                                            )}
                                         </td>
                                         <td className="p-4 text-sm text-slate-400">
                                             {new Date(user.createdAt).toLocaleDateString()}

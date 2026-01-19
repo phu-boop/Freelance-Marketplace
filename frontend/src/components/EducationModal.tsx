@@ -11,9 +11,10 @@ interface EducationModalProps {
     onSuccess: () => void;
     userId: string;
     initialData?: any;
+    specializedProfiles?: any[];
 }
 
-export const EducationModal = ({ isOpen, onClose, onSuccess, userId, initialData }: EducationModalProps) => {
+export const EducationModal = ({ isOpen, onClose, onSuccess, userId, initialData, specializedProfiles = [] }: EducationModalProps) => {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         institution: '',
@@ -21,7 +22,8 @@ export const EducationModal = ({ isOpen, onClose, onSuccess, userId, initialData
         fieldOfStudy: '',
         startDate: '',
         endDate: '',
-        description: ''
+        description: '',
+        specializedProfileId: ''
     });
 
     useEffect(() => {
@@ -32,7 +34,8 @@ export const EducationModal = ({ isOpen, onClose, onSuccess, userId, initialData
                 fieldOfStudy: initialData.fieldOfStudy || '',
                 startDate: initialData.startDate ? new Date(initialData.startDate).toISOString().split('T')[0] : '',
                 endDate: initialData.endDate ? new Date(initialData.endDate).toISOString().split('T')[0] : '',
-                description: initialData.description || ''
+                description: initialData.description || '',
+                specializedProfileId: initialData.specializedProfileId || ''
             });
         } else {
             setFormData({
@@ -41,7 +44,8 @@ export const EducationModal = ({ isOpen, onClose, onSuccess, userId, initialData
                 fieldOfStudy: '',
                 startDate: '',
                 endDate: '',
-                description: ''
+                description: '',
+                specializedProfileId: ''
             });
         }
     }, [initialData, isOpen]);
@@ -125,6 +129,24 @@ export const EducationModal = ({ isOpen, onClose, onSuccess, userId, initialData
                                 />
                             </div>
                         </div>
+
+                        {specializedProfiles.length > 0 && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-400">Link to Specialized Profile (Optional)</label>
+                                <select
+                                    value={formData.specializedProfileId}
+                                    onChange={(e) => setFormData({ ...formData, specializedProfileId: e.target.value })}
+                                    className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="">General Profile</option>
+                                    {specializedProfiles.map((profile) => (
+                                        <option key={profile.id} value={profile.id}>
+                                            {profile.headline}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">

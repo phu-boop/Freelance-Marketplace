@@ -40,7 +40,6 @@ model User {
   skills      String[]
   primaryCategoryId String?
   completionPercentage Int @default(0)
-  availableConnects Int @default(50)
   // profile Profile? @relation("UserProfile") // Remove relations not used in job-service
 
   // Client fields
@@ -152,6 +151,8 @@ model Job {
   promotionExpiresAt DateTime?
   closeReason String?
   preferredCommunicationStyle String? // e.g. "Proactive", "Formal", "Concise"
+  screeningQuestions Json?   // List of questions: string[]
+  talentCloudId String?     // Restricted to members of this talent cloud
 
   savedBy     SavedJob[]
   invitations JobInvitation[]
@@ -177,6 +178,7 @@ model Proposal {
   progress        Int      @default(0)
   aiScore         Int?
   aiAnalysis      String?
+  screeningAnswers Json? // Map of question -> answer: { [questionId: string]: string }
   
   // Extension Request
   extensionRequestDate   DateTime?
@@ -186,6 +188,10 @@ model Proposal {
 
   milestones      Milestone[]
   timesheets      Timesheet[]
+
+  // Boosting
+  boostAmount     Int      @default(0)
+  isBoosted       Boolean  @default(false)
 
   @@schema("jobs")
 }
