@@ -43,4 +43,8 @@ export class CreateProposalDto {
     @IsString()
     @IsOptional()
     specializedProfileId?: string;
+
+    @IsString()
+    @IsOptional()
+    agencyId?: string;
 }

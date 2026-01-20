@@ -164,8 +164,8 @@ services:
     routes:
       - name: community-routes
         paths:
-          - /api/forum
-        strip_path: false
+          - /api/community
+        strip_path: true
 
   - name: developer-service
     url: http://freelance_developer_service:3016
@@ -220,7 +220,7 @@ plugins:
       max_age: 3600
   - name: rate-limiting
     config:
-      minute: 100
+      minute: 1000
       policy: local
 # ## Cập nhật lại các biến môi trường và cấu hình Container
 # docker compose up -d

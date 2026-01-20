@@ -12,10 +12,13 @@ import { HttpModule } from '@nestjs/axios';
 import { AiService } from './ai.service';
 import { ConfigModule } from '@nestjs/config';
 import { EscrowSchedulerService } from './escrow-scheduler.service';
+import { BadgeSchedulerService } from './badge-scheduler.service';
+
+import { AiScopingService } from './ai-scoping.service';
 
 @Module({
   imports: [HttpModule, ConfigModule],
   controllers: [JobsController, AlertsController, ProposalsController, TimesheetsController, ServicePackagesController, InterviewsController, InvitationsController],
-  providers: [JobsService, TimesheetsService, AiService, EscrowSchedulerService],
+  providers: [JobsService, TimesheetsService, AiService, EscrowSchedulerService, BadgeSchedulerService, AiScopingService],
 })
 export class JobsModule { }

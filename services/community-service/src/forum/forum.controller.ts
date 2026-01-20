@@ -3,7 +3,7 @@ import { ForumService } from './forum.service';
 import { CreatePostDto, CreateCommentDto } from './forum.dto';
 import { Public, Roles } from 'nest-keycloak-connect';
 
-@Controller('api/forum')
+@Controller('forum')
 export class ForumController {
     constructor(private readonly forumService: ForumService) { }
 

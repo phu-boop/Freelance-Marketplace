@@ -62,6 +62,9 @@ export class AuditService implements OnModuleInit {
             amount: dto.amount,
             metadata: dto.metadata,
             referenceId: dto.referenceId,
+            durationMs: dto.durationMs,
+            traceId: dto.traceId,
+            status: dto.status,
             secret: process.env.AUDIT_SECRET || 'fallback-secret',
         });
         return crypto.createHash('sha256').update(data).digest('hex');
@@ -105,6 +108,9 @@ export class AuditService implements OnModuleInit {
             amount: log.amount ? Number(log.amount) : undefined,
             metadata: log.metadata,
             referenceId: log.referenceId,
+            durationMs: log.durationMs,
+            traceId: log.traceId,
+            status: log.status,
         };
 
         return log.checksum === this.generateChecksum(dto);

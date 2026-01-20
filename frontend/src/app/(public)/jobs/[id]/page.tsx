@@ -22,6 +22,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { ProposalModal } from '@/components/ProposalModal';
+import ClientBadge from '@/components/client/ClientBadge';
 
 interface Job {
     id: string;
@@ -192,6 +193,7 @@ export default function JobDetailsPage() {
                                         <div className="flex items-center gap-2">
                                             <Building2 className="w-4 h-4 text-blue-400" />
                                             Client ID: {job.client_id.slice(0, 8)}...
+                                            <ClientBadge tier="GOLD" /> {/* Mocked tier for public view */}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <MapPin className="w-4 h-4 text-blue-400" />

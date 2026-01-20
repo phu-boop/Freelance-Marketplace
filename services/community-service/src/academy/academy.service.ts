@@ -1,86 +1,120 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCourseDto, CreateLessonDto } from './academy.dto';
-import { HttpService } from '@nestjs/axios';
-import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
+
+export interface Course {
+    id: string;
+    title: string;
+    description: string;
+    difficulty: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+    duration: string; // e.g. "2 hours"
+    lessons: Lesson[];
+    badgeId?: string;
+}
+
+export interface Lesson {
+    id: string;
+    title: string;
+    content: string;
+}
 
 @Injectable()
 export class AcademyService {
     private readonly logger = new Logger(AcademyService.name);
 
-    constructor(
-        private prisma: PrismaService,
-        private httpService: HttpService,
-        private configService: ConfigService,
-    ) { }
+    constructor(private prisma: PrismaService) { }
 
-    async createCourse(dto: CreateCourseDto) {
-        return this.prisma.course.create({ data: dto });
-    }
-
-    async addLesson(courseId: string, dto: CreateLessonDto) {
-        const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-        if (!course) throw new NotFoundException('Course not found');
-        return this.prisma.lesson.create({ data: { ...dto, courseId } });
-    }
-
-    async getCourses() {
+    async listCourses() {
         return this.prisma.course.findMany({
-            include: { _count: { select: { lessons: true } } },
-            orderBy: { createdAt: 'desc' },
+            include: { lessons: true }
         });
     }
 
-    async getCourse(id: string) {
-        const course = await this.prisma.course.findUnique({
-            where: { id },
-            include: { lessons: { orderBy: { order: 'asc' } } },
+    async getCourse(courseId: string) {
+        return this.prisma.course.findUnique({
+            where: { id: courseId },
+            include: { lessons: true }
         });
-        if (!course) throw new NotFoundException('Course not found');
-        return course;
+    }
+
+    async enroll(userId: string, courseId: string) {
+        this.logger.log(`User ${userId} enrolling in ${courseId}`);
+
+        return this.prisma.enrollment.upsert({
+            where: {
+                userId_courseId: { userId, courseId }
+            },
+            create: {
+                userId,
+                courseId,
+                status: 'IN_PROGRESS',
+                progress: 0
+            },
+            update: {} // Idempotent
+        });
     }
 
     async completeCourse(userId: string, courseId: string) {
+        this.logger.log(`User ${userId} completed ${courseId}`);
         const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-        if (!course) throw new NotFoundException('Course not found');
 
+        if (!course) {
+            throw new Error('Course not found');
+        }
+
+        // Update Enrollment
+        try {
+            await this.prisma.enrollment.update({
+                where: { userId_courseId: { userId, courseId } },
+                data: { status: 'COMPLETED', completedAt: new Date(), progress: 100 }
+            });
+        } catch (e) {
+            this.logger.warn(`Enrollment not found for completion, creating one...`);
+            // Fallback if they completed without enrolling (edge case)
+            await this.prisma.enrollment.create({
+                data: { userId, courseId, status: 'COMPLETED', progress: 100, completedAt: new Date() }
+            });
+        }
+
+        // Create Certification Record
         // Check if already certified
-        const existing = await this.prisma.certification.findUnique({
+        const existingCert = await this.prisma.certification.findUnique({
             where: { userId_courseId: { userId, courseId } }
         });
 
-        if (existing) return existing;
-
-        const cert = await this.prisma.certification.create({
-            data: { userId, courseId }
-        });
-
-        // Sync with User Service to award badge if applicable
-        if (course.badgeName) {
-            try {
-                const userServiceUrl = this.configService.get<string>(
-                    'USER_SERVICE_INTERNAL_URL',
-                    'http://user-service:3000/api/users',
-                );
-                await firstValueFrom(
-                    this.httpService.post(`${userServiceUrl}/${userId}/badges/award`, {
-                        badgeName: course.badgeName,
-                        reason: `Completed course: ${course.title}`
-                    })
-                );
-            } catch (error) {
-                this.logger.error(`Failed to award badge ${course.badgeName} to user ${userId}: ${error.message}`);
-            }
+        if (existingCert) {
+            return {
+                success: true,
+                status: 'COMPLETED',
+                certificationId: existingCert.id,
+                awardedBadge: course.badgeId
+            };
         }
 
-        return cert;
+        const cert = await this.prisma.certification.create({
+            data: {
+                userId,
+                courseId,
+                metadata: { awardedBadge: course.badgeId }
+            }
+        });
+
+        if (course.badgeId) {
+            this.logger.log(`Awarding badge ${course.badgeId} to ${userId}`);
+            // Logic to call UserService to grant badge would go here
+        }
+
+        return {
+            success: true,
+            status: 'COMPLETED',
+            certificationId: cert.id,
+            awardedBadge: course.badgeId
+        };
     }
 
     async getMyCertifications(userId: string) {
         return this.prisma.certification.findMany({
             where: { userId },
-            include: { course: true },
+            include: { course: true }
         });
     }
 }

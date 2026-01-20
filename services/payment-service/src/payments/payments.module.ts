@@ -7,6 +7,9 @@ import { WithdrawalSchedulerService } from './withdrawal-scheduler.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { RegionalGatewayService } from './regional-gateway.service';
 import { TaxCalculationService } from './tax-calculation.service';
+import { PayrollSchedulerService } from './payroll-scheduler.service';
+
+import { CurrencyService } from './currency.service';
 
 @Module({
   imports: [HttpModule],
@@ -16,8 +19,10 @@ import { TaxCalculationService } from './tax-calculation.service';
     WithdrawalSchedulerService,
     SubscriptionSchedulerService,
     CurrencyConverterService,
+    CurrencyService,
     RegionalGatewayService,
     TaxCalculationService,
+    PayrollSchedulerService,
   ],
 })
 export class PaymentsModule { }

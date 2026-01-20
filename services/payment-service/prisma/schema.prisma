@@ -82,6 +82,8 @@ model PaymentApprovalRequest {
   decidedBy     String?     // User ID
   decidedAt     DateTime?
   reason        String?
+  requiredRoles String[]    @default([])
+  approvals     Json?       @default("[]") // Array of { role, userId, approvedAt }
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -122,8 +124,9 @@ model ConnectsHistory {
 model TaxSetting {
   id          String   @id @default(uuid())
   countryCode String   @unique
-  taxRate     Decimal
+  taxRate     Decimal  // Default/Flat rate
   name        String
+  brackets    Json?    // Optional: Array of { min, max, rate }
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -148,11 +151,13 @@ model WithdrawalMethod {
 
 model Subscription {
   id              String   @id @default(uuid())
-  userId          String
+  userId          String   @unique
   planId          String
   price           Decimal
   status          String   @default("ACTIVE")
   nextBillingDate DateTime
+  autoRenew       Boolean  @default(true)
+  metadata        Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

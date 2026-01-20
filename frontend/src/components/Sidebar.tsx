@@ -11,12 +11,13 @@ import {
     Bell,
     User,
     Settings,
-    LogOut,
+    Users,
+    GraduationCap,
+    Building,
     Search,
     PlusCircle,
     BarChart2,
-    Users,
-    GraduationCap
+    LogOut
 } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { cn } from '@/lib/utils';
@@ -30,7 +31,8 @@ const menuItems = [
     { icon: Briefcase, label: 'My Contracts', href: '/contracts' },
     { icon: Users, label: 'Talent Clouds', href: '/clouds' },
     { icon: BarChart2, label: 'Analytics', href: '/analytics' },
-    { icon: GraduationCap, label: 'Academy', href: '/academy' },
+    { icon: Building, label: 'Agency', href: '/agency' },
+    { icon: GraduationCap, label: 'Academy', href: '/community/academy' },
     { icon: MessageSquare, label: 'Forum', href: '/community/forum' },
     { icon: MessageSquare, label: 'Messages', href: '/messages' },
     { icon: Bell, label: 'Notifications', href: '/notifications' },
@@ -44,7 +46,12 @@ export function Sidebar() {
 
     const isClient = roles.includes('CLIENT');
 
-    const filteredMenu = menuItems.filter(item => {
+    const filteredMenu = menuItems.map(item => {
+        if (item.label === 'Analytics' && isClient) {
+            return { ...item, href: '/client/analytics' };
+        }
+        return item;
+    }).filter(item => {
         if (isClient) {
             // Clients don't see "Find Jobs" or "My Proposals"
             return !['/marketplace', '/proposals'].includes(item.href);

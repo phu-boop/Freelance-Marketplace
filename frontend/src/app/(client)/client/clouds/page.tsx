@@ -40,6 +40,7 @@ export default function TalentCloudsPage() {
     const [invitingCloudId, setInvitingCloudId] = useState<string | null>(null);
     const [inviteUserId, setInviteUserId] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
+    const fetchLock = React.useRef(false);
 
     useEffect(() => {
         if (authenticated && userId) {
@@ -48,6 +49,8 @@ export default function TalentCloudsPage() {
     }, [authenticated, userId]);
 
     const fetchClouds = async () => {
+        if (fetchLock.current) return;
+        fetchLock.current = true;
         setLoading(true);
         try {
             const res = await api.get(`/clouds/user/${userId}`);
@@ -56,6 +59,7 @@ export default function TalentCloudsPage() {
             console.error('Failed to fetch clouds', error);
         } finally {
             setLoading(false);
+            fetchLock.current = false;
         }
     };
 

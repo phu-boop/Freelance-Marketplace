@@ -759,3 +759,128 @@ async def get_platform_liquidity():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/analytics/reputation/calculate/{user_id}")
+async def calculate_jss(user_id: str):
+    # JSS 2.0 Calculation Logic
+    # 1. Fetch reviews with metadata (rating, recommended, private_feedback) and timestamp
+    # 2. Apply time decay weights (Recent > 6 months > older)
+    # 3. Weigh private feedback higher than public rating
+    
+    query = f"""
+    SELECT 
+        timestamp,
+        JSONExtractFloat(metadata, 'rating') as public_rating,
+        JSONExtractBool(metadata, 'recommended') as recommended,
+        JSONExtractInt(metadata, 'private_rating') as private_rating, -- 1-10 scale
+        job_id
+    FROM events 
+    WHERE user_id = '{user_id}' AND event_type = 'review_received'
+    ORDER BY timestamp DESC
+    """
+    
+    try:
+        res = client.query(query)
+        reviews = res.result_rows
+        
+        if not reviews:
+            return {"user_id": user_id, "jss": 100, "qualified": False}
+
+        total_weighted_points = 0.0
+        total_possible_points = 0.0
+        
+        import datetime
+        now = datetime.datetime.utcnow()
+        
+        for row in reviews:
+            ts = row[0]
+            public_rating = row[1] or 5.0 # 1-5
+            recommended = row[2] # True/False
+            private_rating = row[3] or 10 # 1-10 scale, default to max if missing
+            
+            # Time Decay Weight
+            weight = 1.0
+            days_diff = (now - ts).days
+            
+            if days_diff > 180:
+                weight = 0.5
+            elif days_diff > 90:
+                weight = 0.75
+                
+            # Score Calculation (Normalized to 0-100)
+            # Public (5 stars) -> 30% weight
+            # Private (10 scale) -> 50% weight
+            # Recommended (Bool) -> 20% weight
+            
+            public_score = (public_rating / 5.0) * 100
+            private_score = (private_rating / 10.0) * 100
+            rec_score = 100 if recommended else 0
+            
+            # Weighted average for this review
+            review_score = (public_score * 0.3) + (private_score * 0.5) + (rec_score * 0.2)
+            
+            total_weighted_points += (review_score * weight)
+            total_possible_points += (100 * weight)
+            
+        final_jss = 100
+        if total_possible_points > 0:
+            final_jss = round((total_weighted_points / total_possible_points) * 100)
+            
+        return {
+            "user_id": user_id, 
+            "jss": final_jss, 
+            "qualified": len(reviews) >= 3,
+            "review_count": len(reviews)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/analytics/standup/generate")
+async def generate_standup(body: dict):
+    # Expects {"job_id": "..."}
+    job_id = body.get("job_id")
+    if not job_id:
+        raise HTTPException(status_code=400, detail="Missing job_id")
+        
+    # 1. Fetch recent events (24h)
+    query = f"""
+    SELECT event_type, metadata, timestamp
+    FROM events
+    WHERE job_id = '{job_id}' AND timestamp >= now() - INTERVAL 24 HOUR
+    ORDER BY timestamp ASC
+    """
+    
+    try:
+        res = client.query(query)
+        events = res.result_rows
+        
+        if not events:
+            return {
+                "summary": "No activity recorded in the last 24 hours.",
+                "blockers": [],
+                "next_steps": ["Check in with the team."]
+            }
+            
+        # 2. Summarize (Mock AI logic for Python service, or logic based on event types)
+        summary_lines = []
+        commits = 0
+        messages = 0
+        
+        for row in events:
+            evt_type = row[0]
+            meta = row[1]
+            if evt_type == 'git_commit':
+                commits += 1
+                # extract message if possible
+            elif evt_type == 'chat_message':
+                messages += 1
+                
+        summary_text = f"Activity Report: {commits} code commits and {messages} messages exchanged."
+        
+        return {
+            "summary": summary_text,
+            "details": [f"- {row[0]} at {row[2]}" for row in events[:5]], # Limit detail
+            "blockers": ["None detected automatically."],
+            "next_steps": ["Review recent code changes."]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

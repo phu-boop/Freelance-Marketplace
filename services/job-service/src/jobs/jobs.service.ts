@@ -780,7 +780,8 @@ export class JobsService {
           boostAmount: boost,
           isBoosted: boost > 0,
           screeningAnswers: dto.screeningAnswers,
-          specializedProfileId: dto.specializedProfileId
+          specializedProfileId: dto.specializedProfileId,
+          agencyId: dto.agencyId
         }
       });
 
@@ -1258,12 +1259,17 @@ export class JobsService {
     if (milestone.proposal.freelancerId !== freelancerId) throw new ForbiddenException('Only the freelancer can submit work');
 
     return this.prisma.$transaction(async (prisma) => {
+      // AI Scan for security/quality
+      const aiScan = await this.aiService.scanSubmission(dto.content);
+
       const submission = await prisma.submission.create({
         data: {
           milestoneId,
           freelancerId,
           content: dto.content,
           attachments: dto.attachments || [],
+          aiRiskLevel: aiScan.riskLevel,
+          aiAnalysis: aiScan.report
         }
       });
 

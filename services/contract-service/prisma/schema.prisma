@@ -55,6 +55,7 @@ model Contract {
   // Insurance
   insurancePolicyId String?
   insurancePolicy   InsurancePolicy? @relation(fields: [insurancePolicyId], references: [id])
+  workDiarySegments WorkDiarySegment[]
 
   @@schema("contracts")
 }
@@ -221,6 +222,7 @@ model Submission {
   milestoneId String
   milestone   Milestone @relation(fields: [milestoneId], references: [id])
   revisions   RevisionRequest[]
+  metadata    Json?
 
   @@schema("contracts")
 }
@@ -262,5 +264,24 @@ model ContractTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@schema("contracts")
+}
+
+
+model WorkDiarySegment {
+  id            String   @id @default(uuid())
+  contractId    String
+  contract      Contract @relation(fields: [contractId], references: [id])
+  timestamp     DateTime
+  screenshotUrl String
+  activityScore Int      // 0-100
+  memo          String
+  keystrokes    Int
+  mouseClicks   Int
+  status        String   @default("PENDING") // PENDING, APPROVED, DISPUTED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([contractId])
   @@schema("contracts")
 }

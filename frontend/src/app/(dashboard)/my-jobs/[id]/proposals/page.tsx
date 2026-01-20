@@ -230,12 +230,17 @@ export default function JobProposalsPage() {
                                                             🚀 Boosted
                                                         </span>
                                                     )}
-                                                    {proposal.aiScore && proposal.aiScore >= 85 && (
-                                                        <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold border border-purple-500/20">
-                                                            ✨ Best Match
+                                                    {proposal.aiScore !== undefined && (
+                                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${proposal.aiScore >= 80
+                                                            ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                                            : proposal.aiScore >= 50
+                                                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                                            }`}>
+                                                            🤖 {proposal.aiScore}% Match
                                                         </span>
                                                     )}
-                                                    {proposal.matchScore && (
+                                                    {proposal.matchScore && !proposal.aiScore && (
                                                         <span className="px-2 py-0.5 rounded-md bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20">
                                                             💎 {proposal.matchScore}%
                                                         </span>

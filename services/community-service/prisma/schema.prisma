@@ -16,8 +16,10 @@ model ForumCategory {
   slug        String      @unique
   description String?
   posts       ForumPost[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  isExclusive  Boolean     @default(false)
+  requiredBadge String?     // e.g., "TOP_RATED"
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@map("forum_categories")
   @@schema("community")
@@ -112,8 +114,11 @@ model Course {
   title           String
   description     String
   thumbnail       String?
-  badgeName       String? // The badge awarded upon completion
+  difficulty      String          @default("BEGINNER") // BEGINNER, INTERMEDIATE, ADVANCED
+  duration        String?         // e.g. "2 hours"
+  badgeId         String?         // The badge ID to award
   lessons         Lesson[]
+  enrollments     Enrollment[]
   certifications  Certification[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -147,5 +152,20 @@ model Certification {
 
   @@unique([userId, courseId])
   @@map("academy_certifications")
+  @@schema("community")
+}
+
+model Enrollment {
+  id          String    @id @default(uuid())
+  userId      String
+  courseId    String
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status      String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
+  progress    Int       @default(0)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, courseId])
+  @@map("academy_enrollments")
   @@schema("community")
 }

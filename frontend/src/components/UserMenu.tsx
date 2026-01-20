@@ -14,9 +14,14 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCurrency } from './CurrencyProvider';
+import { useLanguage } from './LanguageProvider';
 
 export const UserMenu = () => {
     const { username, logout, roles } = useKeycloak();
+    const { setCurrency, currency } = useCurrency();
+    const { setLanguage, language } = useLanguage();
+
     const [isOpen, setIsOpen] = useState(false);
     const pathname = usePathname();
 
@@ -127,6 +132,38 @@ export const UserMenu = () => {
                                     </Link>
                                 </div>
                             )}
+
+
+                            {/* Localization Section */}
+                            <div className="p-2 border-t border-slate-800">
+                                <p className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Preferences</p>
+                                <div className="px-3 py-1 flex justify-between items-center text-sm text-slate-300">
+                                    <span className="text-xs">Language</span>
+                                    <select
+                                        className="bg-transparent text-right focus:outline-none text-xs font-bold text-white cursor-pointer"
+                                        onChange={(e) => setLanguage(e.target.value as any)}
+                                        value={language}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <option value="en" className="bg-slate-900">English</option>
+                                        <option value="vi" className="bg-slate-900">Tiếng Việt</option>
+                                        <option value="de" className="bg-slate-900">Deutsch</option>
+                                    </select>
+                                </div>
+                                <div className="px-3 py-1 flex justify-between items-center text-sm text-slate-300">
+                                    <span className="text-xs">Currency</span>
+                                    <select
+                                        className="bg-transparent text-right focus:outline-none text-xs font-bold text-white cursor-pointer"
+                                        onChange={(e) => setCurrency(e.target.value)}
+                                        value={currency}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <option value="USD" className="bg-slate-900">USD ($)</option>
+                                        <option value="EUR" className="bg-slate-900">EUR (€)</option>
+                                        <option value="VND" className="bg-slate-900">VND (₫)</option>
+                                    </select>
+                                </div>
+                            </div>
 
                             <div className="p-2 border-t border-slate-800">
                                 <button

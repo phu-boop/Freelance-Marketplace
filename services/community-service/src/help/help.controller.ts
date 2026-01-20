@@ -3,7 +3,7 @@ import { HelpService } from './help.service';
 import { CreateHelpArticleDto, CreateSupportTicketDto, SearchHelpDto } from './help.dto';
 import { Public, Roles } from 'nest-keycloak-connect';
 
-@Controller('api/help')
+@Controller('help')
 export class HelpController {
     constructor(private readonly helpService: HelpService) { }
 
@@ -27,8 +27,9 @@ export class HelpController {
 
     @Public()
     @Post('search')
-    search(@Body() dto: SearchHelpDto) {
-        return this.helpService.semanticSearch(dto.query);
+    search(@Request() req, @Body() dto: SearchHelpDto) {
+        const userId = req.user?.sub;
+        return this.helpService.semanticSearch(userId, dto.query);
     }
 
     @Post('tickets')

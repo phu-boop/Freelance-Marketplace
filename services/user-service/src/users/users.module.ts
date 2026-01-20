@@ -9,11 +9,15 @@ import { SecurityService } from './security.service';
 import { BadgesService } from './badges.service';
 import { EncryptionService } from './encryption.service';
 import { JurisdictionService } from './jurisdiction.service';
+import { ComplianceService } from './compliance.service';
+import { ReferralService } from './referrals.service';
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { KeycloakModule } from '../keycloak/keycloak.module';
 
 import { HttpModule } from '@nestjs/axios';
+import { ProfileModule } from '../profile/profile.module';
+import { forwardRef } from '@nestjs/common';
 
 @Module({
   imports: [
@@ -21,6 +25,7 @@ import { HttpModule } from '@nestjs/axios';
     KeycloakModule,
     ConfigModule,
     HttpModule,
+    forwardRef(() => ProfileModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -31,7 +36,7 @@ import { HttpModule } from '@nestjs/axios';
     }),
   ],
   controllers: [UsersController, AuthController],
-  providers: [UsersService, AiService, SecurityService, BadgesService, JurisdictionService, EncryptionService],
-  exports: [UsersService, AiService, SecurityService, BadgesService, JurisdictionService, EncryptionService],
+  providers: [UsersService, AiService, SecurityService, BadgesService, JurisdictionService, EncryptionService, ComplianceService, ReferralService],
+  exports: [UsersService, AiService, SecurityService, BadgesService, JurisdictionService, EncryptionService, ComplianceService, ReferralService],
 })
 export class UsersModule { }

@@ -59,8 +59,8 @@ export class DisputesService {
             throw new ForbiddenException('Cannot add evidence to a resolved or closed dispute');
         }
 
-        if (dispute.arbitrationCase && dispute.arbitrationCase.status !== 'OPEN' && dispute.arbitrationCase.status !== 'IN_REVIEW') {
-            throw new ForbiddenException('Arbitration case is not in a state to accept new evidence');
+        if (dispute.arbitrationCase && dispute.arbitrationCase.status !== 'OPEN') {
+            throw new ForbiddenException('Arbitration case is now under active review and evidence is locked.');
         }
 
         const evidence = await this.prisma.evidence.create({
@@ -122,6 +122,87 @@ export class DisputesService {
         return updatedCase;
     }
 
+    async resolveCaseWithSplit(caseId: string, milestoneId: string, freelancerPercentage: number, decision: string, investigatorId: string) {
+        const arbCase = await this.prisma.arbitrationCase.findUnique({
+            where: { id: caseId },
+            include: { dispute: true, contract: true }
+        });
+
+        if (!arbCase) throw new NotFoundException('Arbitration Case not found');
+
+        const paymentServiceUrl = this.configService.get('PAYMENT_SERVICE_URL') || 'http://payment-service:3005';
+
+        try {
+            // Trigger Split Release in Payment Service
+            await firstValueFrom(
+                this.httpService.post(`${paymentServiceUrl}/api/payments/escrow/split-release`, {
+                    contractId: arbCase.contractId,
+                    milestoneId,
+                    freelancerId: arbCase.contract.freelancer_id,
+                    freelancerPercentage,
+                })
+            );
+        } catch (error) {
+            this.logger.error(`Failed to process split resolution: ${error.message}`);
+            throw new InternalServerErrorException('Failed to process financial split. Ensure payment service is reachable.');
+        }
+
+        // Update Case and Dispute
+        const updatedCase = await this.prisma.arbitrationCase.update({
+            where: { id: caseId },
+            data: {
+                status: 'RESOLVED',
+                decision: `SPLIT ${freelancerPercentage}/${100 - freelancerPercentage}: ${decision}`,
+            },
+        });
+
+        await this.prisma.dispute.update({
+            where: { id: arbCase.disputeId },
+            data: {
+                status: 'RESOLVED',
+                resolution: decision,
+                resolvedAt: new Date(),
+            },
+        });
+
+        return updatedCase;
+    }
+
+    async getAiAnalysis(disputeId: string) {
+        const dispute = await this.prisma.dispute.findUnique({
+            where: { id: disputeId },
+            include: { contract: { include: { milestones: true } } }
+        });
+
+        if (!dispute) throw new NotFoundException('Dispute not found');
+
+        // Fetch messages for context from communication-service (mocking for now or fetching if available)
+        // For this implementation, we'll assume a basic set of recent summary info
+        const jobServiceUrl = this.configService.get('JOB_SERVICE_URL') || 'http://job-service:3000';
+
+        try {
+            const { data } = await firstValueFrom(
+                this.httpService.post(`${jobServiceUrl}/api/jobs/ai/analyze-dispute`, {
+                    disputeId,
+                    context: {
+                        contractTitle: dispute.contract.job_id, // Simplified
+                        milestoneDescription: dispute.contract.milestones[0]?.description || 'General Contract',
+                        claimPercentage: 100, // Default to full claim analysis
+                        messages: [dispute.reason] // Using dispute reason as the primary context for now
+                    }
+                })
+            );
+            return data;
+        } catch (error) {
+            this.logger.error(`AI analysis failed: ${error.message}`);
+            return {
+                summary: "AI analysis is currently unavailable. Please proceed with manual review.",
+                suggestedFreelancerPercentage: 50,
+                confidenceRating: 0.5
+            };
+        }
+    }
+
     async getCaseDetails(caseId: string) {
         return this.prisma.arbitrationCase.findUnique({
             where: { id: caseId },
@@ -134,6 +215,32 @@ export class DisputesService {
                 contract: true
             }
         });
+    }
+
+    async cleanupOldEvidence() {
+        const sixtyDaysAgo = new Date();
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+        // Find resolved disputes older than 60 days
+        const oldDisputes = await this.prisma.dispute.findMany({
+            where: {
+                status: 'RESOLVED',
+                resolvedAt: { lt: sixtyDaysAgo }
+            },
+            include: { evidence: true }
+        });
+
+        this.logger.log(`Found ${oldDisputes.length} disputes for evidence cleanup.`);
+
+        for (const dispute of oldDisputes) {
+            if (dispute.evidence.length > 0) {
+                // In a real scenario, we would also delete the files from S3/MinIO here
+                await this.prisma.evidence.deleteMany({
+                    where: { disputeId: dispute.id }
+                });
+                this.logger.log(`Cleaned up ${dispute.evidence.length} evidence records for dispute ${dispute.id}`);
+            }
+        }
     }
 
     private async deductArbitrationFee(contractId: string, amount: number) {

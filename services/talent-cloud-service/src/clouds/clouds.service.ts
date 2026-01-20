@@ -174,4 +174,35 @@ export class CloudsService {
         const url = `${process.env.USER_SERVICE_URL}/api/users/${userId}/cloud-membership`;
         return firstValueFrom(this.http.patch(url, payload));
     }
+
+    async createBudget(cloudId: string, amount: number, fiscalYear: string) {
+        // In a real implementation this would write to a Budget table
+        // For Gap Filling Phase, we simulate this logic
+        const budget = {
+            id: `budget-${Date.now()}`,
+            cloudId,
+            totalAmount: amount,
+            allocatedAmount: 0,
+            remainingAmount: amount,
+            currency: 'USD',
+            fiscalYear,
+            status: 'ACTIVE'
+        };
+        // await this.prisma.budget.create({ data: budget });
+        return budget;
+    }
+
+    async getBudget(cloudId: string) {
+        // Mock return
+        return {
+            id: 'mock-budget-id',
+            cloudId,
+            totalAmount: 100000,
+            allocatedAmount: 25000,
+            remainingAmount: 75000,
+            currency: 'USD',
+            fiscalYear: '2026',
+            status: 'ACTIVE'
+        };
+    }
 }

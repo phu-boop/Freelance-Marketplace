@@ -6,17 +6,38 @@ import { UpdateJobDto } from './dto/update-job.dto';
 import { CreateCategoryDto } from '../categories/create-category.dto';
 import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
 
+import { AiScopingService } from './ai-scoping.service';
+
 @Controller('api/jobs')
 export class JobsController {
   constructor(
     private readonly jobsService: JobsService,
-    private readonly aiService: AiService
+    private readonly aiService: AiService,
+    private readonly aiScopingService: AiScopingService
   ) { }
+
+  @Post('ai/generate-scope')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  async generateScope(@Body() body: { text?: string; url?: string }) {
+    return this.aiScopingService.generateScope(body);
+  }
 
   @Post('ai/scope')
   @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
   async generateAiScope(@Body() body: { description: string, budget?: number }) {
     return this.aiService.generateMilestones(body.description, body.budget);
+  }
+
+  @Post('ai/scrape')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  async scrapeAiProject(@Body() body: { content: string }) {
+    return this.aiService.scrapeProjectFromText(body.content);
+  }
+
+  @Post('ai/estimate-budget')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT'] })
+  async estimateBudget(@Body() body: { description: string }) {
+    return this.aiService.estimateBudgetComplexity(body.description);
   }
 
   @Post('ai/analyze-style')
@@ -28,9 +49,9 @@ export class JobsController {
 
   @Post(':id/ai/generate-proposal')
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
-  async generateAiProposal(@Param('id') id: string, @Request() req) {
+  async generateAiProposal(@Param('id') id: string, @Body() body: { tone?: string }, @Request() req) {
     const userId = req.user.sub;
-    return this.aiService.generateProposal(id, userId);
+    return this.aiService.generateProposal(id, userId, body.tone);
   }
 
   @Post('contracts/:contractId/ai/standup')
@@ -43,6 +64,31 @@ export class JobsController {
   @Public()
   async detectFraud(@Body() body: { content: string }) {
     return this.aiService.detectFraud(body.content);
+  }
+
+  @Post('ai/analyze-dispute')
+  @Public()
+  async analyzeDispute(@Body() body: { disputeId: string, context: any }) {
+    return this.aiService.analyzeDispute(body.disputeId, body.context);
+  }
+
+  @Post('ai/scan-submission')
+  @Public()
+  async scanSubmission(@Body() body: { content: string }) {
+    return this.aiService.scanSubmission(body.content);
+  }
+
+  @Post('ai/scan-chat')
+  @Public()
+  async scanChat(@Body() body: { messages: string[] }) {
+    return this.aiService.scanChatForRisks(body.messages);
+  }
+
+  @Post('ai/analyze-requirements')
+  @Public()
+  async analyzeRequirements(@Body() body: { content: string }) {
+    // Note: This matches the contract-service WorkspaceAiService logic if moved/unified
+    return this.aiService.scanSubmission(body.content); // For MVP, reuse the scan logic or a specific analyzer
   }
 
   @Post()

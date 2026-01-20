@@ -32,10 +32,12 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AvatarUpload } from '@/components/AvatarUpload';
+import { DocumentUpload } from '@/components/DocumentUpload';
 import Link from 'next/link';
 import { ExperienceList } from '@/components/profile/ExperienceList';
 import { EducationList } from '@/components/profile/EducationList';
 import { PortfolioList } from '@/components/profile/PortfolioList';
+import SettingsTabs from '@/components/settings/SettingsTabs';
 
 const profileSchema = z.object({
     firstName: z.string().min(2, 'First name must be at least 2 characters'),
@@ -337,11 +339,7 @@ export default function ProfileSettingsPage() {
                 </div>
             </Card>
 
-            {/* Sub-navigation for settings context (Profile vs Security) */}
-            <div className="flex gap-6 border-b border-slate-800 mb-8">
-                <Link href="/settings/profile" className="pb-4 text-sm font-medium text-white border-b-2 border-white">Profile</Link>
-                <Link href="/settings/security" className="pb-4 text-sm font-medium text-slate-400 hover:text-white transition-colors">Security</Link>
-            </div>
+            <SettingsTabs />
 
             {/* Main Profile Tabs */}
             <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 overflow-hidden">

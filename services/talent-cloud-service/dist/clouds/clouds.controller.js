@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CloudsController = void 0;
 const common_1 = require("@nestjs/common");
 const clouds_service_1 = require("./clouds.service");
+const nest_keycloak_connect_1 = require("nest-keycloak-connect");
 let CloudsController = class CloudsController {
     constructor(cloudsService) {
         this.cloudsService = cloudsService;
@@ -23,20 +24,20 @@ let CloudsController = class CloudsController {
         return this.cloudsService.createCloud(dto);
     }
     async invite(req, cloudId, dto) {
-        const inviterId = req.user?.sub || 'admin';
+        const inviterId = req.user?.sub;
+        if (!inviterId)
+            throw new common_1.UnauthorizedException();
         return this.cloudsService.inviteMember(cloudId, dto.userId, inviterId);
     }
-    async getMyInvitations(req) {
-        const userId = req.user?.sub;
-        if (!userId)
-            throw new Error('Unauthorized');
-        return this.cloudsService.getInvitations(userId);
+    async getMyInvitations(user) {
+        if (!user?.sub)
+            throw new common_1.UnauthorizedException();
+        return this.cloudsService.getInvitations(user.sub);
     }
-    async respond(req, invitationId, dto) {
-        const userId = req.user?.sub;
-        if (!userId)
-            throw new Error('Unauthorized');
-        return this.cloudsService.respondToInvitation(invitationId, userId, dto.accept);
+    async respond(user, invitationId, dto) {
+        if (!user?.sub)
+            throw new common_1.UnauthorizedException();
+        return this.cloudsService.respondToInvitation(invitationId, user.sub, dto.accept);
     }
     async addMember(cloudId, dto) {
         return this.cloudsService.addMember(cloudId, dto.userId, dto.role);
@@ -60,6 +61,7 @@ let CloudsController = class CloudsController {
 exports.CloudsController = CloudsController;
 __decorate([
     (0, common_1.Post)(),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -67,6 +69,7 @@ __decorate([
 ], CloudsController.prototype, "create", null);
 __decorate([
     (0, common_1.Post)(':cloudId/invite'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN', 'realm:CLIENT', 'CLIENT'] }),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('cloudId')),
     __param(2, (0, common_1.Body)()),
@@ -76,14 +79,16 @@ __decorate([
 ], CloudsController.prototype, "invite", null);
 __decorate([
     (0, common_1.Get)('invitations/my'),
-    __param(0, (0, common_1.Request)()),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
+    __param(0, (0, nest_keycloak_connect_1.AuthenticatedUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], CloudsController.prototype, "getMyInvitations", null);
 __decorate([
     (0, common_1.Post)('invitations/:invitationId/respond'),
-    __param(0, (0, common_1.Request)()),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER'] }),
+    __param(0, (0, nest_keycloak_connect_1.AuthenticatedUser)()),
     __param(1, (0, common_1.Param)('invitationId')),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -92,6 +97,7 @@ __decorate([
 ], CloudsController.prototype, "respond", null);
 __decorate([
     (0, common_1.Post)(':cloudId/members'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
     __param(0, (0, common_1.Param)('cloudId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -100,6 +106,7 @@ __decorate([
 ], CloudsController.prototype, "addMember", null);
 __decorate([
     (0, common_1.Post)(':cloudId/members/bulk'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
     __param(0, (0, common_1.Param)('cloudId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -108,6 +115,7 @@ __decorate([
 ], CloudsController.prototype, "addMembersBulk", null);
 __decorate([
     (0, common_1.Delete)(':cloudId/members/:userId'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
     __param(0, (0, common_1.Param)('cloudId')),
     __param(1, (0, common_1.Param)('userId')),
     __metadata("design:type", Function),
@@ -116,6 +124,7 @@ __decorate([
 ], CloudsController.prototype, "removeMember", null);
 __decorate([
     (0, common_1.Get)('user/:userId'),
+    (0, nest_keycloak_connect_1.Public)(),
     __param(0, (0, common_1.Param)('userId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -123,6 +132,7 @@ __decorate([
 ], CloudsController.prototype, "listForUser", null);
 __decorate([
     (0, common_1.Get)(':id'),
+    (0, nest_keycloak_connect_1.Public)(),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -130,6 +140,7 @@ __decorate([
 ], CloudsController.prototype, "getOne", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),

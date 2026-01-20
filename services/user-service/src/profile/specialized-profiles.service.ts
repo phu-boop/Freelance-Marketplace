@@ -38,6 +38,12 @@ export class SpecializedProfilesService {
                 education: true,
                 experience: true,
                 certifications: true,
+                _count: {
+                    select: {
+                        portfolioItems: true,
+                        experience: true,
+                    }
+                }
             },
         });
     }
@@ -78,9 +84,19 @@ export class SpecializedProfilesService {
 
     async remove(userId: string, id: string) {
         const profile = await this.findOne(userId, id);
-        return (this.prisma as any).specializedProfile.delete({
+        const result = await (this.prisma as any).specializedProfile.delete({
             where: { id },
         });
+
+        if (profile.isDefault) {
+            const nextProfile = await (this.prisma as any).specializedProfile.findFirst({
+                where: { userId },
+            });
+            if (nextProfile) {
+                await this.update(userId, nextProfile.id, { isDefault: true } as any);
+            }
+        }
+        return result;
     }
 
     async linkPortfolioItem(userId: string, profileId: string, portfolioItemId: string) {

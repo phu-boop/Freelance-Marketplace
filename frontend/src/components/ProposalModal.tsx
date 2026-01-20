@@ -33,6 +33,9 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
     const [clientId, setClientId] = useState<string | null>(null);
     const [specializedProfiles, setSpecializedProfiles] = useState<any[]>([]);
     const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+    const [userAgencies, setUserAgencies] = useState<any[]>([]);
+    const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
+    const [proposalTone, setProposalTone] = useState('Professional');
 
     React.useEffect(() => {
         if (isOpen) {
@@ -46,10 +49,17 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                     setPortfolioItems(res.data.portfolio || []);
                     setSpecializedProfiles(res.data.specializedProfiles || []);
 
-                    // Set default specialized profile if one exists
                     const defaultProfile = res.data.specializedProfiles?.find((p: any) => p.isDefault);
                     if (defaultProfile) {
                         setSelectedProfileId(defaultProfile.id);
+                    }
+                }).catch(console.error);
+
+                api.get('/user/teams').then(res => {
+                    const agencies = res.data.filter((t: any) => t.isAgency) || [];
+                    setUserAgencies(agencies);
+                    if (agencies.length === 1) {
+                        setSelectedAgencyId(agencies[0].id);
                     }
                 }).catch(console.error);
             }
@@ -83,10 +93,13 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
         setAiLoading(true);
         setError(null);
         try {
-            const res = await api.post(`/jobs/${jobId}/ai/generate-proposal`);
+            const res = await api.post(`/jobs/${jobId}/ai/generate-proposal`, { tone: proposalTone });
             setCoverLetter(res.data.content);
             if (res.data.recommendedPortfolioIds) {
                 setSelectedPortfolioIds(res.data.recommendedPortfolioIds);
+            }
+            if (res.data.suggestedBid) {
+                setBidAmount(res.data.suggestedBid.toString());
             }
         } catch (err) {
             console.error('Magic Draft failed', err);
@@ -102,16 +115,17 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
         setError(null);
 
         try {
-            await api.post('/proposals', {
-                jobId: jobId,
-                coverLetter: coverLetter,
-                bidAmount: parseFloat(bidAmount),
-                timeline: timeline,
-                invitationId: invitationId,
-                boostAmount: parseInt(boostAmount) || 0,
-                screeningAnswers: screeningAnswers,
+            const response = await api.post('/proposals', {
+                jobId,
+                coverLetter,
+                bidAmount: Number(bidAmount),
+                timeline,
+                boostAmount: Number(boostAmount),
+                screeningAnswers,
                 portfolioItemIds: selectedPortfolioIds,
-                specializedProfileId: selectedProfileId
+                invitationId,
+                specializedProfileId: selectedProfileId,
+                agencyId: selectedAgencyId
             });
             setSuccess(true);
             clearDraft();
@@ -229,19 +243,31 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-center">
                                                     <label className="text-sm font-medium text-slate-300">Cover Letter</label>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleMagicDraft}
-                                                        disabled={aiLoading}
-                                                        className="text-[10px] font-bold bg-purple-500/10 text-purple-400 px-2 py-1 rounded-lg border border-purple-500/20 hover:bg-purple-500/20 transition-all flex items-center gap-1.5"
-                                                    >
-                                                        {aiLoading ? (
-                                                            <Loader2 className="w-3 h-3 animate-spin" />
-                                                        ) : (
-                                                            <Sparkles className="w-3 h-3" />
-                                                        )}
-                                                        ✨ Magic Draft
-                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <select
+                                                            value={proposalTone}
+                                                            onChange={(e) => setProposalTone(e.target.value)}
+                                                            className="text-[10px] bg-slate-800 border-none text-slate-400 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500"
+                                                        >
+                                                            <option value="Professional">Professional</option>
+                                                            <option value="Casual">Casual</option>
+                                                            <option value="Technical">Technical</option>
+                                                            <option value="Enthusiastic">Enthusiastic</option>
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleMagicDraft}
+                                                            disabled={aiLoading}
+                                                            className="text-[10px] font-bold bg-purple-500/10 text-purple-400 px-2 py-1 rounded-lg border border-purple-500/20 hover:bg-purple-500/20 transition-all flex items-center gap-1.5"
+                                                        >
+                                                            {aiLoading ? (
+                                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                            ) : (
+                                                                <Sparkles className="w-3 h-3" />
+                                                            )}
+                                                            ✨ Magic Draft
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <textarea
                                                     required

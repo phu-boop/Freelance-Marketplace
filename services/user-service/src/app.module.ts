@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
@@ -8,7 +8,12 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
 import { TeamsModule } from './teams/teams.module';
+import { TeamModule } from './team/team.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { ReferralsModule } from './referrals/referrals.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { AiModule } from './ai/ai.module';
+import { VettingModule } from './vetting/vetting.module';
 import { HealthController } from './health/health.controller';
 import {
   KeycloakConnectModule,
@@ -17,11 +22,14 @@ import {
   AuthGuard,
   TokenValidation,
 } from 'nest-keycloak-connect';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { HttpModule } from '@nestjs/axios';
+import { PerformanceInterceptor } from './common/interceptors/performance.interceptor';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     LoggerModule.forRoot({
       pinoHttp: {
         transport:
@@ -37,11 +45,17 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       },
     ]),
     TerminusModule,
+    HttpModule,
     PrismaModule,
     UsersModule,
     ProfileModule,
     TeamsModule,
     PortfolioModule,
+    ReferralsModule,
+    TeamModule,
+    AnalyticsModule,
+    AiModule,
+    VettingModule,
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -78,6 +92,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       provide: APP_GUARD,
       useClass: RoleGuard,
     },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PerformanceInterceptor,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule { }

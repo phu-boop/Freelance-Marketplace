@@ -156,4 +156,12 @@ export class CreateUserDto {
   @IsArray()
   @IsOptional()
   languages?: any[];
+
+  @IsString()
+  @IsOptional()
+  taxId?: string;
+
+  @IsString()
+  @IsOptional()
+  billingAddress?: string;
 }

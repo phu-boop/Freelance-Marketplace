@@ -31,21 +31,37 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     const syncInProgress = useRef(false);
 
     const performSync = async (pendingRole?: string) => {
-        if (syncInProgress.current) return;
+        if (syncInProgress.current) {
+            console.log('[AUTH] Sync already in progress, skipping');
+            return;
+        }
+
+        // Use a timestamp to prevent syncs from happening too close together (within 2 seconds)
+        const lastSync = sessionStorage.getItem('last_auth_sync');
+        const now = Date.now();
+        if (lastSync && now - parseInt(lastSync) < 2000) {
+            console.log('[AUTH] Sync happened too recently, skipping');
+            return;
+        }
+
         syncInProgress.current = true;
+        sessionStorage.setItem('last_auth_sync', now.toString());
 
         try {
-            console.log('[AUTH] Starting sync...');
+            console.group('[AUTH] Sync Process');
+            console.log('[AUTH] Current User:', { userId, roles });
+            console.log('[AUTH] Path:', window.location.pathname);
+
             const response = await api.post('/auth/sync', { role: pendingRole });
             const user = response.data;
+            console.log('[AUTH] Sync response:', user);
 
             if (pendingRole) localStorage.removeItem('pending_role');
 
-            // Only update roles if they actually changed to prevent re-renders
             const newRoles = user.roles || [];
             if (JSON.stringify(newRoles) !== JSON.stringify(roles)) {
+                console.log('[AUTH] Roles changed, updating state:', newRoles);
                 setRoles(newRoles);
-                // Only force-refresh if roles changed
                 try {
                     await keycloak?.updateToken(-1);
                     if (keycloak?.token) {
@@ -57,7 +73,6 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                 }
             }
 
-            // Set initialized before redirecting to avoid flickering or loops
             setInitialized(true);
 
             const currentPath = window.location.pathname;
@@ -68,23 +83,27 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
             } else if (!user.requiresOnboarding && currentPath === '/onboarding') {
                 targetPath = '/dashboard';
             } else if (currentPath === '/login' || currentPath === '/register') {
-                const latestRole = user.roles?.[0] || 'FREELANCER';
-                if (latestRole === 'ADMIN' || user.roles?.includes('ADMIN')) {
+                const latestRole = user.roles?.find((r: string) => r === 'ADMIN' || r === 'CLIENT' || r === 'FREELANCER') || 'FREELANCER';
+                if (latestRole === 'ADMIN') {
                     targetPath = '/admin';
-                } else if (latestRole === 'CLIENT' || user.roles?.includes('CLIENT')) {
+                } else if (latestRole === 'CLIENT') {
                     targetPath = '/client/dashboard';
                 } else {
                     targetPath = '/dashboard';
                 }
             }
 
-            // Only redirect if necessary and target is different from current
             if (targetPath && targetPath !== currentPath) {
-                console.log(`[AUTH] Redirecting to ${targetPath}`);
+                console.log(`[AUTH] Redirecting: ${currentPath} -> ${targetPath}`);
+                console.groupEnd();
                 window.location.href = targetPath;
+            } else {
+                console.log('[AUTH] No redirect needed');
+                console.groupEnd();
             }
         } catch (error) {
-            console.error('Backend sync failed:', error);
+            console.error('[AUTH] Backend sync failed:', error);
+            console.groupEnd();
             setInitialized(true);
             if (window.location.pathname === '/login' || window.location.pathname === '/register') {
                 window.location.href = '/dashboard';
@@ -95,15 +114,20 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     };
 
     useEffect(() => {
-        if (initRef.current) return;
+        console.log('[AUTH] KeycloakProvider mounted');
+        if (initRef.current) {
+            console.log('[AUTH] Already initialized (initRef), skipping');
+            return;
+        }
         initRef.current = true;
 
         if (typeof window !== 'undefined' && keycloak) {
-            console.log('[AUTH] Initializing Keycloak with config:', {
-                url: keycloak.authServerUrl,
-                realm: keycloak.realm,
-                clientId: keycloak.clientId
+            console.log('[AUTH] Keycloak Config from Env:', {
+                url: process.env.NEXT_PUBLIC_KEYCLOAK_URL,
+                realm: process.env.NEXT_PUBLIC_KEYCLOAK_REALM,
+                clientId: process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
             });
+            console.log('[AUTH] Initializing Keycloak instance:', keycloak);
             keycloak
                 .init({
                     onLoad: 'check-sso',
@@ -134,6 +158,10 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                 })
                 .catch((err) => {
                     console.error('Keycloak init failed', err);
+                    // Clear stale tokens to prevent persistent errors
+                    localStorage.removeItem('kc_token');
+                    localStorage.removeItem('kc_refreshToken');
+                    setAuthenticated(false);
                     setInitialized(true);
                 });
         }

@@ -13,6 +13,9 @@ export declare class AuditController {
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
         checksum: string;
         referenceId: string | null;
+        durationMs: number | null;
+        traceId: string | null;
+        status: string | null;
     }>;
     findAll(limit?: number, offset?: number): Promise<{
         id: string;
@@ -24,6 +27,9 @@ export declare class AuditController {
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
         checksum: string;
         referenceId: string | null;
+        durationMs: number | null;
+        traceId: string | null;
+        status: string | null;
     }[]>;
     verify(id: string): Promise<boolean>;
     verifyAll(): Promise<{

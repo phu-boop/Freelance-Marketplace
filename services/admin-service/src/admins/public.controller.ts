@@ -38,4 +38,15 @@ export class PublicController {
         const flags = await this.adminsService.getFeatureFlags();
         return flags.map(f => ({ key: f.key, isEnabled: f.isEnabled, percentage: f.percentage }));
     }
+
+    @Get('chaos/config')
+    @Public()
+    async getChaosConfig() {
+        const configs = await this.adminsService.getAllConfigs();
+        return {
+            latencyEnabled: configs.find(c => c.key === 'CHAOS_LATENCY_ENABLED')?.value === 'true',
+            latencyMs: Number(configs.find(c => c.key === 'CHAOS_LATENCY_MS')?.value || '2000'),
+            errorRate: Number(configs.find(c => c.key === 'CHAOS_ERROR_RATE')?.value || '0'),
+        };
+    }
 }

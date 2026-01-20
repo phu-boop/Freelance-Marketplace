@@ -5,6 +5,7 @@ import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 import { FreelancerDashboard } from '@/components/dashboard/FreelancerDashboard';
 import { ClientDashboard } from '@/components/dashboard/ClientDashboard';
+import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 
 export default function DashboardPage() {
     const { userId, roles } = useKeycloak();
@@ -26,13 +27,7 @@ export default function DashboardPage() {
         fetchUser();
     }, [userId]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
-    }
+    if (loading) return <DashboardSkeleton />;
 
     // Role-based rendering
     if (roles.includes('ADMIN')) {
@@ -50,12 +45,7 @@ export default function DashboardPage() {
     }
 
     // Still determining role or restricted
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-            <div className="w-12 h-12 border-4 border-slate-800 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-slate-400">Loading your workspace...</p>
-        </div>
-    );
+    return <DashboardSkeleton />;
 }
 
 

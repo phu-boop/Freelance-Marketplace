@@ -1,64 +1,90 @@
-import { Injectable, Logger, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SecurityService {
   private readonly logger = new Logger(SecurityService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
-  async validateDevice(
+  async recordLogin(
     userId: string,
-    deviceId: string,
-    metadata: { deviceName?: string; ipAddress?: string; userAgent?: string },
+    metadata: {
+      ipAddress?: string;
+      userAgent?: string;
+      deviceId?: string;
+      browser?: string;
+      os?: string;
+      status?: string;
+    },
   ) {
-    let device = await this.prisma.trustedDevice.findUnique({
+    // 1. Record in Login History
+    await this.prisma.userLoginHistory.create({
+      data: {
+        userId,
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+        status: metadata.status || 'SUCCESS',
+        device: `${metadata.browser || 'Unknown'} on ${metadata.os || 'Unknown'}`,
+      },
+    });
+
+    // 2. Manage Security Device
+    if (metadata.deviceId) {
+      await this.prisma.securityDevice.upsert({
+        where: {
+          userId_deviceId: { userId, deviceId: metadata.deviceId },
+        },
+        create: {
+          userId,
+          deviceId: metadata.deviceId,
+          browser: metadata.browser,
+          os: metadata.os,
+          lastIp: metadata.ipAddress,
+          lastUsedAt: new Date(),
+        },
+        update: {
+          lastUsedAt: new Date(),
+          lastIp: metadata.ipAddress,
+          browser: metadata.browser,
+          os: metadata.os,
+        },
+      });
+    }
+
+    this.logger.log(`Login recorded for user ${userId} from ${metadata.ipAddress}`);
+  }
+
+  async getSecurityContext(userId: string) {
+    const [devices, history] = await Promise.all([
+      this.prisma.securityDevice.findMany({
+        where: { userId },
+        orderBy: { lastUsedAt: 'desc' },
+      }),
+      this.prisma.userLoginHistory.findMany({
+        where: { userId },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return { devices, history };
+  }
+
+  async revokeDevice(userId: string, deviceId: string) {
+    return this.prisma.securityDevice.delete({
       where: {
         userId_deviceId: { userId, deviceId },
       },
     });
-
-    if (!device) {
-      // New Device Detected
-      const deviceCount = await this.prisma.trustedDevice.count({
-        where: { userId },
-      });
-      const trustScore = deviceCount > 5 ? 50 : 90; // Lower score if user has many devices
-
-      device = await this.prisma.trustedDevice.create({
-        data: {
-          userId,
-          deviceId,
-          deviceName: metadata.deviceName || 'Unknown Device',
-          trustScore,
-        },
-      });
-
-      this.logger.log(
-        `New device registered for user ${userId}: ${deviceId} (Score: ${trustScore})`,
-      );
-    } else {
-      // Existing Device, update last login
-      await this.prisma.trustedDevice.update({
-        where: { id: device.id },
-        data: { lastLoginAt: new Date() },
-      });
-    }
-
-    if (device.isBlocked || device.trustScore < 30) {
-      this.logger.warn(
-        `Blocked login attempt from device ${deviceId} for user ${userId}`,
-      );
-      return { isBlocked: true, reason: 'Device Risk Score too high' };
-    }
-
-    return { isBlocked: false, device };
   }
 
-  async blockDevice(userId: string, deviceId: string) {
-    return this.prisma.trustedDevice.update({
-      where: { userId_deviceId: { userId, deviceId } },
-      data: { isBlocked: true, trustScore: 0 },
+  async revokeAllExcept(userId: string, currentDeviceId: string) {
+    return this.prisma.securityDevice.deleteMany({
+      where: {
+        userId,
+        deviceId: { not: currentDeviceId },
+      },
     });
   }
 }

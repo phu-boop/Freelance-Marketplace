@@ -17,6 +17,9 @@ export declare class AuditService implements OnModuleInit {
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
         checksum: string;
         referenceId: string | null;
+        durationMs: number | null;
+        traceId: string | null;
+        status: string | null;
     }>;
     findAll(limit?: number, offset?: number): Promise<{
         id: string;
@@ -28,6 +31,9 @@ export declare class AuditService implements OnModuleInit {
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
         checksum: string;
         referenceId: string | null;
+        durationMs: number | null;
+        traceId: string | null;
+        status: string | null;
     }[]>;
     private generateChecksum;
     verifyLog(id: string): Promise<boolean>;

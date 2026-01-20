@@ -30,9 +30,8 @@ export class HelpService {
         return article;
     }
 
-    async semanticSearch(query: string) {
+    async semanticSearch(userId: string, query: string) {
         // In a real app, use Gemini/OpenAI to find relevant articles
-        // For this phase, we do a keyword and content search
         const articles = await this.prisma.helpArticle.findMany({
             where: {
                 OR: [
@@ -45,6 +44,19 @@ export class HelpService {
         });
 
         if (articles.length === 0) {
+            // Auto-create a ticket if no articles found and user is logged in
+            if (userId && query.length > 10) {
+                const ticket = await this.createTicket(userId, {
+                    subject: `Auto-generated from search: ${query.slice(0, 30)}...`,
+                    description: `User was looking for: "${query}". No relevant articles found.`,
+                    priority: 'NORMAL',
+                });
+                return {
+                    message: "I couldn't find a direct answer, so I've automatically opened a support ticket for you.",
+                    ticket,
+                    suggestTickets: true,
+                };
+            }
             return {
                 message: "I couldn't find a direct answer. Would you like to open a support ticket?",
                 suggestTickets: true,

@@ -40,18 +40,33 @@ export class ChatsService {
 
     // Guardian AI Scan
     const guardianResult = await this.guardianService.analyzeContent(createChatDto.content, createChatDto.senderId);
-    if (guardianResult.riskScore > 0) {
-      if (guardianResult.flags.length > 0) {
-        // Could decide to block here if risk > 80
+
+    // Shadow-ban / Automatic Suspension Logic
+    if (guardianResult.riskScore >= 90) {
+      console.warn(`[EXTREME RISK] Auto-suspending user ${createChatDto.senderId} due to high risk content.`);
+      try {
+        const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://user-service:3001');
+        await firstValueFrom(
+          this.httpService.post(`${userServiceUrl}/api/users/${createChatDto.senderId}/suspend`)
+        );
+      } catch (err) {
+        console.error(`Failed to auto-suspend user ${createChatDto.senderId}:`, err.message);
       }
+
+      // We still create the message so admins can see it, but we mark it as blocked
+      (createChatDto as any).isBlocked = true;
     }
 
     const createdMessage = new this.messageModel({
       ...createChatDto,
-      isFlagged: createChatDto.isFlagged || containsBadWord || guardianResult.riskScore > 50, // Flag if high risk
+      isFlagged: createChatDto.isFlagged || containsBadWord || guardianResult.riskScore > 50,
       flagReason: createChatDto.flagReason ||
         (containsBadWord ? 'Profanity/Blacklisted content detected' :
-          (guardianResult.riskScore > 50 ? `Guardian Flag: ${guardianResult.flags.join(', ')}` : undefined))
+          (guardianResult.riskScore > 50 ? `Guardian Flag: ${guardianResult.flags.join(', ')}` : undefined)),
+      metadata: {
+        guardianScore: guardianResult.riskScore,
+        guardianFlags: guardianResult.flags
+      }
     });
     const message = await createdMessage.save();
 

@@ -131,6 +131,54 @@ export default function AdminDashboardPage() {
                 ))}
             </div>
 
+            {/* Platform Operations */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Link href="/admin/monetization" className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800/80 transition-all group">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
+                            <DollarSign className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-white">Monetization</h3>
+                            <p className="text-xs text-slate-400">Revenue & Subscriptions</p>
+                        </div>
+                    </div>
+                    <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 w-3/4" />
+                    </div>
+                </Link>
+
+                <Link href="/admin/safety" className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800/80 transition-all group">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 rounded-xl bg-red-500/10 text-red-500 group-hover:scale-110 transition-transform">
+                            <ShieldAlert className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-white">Safety Center</h3>
+                            <p className="text-xs text-slate-400">Moderation & Fraud</p>
+                        </div>
+                    </div>
+                    <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-red-500 w-full" />
+                    </div>
+                </Link>
+
+                <Link href="/admin/reliability" className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800/80 transition-all group">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 group-hover:scale-110 transition-transform">
+                            <Activity className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-white">Reliability</h3>
+                            <p className="text-xs text-slate-400">Chaos & Performance</p>
+                        </div>
+                    </div>
+                    <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 w-5/6" />
+                    </div>
+                </Link>
+            </div>
+
             {/* Recent Activity Placeholder */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">

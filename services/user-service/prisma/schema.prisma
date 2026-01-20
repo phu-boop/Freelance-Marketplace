@@ -137,11 +137,32 @@ linkedinUsername        String?
 
   identityVerifications IdentityVerification[]
   trustedDevices          TrustedDevice[]
-
+  loginHistory            UserLoginHistory[]
+  securityDevices         SecurityDevice[]
   awardedBadges           Badge[]
   specializedProfiles     SpecializedProfile[]
+  analyticsEvents       AnalyticsEvent[]
+  freelancerMetric      FreelancerMetric?
+  clientMetric          ClientMetric?
+  safetyReports         SafetyReport[]         @relation("ReportedUser")
+  submittedSafetyReports SafetyReport[]         @relation("Reporter")
+  appeals               Appeal[]
+  reputationHistory     ReputationScore[]
 
   @@map("users")
+  @@schema("users")
+}
+
+model ReputationScore {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  score         Int      // JSS (0-100)
+  successfulJobs Int     @default(0)
+  earnings12m   Decimal  @default(0.0)
+  topRatedWeeks Int      @default(0)
+  calculatedAt  DateTime @default(now())
+
   @@schema("users")
 }
 
@@ -377,6 +398,11 @@ model Team {
   description String?
   logoUrl     String?
   ownerId     String
+  isAgency            Boolean  @default(false)
+  agencyWebsite       String?
+  legalName           String?
+  taxId               String?
+  revenueSplitPercent Decimal  @default(20.0) // Percentage the agency takes
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   owner       User         @relation(fields: [ownerId], references: [id])
@@ -473,6 +499,37 @@ model SavedFreelancer {
   @@schema("users")
 }
 
+model UserLoginHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  ipAddress String?
+  userAgent String?
+  location  String?
+  status    String   @default("SUCCESS") // SUCCESS, FAILED
+  device    String?  // e.g. "Chrome on macOS"
+  createdAt DateTime @default(now())
+
+  @@schema("users")
+}
+
+model SecurityDevice {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  deviceId    String   // Fingerprint
+  deviceName  String?
+  browser     String?
+  os          String?
+  lastIp      String?
+  isTrusted   Boolean  @default(true)
+  lastUsedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, deviceId])
+  @@schema("users")
+}
+
 model SyncTombstone {
   id        String   @id @default(uuid())
   entity    String   // e.g., "User", "PortfolioItem"
@@ -483,4 +540,71 @@ model SyncTombstone {
   @@index([entity, deletedAt, userId])
   @@map("sync_tombstones")
   @@schema("sync")
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  type        String   // e.g., "JOB_VIEW", "PROPOSAL_SUBMIT"
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  payload     Json?    // arbitrary event data
+  createdAt   DateTime @default(now())
+  @@schema("users")
+}
+
+model FreelancerMetric {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  earnings          Decimal  @default(0.0)
+  winRate           Float    @default(0.0)
+  avgResponseTime   Float    @default(0.0)
+  projectsCompleted Int      @default(0)
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id])
+  @@schema("users")
+}
+
+model ClientMetric {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  totalSpend        Decimal  @default(0.0)
+  roi               Float    @default(0.0)
+  projectsPosted    Int      @default(0)
+  activeContracts   Int      @default(0)
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id])
+  @@schema("users")
+}
+
+model SafetyReport {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation("ReportedUser", fields: [userId], references: [id])
+  reporterId    String?
+  reporter      User?    @relation("Reporter", fields: [reporterId], references: [id])
+  type          String   // CHAT_RISK, SUBMISSION_RISK, LOGIN_ANOMALY
+  severity      String   // LOW, MEDIUM, HIGH, CRITICAL
+  description   String
+  evidence      Json?
+  status        String   @default("OPEN") // OPEN, REVIEWING, CLOSED, ESCALATED
+  adminId       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("users")
+}
+
+model Appeal {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  type          String   // SUSPENSION, KYC_REJECTION, DISPUTE_LOSS
+  reason        String
+  evidenceUrls  String[]
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNotes    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@schema("users")
 }

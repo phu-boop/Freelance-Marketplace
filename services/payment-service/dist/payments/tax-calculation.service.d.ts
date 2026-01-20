@@ -3,8 +3,11 @@ import { Decimal } from '@prisma/client/runtime/library';
 export declare class TaxCalculationService {
     private prisma;
     private readonly logger;
+    private cache;
+    private readonly CACHE_TTL;
     constructor(prisma: PrismaService);
-    calculateTax(amount: Decimal | number, countryCode: string): Promise<{
+    private getTaxSetting;
+    calculateTax(amount: Decimal | number, countryCode: string, isVerified?: boolean): Promise<{
         taxAmount: Decimal;
         taxRate: number;
     }>;

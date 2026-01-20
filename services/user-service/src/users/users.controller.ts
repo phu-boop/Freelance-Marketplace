@@ -8,8 +8,10 @@ import {
   Delete,
   Query,
   Request,
+  Req,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -71,17 +73,22 @@ export class UsersController {
     throw new UnauthorizedException('User not authenticated');
   }
 
-  @Public()
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req) {
     const viewerId = req.user?.sub;
     return this.usersService.findOne(id, viewerId);
   }
 
-  @Get('profile/badges/:id')
+  @Get(':id/badges')
   @Public()
   getBadges(@Param('id') id: string) {
     return this.badgesService.getBadges(id);
+  }
+
+  @Post(':id/badges/check-eligibility')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN', 'realm:FREELANCER', 'FREELANCER'] })
+  checkEligibility(@Param('id') id: string) {
+    return this.badgesService.checkEligibility(id);
   }
 
   @Get('jurisdiction/:countryCode')
@@ -100,6 +107,7 @@ export class UsersController {
     return this.usersService.update(id, updateUserDto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post(':id/change-password')
   changePassword(
     @Param('id') id: string,
@@ -218,11 +226,13 @@ export class UsersController {
     return this.usersService.toggleTwoFactor(id);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post(':id/2fa/setup')
   setupTwoFactor(@Param('id') id: string) {
     return this.usersService.setupTwoFactor(id);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post(':id/2fa/verify')
   verifyTwoFactor(@Param('id') id: string, @Body() body: { token: string }) {
     return this.usersService.verifyTwoFactor(id, body.token);
@@ -331,16 +341,13 @@ export class UsersController {
   }
 
   // Device Security
-  @Post('devices/validate')
-  validateDevice(
-    @Request() req,
-    @Body() body: { deviceId: string; metadata?: any },
-  ) {
-    return this.securityService.validateDevice(
-      req.user.sub,
-      body.deviceId,
-      body.metadata || {},
-    );
+  @Post('security/record-login')
+  recordLogin(@Req() req, @Body() body: any) {
+    return this.securityService.recordLogin(req.user.sub, {
+      ...body,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   // Tax Compliance
@@ -474,5 +481,69 @@ export class UsersController {
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   verifyPortfolioItem(@Param('itemId') itemId: string) {
     return this.aiService.verifyPortfolioItem(itemId);
+  }
+
+  // Security & Privacy (Phase 14)
+  @Get('me/security-context')
+  getSecurityContext(@Req() req) {
+    return this.securityService.getSecurityContext(req.user.sub);
+  }
+
+  @Delete('me/devices/:deviceId')
+  revokeDevice(@Req() req, @Param('deviceId') deviceId: string) {
+    return this.securityService.revokeDevice(req.user.sub, deviceId);
+  }
+
+  @Delete('me/devices')
+  revokeAllDevices(@Req() req, @Body('currentDeviceId') currentDeviceId: string) {
+    return this.securityService.revokeAllExcept(req.user.sub, currentDeviceId);
+  }
+
+  @Post('me/export-data')
+  exportUserData(@Req() req) {
+    return this.usersService.exportData(req.user.sub);
+  }
+
+  @Delete('me/delete-account')
+  @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
+  async deleteAccount(@Req() req) {
+    // GDPR: Right to be Forgotten
+    return this.usersService.remove(req.user.sub);
+  }
+
+  @Public() // Should be secured via internal VPC or secret in production
+  @Post(':id/badges/award')
+  awardBadge(
+    @Param('id') id: string,
+    @Body() data: { badgeName: string; metadata?: any },
+  ) {
+    return this.badgesService.awardBadge(id, data.badgeName);
+  }
+
+
+
+  // Safety & Appeals
+  @Post(':id/appeals')
+  @Roles({ roles: ['FREELANCER', 'CLIENT'] })
+  submitAppeal(@Param('id') id: string, @Body() data: any) {
+    return this.usersService.submitAppeal(id, data);
+  }
+
+  @Get('admin/appeals')
+  @Roles({ roles: ['ADMIN'] })
+  getAppeals(@Query('status') status?: string) {
+    return this.usersService.getAppeals(status);
+  }
+
+  @Patch('admin/appeals/:id/resolve')
+  @Roles({ roles: ['ADMIN'] })
+  resolveAppeal(@Param('id') id: string, @Body() data: any) {
+    return this.usersService.resolveAppeal(id, data);
+  }
+
+  @Get('admin/safety-reports')
+  @Roles({ roles: ['ADMIN'] })
+  getSafetyReports(@Query('status') status?: string) {
+    return this.usersService.getSafetyReports(status);
   }
 }

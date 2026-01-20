@@ -13,10 +13,11 @@ import {
     Tags,
     Loader2,
     CheckCircle2,
-    Upload
+    Sparkles
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import AiScraperWizard from '@/components/AiScraperWizard';
 
 export default function PostJobPage() {
     const { userId } = useKeycloak();
@@ -26,6 +27,7 @@ export default function PostJobPage() {
     const [error, setError] = useState<string | null>(null);
     const [categories, setCategories] = useState<any[]>([]);
     const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+    const [showScraper, setShowScraper] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -168,7 +170,39 @@ export default function PostJobPage() {
             <div className="space-y-2">
                 <h1 className="text-3xl font-bold text-white">Post a New Job</h1>
                 <p className="text-slate-400">Find the perfect talent for your project.</p>
+
+                <div className="pt-4">
+                    <button
+                        type="button"
+                        onClick={() => setShowScraper(true)}
+                        className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 hover:border-blue-500/50 transition-all group"
+                    >
+                        <div className="p-2 bg-blue-500/20 rounded-lg group-hover:scale-110 transition-transform">
+                            <Sparkles className="text-blue-400 w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                            <div className="text-sm font-bold text-white">Magic AI Scraper</div>
+                            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Generate from raw notes or docs</div>
+                        </div>
+                    </button>
+                </div>
             </div>
+
+            {showScraper && (
+                <AiScraperWizard
+                    onClose={() => setShowScraper(false)}
+                    onComplete={(data) => {
+                        setFormData(prev => ({
+                            ...prev,
+                            title: data.title,
+                            description: data.description,
+                            skills: data.skills,
+                            budget: data.suggestedBudget || prev.budget
+                        }));
+                        setAiSuggestions(data.milestones);
+                    }}
+                />
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">

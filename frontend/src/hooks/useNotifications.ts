@@ -20,7 +20,8 @@ export const useNotifications = () => {
 
     useEffect(() => {
         if (authenticated && token && userId) {
-            console.log('Initializing socket connection to:', process.env.NEXT_PUBLIC_NOTIFICATION_URL || 'http://localhost:3007');
+            console.log('[SOCKET] Env URL:', process.env.NEXT_PUBLIC_NOTIFICATION_URL);
+            console.log('[SOCKET] Initializing connection to:', process.env.NEXT_PUBLIC_NOTIFICATION_URL || 'http://localhost:3007');
             const newSocket = io(process.env.NEXT_PUBLIC_NOTIFICATION_URL || 'http://localhost:3007', {
                 transports: ['websocket'],
                 auth: {

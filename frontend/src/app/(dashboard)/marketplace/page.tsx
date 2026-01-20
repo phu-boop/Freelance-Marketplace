@@ -16,6 +16,7 @@ import api from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ProposalModal } from '@/components/ProposalModal';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import { MatchScoreBadge } from '@/components/dashboard/MatchScoreBadge';
 
 interface Job {
     id: string;
@@ -240,31 +241,24 @@ export default function JobsPage() {
                                 }}
                             >
                                 <div className="flex flex-col md:flex-row justify-between gap-4">
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
-                                                <Briefcase className="w-6 h-6 text-blue-400" />
+                                    <div className="space-y-4 flex-1">
+                                        <div className="flex justify-between items-start">
+                                            <div className="space-y-1">
+                                                <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">
+                                                    {job.title}
+                                                </h3>
+                                                <p className="text-slate-400 text-sm">{job.company}</p>
                                             </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{job.title}</h3>
-                                                    {job.matchScore !== undefined && job.matchScore > 0 && (
-                                                        <div className="flex items-center gap-1">
-                                                            <div className={`px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 ${job.matchScore >= 80 ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                                                                job.matchScore >= 50 ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                                                                    'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                                                                }`}>
-                                                                ✨ {job.matchScore}% Match
-                                                            </div>
-                                                            {userProfile?.communicationStyle && job.preferredCommunicationStyle === userProfile.communicationStyle && (
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Perfect Communication Match" />
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <p className="text-sm text-slate-400">{job.company}</p>
+                                            <div className="flex items-center gap-2">
+                                                {job.matchScore && (
+                                                    <MatchScoreBadge score={job.matchScore} size="md" />
+                                                )}
+                                                {userProfile?.communicationStyle && job.preferredCommunicationStyle === userProfile.communicationStyle && (
+                                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Perfect Communication Match" />
+                                                )}
                                             </div>
                                         </div>
+
                                         <div className="flex flex-wrap gap-4 text-sm text-slate-500">
                                             <div className="flex items-center gap-1.5">
                                                 <MapPin className="w-4 h-4" />
@@ -279,7 +273,9 @@ export default function JobsPage() {
                                                 {job.posted}
                                             </div>
                                         </div>
+
                                         <p className="text-sm text-slate-400 line-clamp-2">{job.description}</p>
+
                                         <div className="flex flex-wrap gap-2">
                                             {job.skills?.map((skill) => (
                                                 <span key={skill} className="px-3 py-1 rounded-full bg-slate-800 text-xs text-slate-300 border border-slate-700">
@@ -288,7 +284,8 @@ export default function JobsPage() {
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="flex md:flex-col justify-between items-end gap-4">
+
+                                    <div className="flex md:flex-col justify-between items-end gap-4 shrink-0">
                                         <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium border border-blue-500/20">
                                             {job.type}
                                         </span>

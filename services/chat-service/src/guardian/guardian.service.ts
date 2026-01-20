@@ -54,6 +54,27 @@ export class GuardianService {
 
         if (riskScore > 0) {
             this.logger.warn(`Guardian Flag for user ${userId}: Score ${riskScore}, Flags: ${flags.join(', ')}`);
+        }
+
+        // 6. AI-Powered Deep Scan
+        try {
+            const jobServiceUrl = this.configService.get<string>('JOB_SERVICE_URL', 'http://job-service:3002');
+            const aiRes: any = await firstValueFrom(
+                this.httpService.post(`${jobServiceUrl}/api/jobs/ai/scan-chat`, {
+                    messages: [content]
+                })
+            );
+            const { riskScore: aiScore, reason, isFlagged } = aiRes.data;
+
+            if (isFlagged || aiScore > 50) {
+                riskScore = Math.max(riskScore, aiScore);
+                flags.push(`AI_FLAGGED: ${reason}`);
+            }
+        } catch (err) {
+            this.logger.error(`AI Deep Scan failed: ${err.message}`);
+        }
+
+        if (riskScore > 0) {
             await this.reportRisk(userId, Math.min(riskScore, 100), flags);
         }
 
