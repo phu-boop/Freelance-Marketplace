@@ -5,48 +5,59 @@ import { PrismaService } from '../prisma/prisma.service';
 export class BadgesService {
   private readonly logger = new Logger(BadgesService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async checkEligibility(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { awardedBadges: true, certifications: true },
+      include: { awardedBadges: true, certifications: true, assessments: true, freelancerMetric: true },
     });
 
     if (!user) return;
 
+    const earnings = user.freelancerMetric?.earnings?.toNumber() || 0;
+
     // 1. Check Top Rated
-    // Rules: JSS >= 90%, Earnings > $1000 (mock), Identity Verified
+    // Rules: JSS >= 90%, Earnings > $1000, Identity Verified
     const hasTopRated = user.awardedBadges.some((b) => b.name === 'TOP_RATED');
     if (!hasTopRated) {
       if (
         user.jobSuccessScore >= 90 &&
         user.isIdentityVerified &&
-        user.trustScore > 80
+        earnings >= 1000
       ) {
         await this.awardBadge(userId, 'TOP_RATED');
       }
     }
 
-    // 2. Check Rising Talent
+    // 2. Check Top Rated Plus
+    // Rules: TOP_RATED, JSS >= 90%, Earnings > $10k
+    const hasTopRatedPlus = user.awardedBadges.some((b) => b.name === 'TOP_RATED_PLUS');
+    if (!hasTopRatedPlus && hasTopRated) {
+      if (user.jobSuccessScore >= 90 && earnings >= 10000) {
+        await this.awardBadge(userId, 'TOP_RATED_PLUS');
+      }
+    }
+
+    // 3. Check Rising Talent
     // Rules: No JSS yet (or high), Complete profile, New account (< 6 months)
     const hasRisingTalent = user.awardedBadges.some(
       (b) => b.name === 'RISING_TALENT',
     );
-    if (!hasRisingTalent && !hasTopRated) {
+    if (!hasRisingTalent && !hasTopRated && !hasTopRatedPlus) {
       const accountAgeDays =
         (Date.now() - new Date(user.createdAt).getTime()) /
         (1000 * 60 * 60 * 24);
       if (
         accountAgeDays < 180 &&
         user.completionPercentage >= 80 &&
-        user.trustScore > 80
+        user.trustScore > 80 &&
+        earnings < 1000 // Rising talent typically graduate after earning significant amount
       ) {
         await this.awardBadge(userId, 'RISING_TALENT');
       }
     }
 
-    // 3. Check Expert Vetted (Manual/Mock)
     // 4. Simple Verification Status Badges
     const simpleBadges = [
       { name: 'IDENTITY_VERIFIED', condition: user.isIdentityVerified },
@@ -54,8 +65,12 @@ export class BadgesService {
       {
         name: 'SKILL_VERIFIED',
         condition:
-          user.certifications &&
-          user.certifications.some((c: any) => c.status === 'VERIFIED'),
+          (user.certifications &&
+            user.certifications.some((c: any) => c.status === 'VERIFIED')) ||
+          (user.assessments &&
+            user.assessments.some(
+              (a: any) => a.status === 'COMPLETED' && a.score >= 80,
+            )),
       },
     ];
 

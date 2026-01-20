@@ -353,10 +353,15 @@ export class JobsService {
       data: { status: 'CLOSED' },
       include: { category: true, skills: { include: { skill: true } } }
     });
+
+    // Refund unviewed boosts
+    await this.refundUnviewedBoosts(id).catch(err =>
+      this.logger.error(`Failed to refund boosts for job ${id}: ${err.message}`)
+    );
+
     await this.syncToSearch(job);
     return job;
   }
-
   async lockJob(id: string) {
     return this.prisma.job.update({
       where: { id },
@@ -774,7 +779,9 @@ export class JobsService {
           portfolioItemIds: dto.portfolioItemIds || [],
           boostAmount: boost,
           isBoosted: boost > 0,
-          screeningAnswers: dto.screeningAnswers
+          screeningAnswers: dto.screeningAnswers,
+          specializedProfileId: dto.specializedProfileId,
+          agencyId: dto.agencyId
         }
       });
 
@@ -1252,12 +1259,17 @@ export class JobsService {
     if (milestone.proposal.freelancerId !== freelancerId) throw new ForbiddenException('Only the freelancer can submit work');
 
     return this.prisma.$transaction(async (prisma) => {
+      // AI Scan for security/quality
+      const aiScan = await this.aiService.scanSubmission(dto.content);
+
       const submission = await prisma.submission.create({
         data: {
           milestoneId,
           freelancerId,
           content: dto.content,
           attachments: dto.attachments || [],
+          aiRiskLevel: aiScan.riskLevel,
+          aiAnalysis: aiScan.report
         }
       });
 
@@ -2067,6 +2079,65 @@ export class JobsService {
       }
       this.logger.error(`Connects deduction failed for user ${userId}: ${error.message}`);
       throw new InternalServerErrorException('Failed to process connects fee');
+    }
+  }
+
+  async markProposalAsViewed(proposalId: string, userId: string) {
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: { job: true },
+    });
+
+    if (!proposal) throw new NotFoundException('Proposal not found');
+
+    // Only the job owner can mark it as viewed
+    if (proposal.job.client_id !== userId) {
+      throw new ForbiddenException('Only the job owner can mark a proposal as viewed');
+    }
+
+    if (!proposal.isViewed) {
+      return this.prisma.proposal.update({
+        where: { id: proposalId },
+        data: {
+          isViewed: true,
+          viewedAt: new Date(),
+        },
+      });
+    }
+
+    return proposal;
+  }
+
+  async refundUnviewedBoosts(jobId: string) {
+    const unviewedBoostedProposals = await this.prisma.proposal.findMany({
+      where: {
+        jobId,
+        isBoosted: true,
+        isViewed: false,
+      },
+    });
+
+    for (const proposal of unviewedBoostedProposals) {
+      // Refund 50% of the boost amount if not viewed
+      const refundAmount = Math.floor(proposal.boostAmount * 0.5);
+      if (refundAmount > 0) {
+        await this.refundConnects(proposal.freelancerId, refundAmount, `Refund for unviewed boosted proposal on job ${jobId}`);
+      }
+    }
+  }
+
+  private async refundConnects(userId: string, amount: number, reason: string) {
+    const paymentServiceUrl = this.configService.get('PAYMENT_SERVICE_URL') || 'http://payment-service:3005';
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${paymentServiceUrl}/api/payments/connects/refund`, {
+          userId,
+          amount,
+          reason,
+        })
+      );
+    } catch (error) {
+      this.logger.error(`Failed to refund connects for user ${userId}: ${error.message}`);
     }
   }
 }

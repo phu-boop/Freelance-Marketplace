@@ -11,20 +11,36 @@ import {
   Query,
   Put,
 } from '@nestjs/common';
+import { CurrencyService } from './currency.service';
+import { Public, Roles } from 'nest-keycloak-connect';
 import { PaymentsService } from './payments.service';
-import { Roles, Public } from 'nest-keycloak-connect';
-import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
 import { ListTransactionsDto } from './dto/list-transactions.dto';
 import { UpdateTransactionStatusDto } from './dto/update-transaction-status.dto';
+import { UpdateAutoWithdrawalDto } from './dto/update-auto-withdrawal.dto';
 
 @Controller('api/payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly currencyService: CurrencyService
+  ) { }
 
   @Public()
   @Get('exchange-rates')
   getExchangeRates(@Query('base') base?: string) {
     return this.paymentsService.getExchangeRates(base);
+  }
+
+  @Public()
+  @Get('currency/convert')
+  async convertCurrency(
+    @Query('amount') amount: number,
+    @Query('from') from: string,
+    @Query('to') to: string
+  ) {
+    const converted = await this.currencyService.convert(Number(amount), from, to);
+    const formatted = await this.currencyService.format(converted, to);
+    return { amount: converted, formatted, currency: to };
   }
 
   @Patch('wallet/crypto-address')
@@ -70,12 +86,42 @@ export class PaymentsController {
     return this.paymentsService.buyConnects(req.user.sub, amount);
   }
 
+  @Post('connects/purchase')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  purchaseConnects(@Request() req, @Body() body: { bundleId: string }) {
+    return this.paymentsService.purchaseConnects(req.user.sub, body.bundleId);
+  }
+
+  @Get('connects/history')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  getConnectsHistory(@Request() req) {
+    return this.paymentsService.getConnectsHistory(req.user.sub);
+  }
+
+  @Post('connects/reward')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  rewardConnects(@Body() body: { userId: string; amount: number; reason: string }) {
+    return this.paymentsService.rewardConnects(body.userId, body.amount, body.reason);
+  }
+
   @Post('connects/deduct')
   @Public() // Usually internal-only
   deductConnects(
     @Body() body: { userId: string; amount: number; reason: string },
   ) {
     return this.paymentsService.deductConnects(
+      body.userId,
+      body.amount,
+      body.reason,
+    );
+  }
+
+  @Post('connects/refund')
+  @Public() // Internal-only
+  refundConnects(
+    @Body() body: { userId: string; amount: number; reason: string },
+  ) {
+    return this.paymentsService.refundConnects(
       body.userId,
       body.amount,
       body.reason,
@@ -122,6 +168,17 @@ export class PaymentsController {
     const roles = req.user?.realm_access?.roles || [];
     const isAdmin = roles.includes('ADMIN');
     return this.paymentsService.getTransactionById(id, req.user?.sub, isAdmin);
+  }
+
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN', 'realm:MANAGER', 'MANAGER', 'realm:FINANCE', 'FINANCE'] })
+  @Post('transactions/:id/approve')
+  async approveTransaction(
+    @Param('id') id: string,
+    @Request() req: any,
+  ) {
+    const userId = req.user.sub;
+    const roles = req.user.realm_access?.roles || [];
+    return this.paymentsService.approvePayment(id, userId, roles);
   }
 
   @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
@@ -189,12 +246,18 @@ export class PaymentsController {
   }
 
   @Post('subscriptions')
-  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
   createSubscription(
     @Request() req,
     @Body() body: { planId: string; price: number },
   ) {
-    return this.paymentsService.createSubscription(req.user.sub, body);
+    return this.paymentsService.manageSubscription(req.user.sub, body.planId, body.price);
+  }
+
+  @Get('subscriptions/me')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  getSubscription(@Request() req) {
+    return this.paymentsService.getSubscription(req.user.sub);
   }
 
   // Escrow
@@ -221,6 +284,44 @@ export class PaymentsController {
       body.contractId,
       body.milestoneId,
       body.freelancerId,
+    );
+  }
+
+  @Post('escrow/request-approval')
+  @Roles({ roles: ['realm:CLIENT'] })
+  requestEscrowApproval(
+    @Body()
+    body: {
+      contractId: string;
+      milestoneId: string;
+      freelancerId: string;
+      amount: number;
+    },
+  ) {
+    return this.paymentsService.requestEscrowReleaseApproval(
+      body.contractId,
+      body.milestoneId,
+      body.freelancerId,
+      body.amount,
+    );
+  }
+
+  @Post('escrow/split-release')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  splitEscrowRelease(
+    @Body()
+    body: {
+      contractId: string;
+      milestoneId: string;
+      freelancerId: string;
+      freelancerPercentage: number;
+    },
+  ) {
+    return this.paymentsService.splitEscrowRelease(
+      body.contractId,
+      body.milestoneId,
+      body.freelancerId,
+      body.freelancerPercentage,
     );
   }
 

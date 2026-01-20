@@ -32,7 +32,7 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HOSTNAME_URL: http://localhost:8080
-      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT: "true"
       KC_THEME_CACHE: "false"
     command: start-dev
     ports:
@@ -64,6 +64,14 @@ services:
         limits:
           memory: 2048m
           cpus: "0.3"
+  #GUI Redis
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight
+    ports:
+      - "5541:5540"
+    depends_on:
+      - redis
 
   # MongoDB - Chat & Notifications
   mongo:
@@ -820,6 +828,10 @@ services:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=talent_clouds&options=-c%20search_path%3Dtalent_clouds
       - PORT=3017
       - USER_SERVICE_URL=http://user-service:3000
+      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_REALM=freelance-marketplace
+      - KEYCLOAK_CLIENT_ID=freelance-client
+      - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"

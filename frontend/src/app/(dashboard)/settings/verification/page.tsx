@@ -7,6 +7,7 @@ import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { DocumentUpload } from '@/components/DocumentUpload';
+import SettingsTabs from '@/components/settings/SettingsTabs';
 
 export default function VerificationSettingsPage() {
     const { userId } = useKeycloak();
@@ -54,27 +55,7 @@ export default function VerificationSettingsPage() {
                 <p className="text-slate-400">Verify your identity to unlock all platform features.</p>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex border-b border-slate-800">
-                <Link
-                    href="/settings/profile"
-                    className="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    Profile
-                </Link>
-                <Link
-                    href="/settings/security"
-                    className="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    Security
-                </Link>
-                <Link
-                    href="/settings/verification"
-                    className="px-6 py-3 text-sm font-medium text-blue-500 border-b-2 border-blue-500"
-                >
-                    Verification
-                </Link>
-            </div>
+            <SettingsTabs />
 
             <Card className="p-8 border-slate-800/50 bg-slate-900/50 backdrop-blur-xl">
                 <div className="flex items-start gap-6">

@@ -1,391 +1,267 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import {
-    KeyRound,
-    Lock,
-    Save,
-    Loader2,
-    AlertCircle,
-    CheckCircle2,
-    Smartphone,
-    ShieldCheck,
-    Database,
-    Download
-} from 'lucide-react';
-import { useKeycloak } from '@/components/KeycloakProvider';
-import api from '@/lib/api';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { cn, getPublicUrl } from '@/lib/utils';
+import {
+    Shield,
+    Lock,
+    Smartphone,
+    Monitor,
+    Clock,
+    MapPin,
+    AlertTriangle,
+    CheckCircle2,
+    XCircle,
+    Trash2,
+    ShieldCheck,
+    Globe,
+    LogOut
+} from 'lucide-react';
+import api from '@/lib/api';
+import { useKeycloak } from '@/components/KeycloakProvider';
 
-const passwordSchema = z.object({
-    currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string()
-}).refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-});
+interface SecurityDevice {
+    id: string;
+    deviceId: string;
+    deviceName: string;
+    browser: string;
+    os: string;
+    lastIp: string;
+    lastUsedAt: string;
+    isTrusted: boolean;
+}
 
-type PasswordFormValues = z.infer<typeof passwordSchema>;
+interface LoginHistory {
+    id: string;
+    ipAddress: string;
+    userAgent: string;
+    location: string;
+    status: 'SUCCESS' | 'FAILED';
+    device: string;
+    createdAt: string;
+}
 
-export default function SecuritySettingsPage() {
+export default function SecurityDashboard() {
     const { userId } = useKeycloak();
-    const [saving, setSaving] = useState(false);
-    const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+    const [devices, setDevices] = useState<SecurityDevice[]>([]);
+    const [history, setHistory] = useState<LoginHistory[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const {
-        register,
-        handleSubmit,
-        reset,
-        formState: { errors }
-    } = useForm<PasswordFormValues>({
-        resolver: zodResolver(passwordSchema)
-    });
-
-    const onSubmit = async (values: PasswordFormValues) => {
-        setSaving(true);
-        setStatus(null);
+    const fetchSecurityContext = async () => {
         try {
-            await api.post(`/users/${userId}/change-password`, {
-                currentPassword: values.currentPassword,
-                newPassword: values.newPassword
-            });
-            setStatus({ type: 'success', message: 'Password changed successfully!' });
-            reset();
-            setTimeout(() => setStatus(null), 3000);
-        } catch (err: any) {
-            console.error('Failed to change password', err);
-            const msg = err.response?.data?.message || 'Failed to change password. Please check your current password.';
-            setStatus({ type: 'error', message: msg });
+            const res = await api.get('/api/users/me/security-context');
+            setDevices(res.data.devices);
+            setHistory(res.data.history);
+        } catch (error) {
+            console.error('Failed to fetch security context', error);
         } finally {
-            setSaving(false);
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchSecurityContext();
+    }, []);
+
+    const handleRevokeDevice = async (deviceId: string) => {
+        if (!confirm('Are you sure you want to revoke access for this device?')) return;
+        try {
+            await api.delete(`/api/users/me/devices/${deviceId}`);
+            setDevices(devices.filter(d => d.deviceId !== deviceId));
+        } catch (error) {
+            console.error('Failed to revoke device', error);
+        }
+    };
+
+    const handleRevokeAll = async () => {
+        if (!confirm('This will log you out of all other devices. Continue?')) return;
+        try {
+            const currentDeviceId = localStorage.getItem('deviceId') || 'current';
+            await api.delete('/api/users/me/devices', { data: { currentDeviceId } });
+            fetchSecurityContext();
+        } catch (error) {
+            console.error('Failed to revoke all devices', error);
         }
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold text-white tracking-tight">Security Settings</h1>
-                <p className="text-slate-400">Manage your password and security preferences.</p>
-            </div>
-
-            {/* Settings Navigation Tabs */}
-            <div className="flex border-b border-slate-800">
-                <Link
-                    href="/settings/profile"
-                    className="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    Profile
-                </Link>
-                <Link
-                    href="/settings/security"
-                    className="px-6 py-3 text-sm font-medium text-blue-500 border-b-2 border-blue-500"
-                >
-                    Security
-                </Link>
-            </div>
-
-            {status && (
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`p-4 rounded-xl flex items-center gap-3 border ${status.type === 'success'
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        : 'bg-red-500/10 border-red-500/20 text-red-400'
-                        }`}
-                >
-                    {status.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                    <p className="text-sm font-medium">{status.message}</p>
-                </motion.div>
-            )}
-
-            <div className="grid grid-cols-1 gap-8">
-                {/* 2FA Section */}
-                <TwoFactorSection userId={userId} onStatusChange={setStatus} />
-
-                {/* Change Password Section */}
-                <Card className="p-8 border-slate-800/50 bg-slate-900/50 backdrop-blur-xl">
-                    <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-800">
-                        <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center">
-                            <KeyRound className="w-6 h-6 text-blue-500" />
+        <div className="max-w-6xl mx-auto space-y-12">
+            {/* Hero Section */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
+                        <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/20">
+                            <Shield className="w-8 h-8 text-white" />
                         </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-white">Change Password</h3>
-                            <p className="text-sm text-slate-400">Ensure your account is using a long, random password to stay secure.</p>
+                        Security & Privacy
+                    </h1>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Manage your account security and data portability</p>
+                </div>
+                <button
+                    onClick={handleRevokeAll}
+                    className="px-6 py-3 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+                >
+                    <LogOut className="w-4 h-4" />
+                    Revoke All Sessions
+                </button>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-8">
+                {/* Recognized Devices */}
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3 px-2">
+                        <Lock className="w-5 h-5 text-blue-500" />
+                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Active Devices</h2>
+                    </div>
+
+                    <div className="space-y-4">
+                        {devices.map((device) => (
+                            <motion.div
+                                key={device.id}
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-6 bg-slate-900 border border-slate-800 rounded-[2rem] flex items-center justify-between group hover:border-blue-500/30 transition-all"
+                            >
+                                <div className="flex items-center gap-5">
+                                    <div className="p-4 bg-slate-950 rounded-2xl text-slate-500 group-hover:text-blue-500 transition-colors">
+                                        {device.os?.toLowerCase().includes('ios') || device.os?.toLowerCase().includes('android')
+                                            ? <Smartphone className="w-6 h-6" />
+                                            : <Monitor className="w-6 h-6" />
+                                        }
+                                    </div>
+                                    <div>
+                                        <h3 className="text-white font-black uppercase tracking-tight text-lg">
+                                            {device.browser} on {device.os}
+                                        </h3>
+                                        <div className="flex items-center gap-4 mt-1 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                            <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {device.lastIp}</span>
+                                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(device.lastUsedAt).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleRevokeDevice(device.deviceId)}
+                                    className="p-3 hover:bg-red-500/10 text-slate-600 hover:text-red-500 rounded-xl transition-all"
+                                    title="Revoke Access"
+                                >
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Login History */}
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3 px-2">
+                        <Clock className="w-5 h-5 text-amber-500" />
+                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Login History</h2>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-slate-800 bg-slate-950/50">
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Device / IP</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Time</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                                {history.map((item) => (
+                                    <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {item.status === 'SUCCESS' ? (
+                                                <div className="flex items-center gap-2 text-green-500 font-black text-[10px] uppercase tracking-widest">
+                                                    <CheckCircle2 className="w-3 h-3" /> Success
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-widest">
+                                                    <AlertTriangle className="w-3 h-3" /> Failed
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-white font-bold text-sm">{item.device}</p>
+                                            <p className="text-slate-500 text-[10px] font-medium">{item.ipAddress}</p>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <p className="text-white font-bold text-sm">{new Date(item.createdAt).toLocaleTimeString()}</p>
+                                            <p className="text-slate-500 text-[10px] font-medium uppercase">{new Date(item.createdAt).toLocaleDateString()}</p>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {/* Privacy Tools */}
+            <div className="pt-12 border-t border-slate-800">
+                <div className="flex items-center gap-3 px-2 mb-8">
+                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
+                    <h2 className="text-xl font-black text-white uppercase tracking-tight">Data & Privacy Tools</h2>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div className="p-8 bg-blue-600/5 border border-blue-500/20 rounded-[2.5rem] flex items-start gap-6">
+                        <div className="p-4 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/20 text-white">
+                            <Monitor className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Export Your Data</h3>
+                                <p className="text-slate-400 font-medium text-sm mt-1 leading-relaxed">
+                                    Download a copy of all your profile information, activity, and settings in human-readable JSON format.
+                                </p>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    const res = await api.post('/api/users/me/export-data');
+                                    const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `my-data-${new Date().toISOString().split('T')[0]}.json`;
+                                    a.click();
+                                }}
+                                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+                            >
+                                <LogOut className="w-4 h-4 rotate-90" />
+                                Start Export
+                            </button>
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-lg">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                                <Lock className="w-4 h-4 text-slate-500" /> Current Password
-                            </label>
-                            <Input
-                                type="password"
-                                {...register('currentPassword')}
-                                placeholder="Enter current password"
-                                className={errors.currentPassword ? 'border-red-500/50 focus:ring-red-500/50' : ''}
-                            />
-                            {errors.currentPassword && (
-                                <p className="text-xs text-red-400 mt-1">{errors.currentPassword.message}</p>
-                            )}
+                    <div className="p-8 bg-red-600/5 border border-red-500/20 rounded-[2.5rem] flex items-start gap-6">
+                        <div className="p-4 bg-red-600 rounded-2xl shadow-lg shadow-red-600/20 text-white">
+                            <Trash2 className="w-6 h-6" />
                         </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                                <Lock className="w-4 h-4 text-slate-500" /> New Password
-                            </label>
-                            <Input
-                                type="password"
-                                {...register('newPassword')}
-                                placeholder="Enter new password"
-                                className={errors.newPassword ? 'border-red-500/50 focus:ring-red-500/50' : ''}
-                            />
-                            {errors.newPassword && (
-                                <p className="text-xs text-red-400 mt-1">{errors.newPassword.message}</p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                                <Lock className="w-4 h-4 text-slate-500" /> Confirm New Password
-                            </label>
-                            <Input
-                                type="password"
-                                {...register('confirmPassword')}
-                                placeholder="Confirm new password"
-                                className={errors.confirmPassword ? 'border-red-500/50 focus:ring-red-500/50' : ''}
-                            />
-                            {errors.confirmPassword && (
-                                <p className="text-xs text-red-400 mt-1">{errors.confirmPassword.message}</p>
-                            )}
-                        </div>
-
-                        <div className="pt-4">
-                            <Button
-                                type="submit"
-                                disabled={saving}
-                                className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-semibold shadow-lg shadow-blue-500/20 flex items-center gap-2 group"
+                        <div className="space-y-4">
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Delete Account</h3>
+                                <p className="text-slate-400 font-medium text-sm mt-1 leading-relaxed">
+                                    Permanently delete your account and all associated data. This action is irreversible.
+                                </p>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    if (confirm('CRITICAL: This will permanently delete your entire profile and all history. Are you absolutely certain?')) {
+                                        await api.delete('/api/users/me/delete-account');
+                                        window.location.href = '/';
+                                    }
+                                }}
+                                className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
                             >
-                                {saving ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                ) : (
-                                    <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                )}
-                                {saving ? 'Updating...' : 'Update Password'}
-                            </Button>
+                                <XCircle className="w-4 h-4" />
+                                Delete Forever
+                            </button>
                         </div>
-                    </form>
-                </Card>
-
-                {/* Data & Privacy Section (GDPR) */}
-                <DataPrivacySection userId={userId} onStatusChange={setStatus} />
+                    </div>
+                </div>
             </div>
         </div>
-    );
-}
-
-function TwoFactorSection({ userId, onStatusChange }: { userId: string | undefined | null, onStatusChange: (status: any) => void }) {
-    const [isEnabled, setIsEnabled] = React.useState(false);
-    const [loading, setLoading] = React.useState(true);
-    const [qrCode, setQrCode] = React.useState<string | null>(null);
-    const [verificationCode, setVerificationCode] = React.useState('');
-    const [verifying, setVerifying] = React.useState(false);
-
-    React.useEffect(() => {
-        if (!userId) return;
-        const checkStatus = async () => {
-            try {
-                const res = await api.get(`/users/${userId}`);
-                setIsEnabled(res.data.twoFactorEnabled);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        checkStatus();
-    }, [userId]);
-
-    const handleSetup = async () => {
-        try {
-            const res = await api.post(`/users/${userId}/2fa/setup`);
-            setQrCode(res.data.qrCodeUrl);
-        } catch (err) {
-            onStatusChange({ type: 'error', message: 'Failed to start 2FA setup' });
-        }
-    };
-
-    const handleVerify = async () => {
-        setVerifying(true);
-        try {
-            await api.post(`/users/${userId}/2fa/verify`, { token: verificationCode });
-            setIsEnabled(true);
-            setQrCode(null);
-            onStatusChange({ type: 'success', message: 'Two-Factor Authentication enabled!' });
-        } catch (err) {
-            onStatusChange({ type: 'error', message: 'Invalid verification code' });
-        } finally {
-            setVerifying(false);
-        }
-    };
-
-    if (loading) return <div className="h-40 animate-pulse bg-slate-900/50 rounded-xl" />;
-
-    return (
-        <Card className="p-8 border-slate-800/50 bg-slate-900/50 backdrop-blur-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-32 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-
-            <div className="flex items-start gap-6 relative z-10">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${isEnabled ? 'bg-emerald-500/10' : 'bg-slate-800'}`}>
-                    {isEnabled ? (
-                        <ShieldCheck className="w-6 h-6 text-emerald-500" />
-                    ) : (
-                        <Smartphone className="w-6 h-6 text-slate-400" />
-                    )}
-                </div>
-
-                <div className="flex-1 space-y-4">
-                    <div>
-                        <div className="flex items-center gap-3 mb-1">
-                            <h3 className="text-lg font-bold text-white">Two-Factor Authentication</h3>
-                            {isEnabled && (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-                                    Enabled
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-sm text-slate-400 max-w-xl">
-                            Add an extra layer of security to your account by requiring a verification code from your authenticator app.
-                        </p>
-                    </div>
-
-                    {!isEnabled && !qrCode && (
-                        <Button
-                            onClick={handleSetup}
-                            className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
-                        >
-                            Setup 2FA
-                        </Button>
-                    )}
-
-                    {qrCode && (
-                        <div className="mt-4 p-6 bg-slate-950 rounded-xl border border-slate-800 inline-block animate-in fade-in zoom-in-95 duration-200">
-                            <div className="flex flex-col md:flex-row gap-8 items-center">
-                                <div className="bg-white p-2 rounded-lg">
-                                    <img src={getPublicUrl(qrCode)} alt="2FA QR Code" className="w-40 h-40" />
-                                </div>
-                                <div className="space-y-4">
-                                    <h4 className="font-semibold text-white">Scan this QR Code</h4>
-                                    <p className="text-sm text-slate-400 max-w-xs">
-                                        Open Google Authenticator or your preferred app and scan the code. Then enter the 6-digit code below.
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            value={verificationCode}
-                                            onChange={(e) => setVerificationCode(e.target.value)}
-                                            placeholder="000 000"
-                                            className="w-32 text-center tracking-widest font-mono text-lg"
-                                            maxLength={6}
-                                        />
-                                        <Button
-                                            onClick={handleVerify}
-                                            disabled={verifying || verificationCode.length !== 6}
-                                            className="bg-blue-600 hover:bg-blue-500 text-white"
-                                        >
-                                            {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
-                                        </Button>
-                                    </div>
-                                    <button
-                                        onClick={() => setQrCode(null)}
-                                        className="text-xs text-slate-500 hover:text-slate-400 underline"
-                                    >
-                                        Cancel setup
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </Card>
-    );
-}
-
-function DataPrivacySection({ userId, onStatusChange }: { userId: string | undefined | null, onStatusChange: (status: any) => void }) {
-    const [exporting, setExporting] = useState(false);
-
-    const handleDownloadData = async () => {
-        if (!userId) return;
-        setExporting(true);
-        try {
-            const res = await api.get(`/users/${userId}/export`);
-            const dataStr = JSON.stringify(res.data, null, 2);
-            const blob = new Blob([dataStr], { type: 'application/json' });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `freelance-hub-archive-${new Date().toISOString().split('T')[0]}.json`);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode?.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            onStatusChange({ type: 'success', message: 'Your account data archive has been generated and downloaded.' });
-        } catch (err) {
-            console.error('Failed to export data', err);
-            onStatusChange({ type: 'error', message: 'Failed to generate data archive. Please try again later.' });
-        } finally {
-            setExporting(false);
-        }
-    };
-
-    return (
-        <Card className="p-8 border-slate-800/50 bg-slate-900/50 backdrop-blur-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-32 bg-amber-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-
-            <div className="flex items-start gap-6 relative z-10">
-                <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center shrink-0">
-                    <Database className="w-6 h-6 text-amber-500" />
-                </div>
-
-                <div className="flex-1 space-y-4">
-                    <div>
-                        <h3 className="text-lg font-bold text-white mb-1">Account Archive</h3>
-                        <p className="text-sm text-slate-400 max-w-xl">
-                            Request a machine-readable archive of your personal data. This includes your profile information,
-                            professional history, and account settings in compliance with GDPR.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <Button
-                            onClick={handleDownloadData}
-                            disabled={exporting}
-                            className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center gap-2"
-                        >
-                            {exporting ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Download className="w-4 h-4" />
-                            )}
-                            {exporting ? 'Generating Archive...' : 'Download My Data'}
-                        </Button>
-                        <p className="text-xs text-slate-500 italic">
-                            Format: JSON
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </Card>
     );
 }

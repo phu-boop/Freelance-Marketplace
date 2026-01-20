@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsInt, IsOptional, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsInt, IsOptional, Min, Max, IsBoolean, IsNumber } from 'class-validator';
 
 export class CreateReviewDto {
     @IsString()
@@ -45,4 +45,18 @@ export class CreateReviewDto {
     @IsString()
     @IsOptional()
     comment?: string;
+
+    @IsInt()
+    @Min(1)
+    @Max(10)
+    @IsOptional()
+    privateRating?: number;
+
+    @IsBoolean()
+    @IsOptional()
+    recommendToOthers?: boolean;
+
+    @IsNumber()
+    @IsOptional()
+    contractValue?: number;
 }

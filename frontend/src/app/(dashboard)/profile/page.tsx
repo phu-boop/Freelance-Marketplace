@@ -41,7 +41,10 @@ import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { SpecializedProfileModal } from '@/components/SpecializedProfileModal';
 import { VideoKYCModal } from '@/components/VideoKYCModal';
+import { TwoFactorSetupModal } from '@/components/profile/TwoFactorSetupModal';
+import SpecializedProfileCard from '@/components/profile/SpecializedProfileCard';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface Review {
     id: string;
@@ -93,7 +96,7 @@ interface UserData {
 }
 
 export default function ProfilePage() {
-    const { userId } = useKeycloak();
+    const { userId, logout } = useKeycloak();
     const [user, setUser] = useState<UserData | null>(null);
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
@@ -111,8 +114,9 @@ export default function ProfilePage() {
     const [certModal, setCertModal] = useState({ open: false, data: null });
     const [verifyModal, setVerifyModal] = useState(false);
     const [langModal, setLangModal] = useState(false);
-    const [specModal, setSpecModal] = useState({ open: false, data: null });
+    const [specializedProfileModal, setSpecializedProfileModal] = useState<{ open: boolean, data?: any }>({ open: false });
     const [videoKycModal, setVideoKycModal] = useState(false);
+    const [twoFactorModal, setTwoFactorModal] = useState(false);
 
     const portfolioItemsToDisplay = (user?.portfolio || []).filter(item =>
         selectedProfileId ? item.specializedProfileId === selectedProfileId : true
@@ -174,12 +178,18 @@ export default function ProfilePage() {
     };
 
     const handleToggle2FA = async () => {
-        if (!userId) return;
-        try {
-            await api.post(`/users/${userId}/toggle-2fa`);
-            fetchProfileData();
-        } catch (error) {
-            console.error('Failed to toggle 2FA', error);
+        if (!user) return;
+        if (user.twoFactorEnabled) {
+            if (confirm('Are you sure you want to disable 2FA? This will make your account less secure.')) {
+                try {
+                    await api.post(`/users/${userId}/toggle-2fa`);
+                    fetchProfileData();
+                } catch (error) {
+                    console.error('Failed to disable 2FA', error);
+                }
+            }
+        } else {
+            setTwoFactorModal(true);
         }
     };
 
@@ -211,8 +221,33 @@ export default function ProfilePage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+                <div className="relative">
+                    <Skeleton className="h-48 rounded-3xl" />
+                    <div className="absolute -bottom-12 left-8 flex items-end gap-6">
+                        <Skeleton className="w-32 h-32 rounded-3xl border-4 border-slate-950" />
+                        <div className="pb-4 space-y-2">
+                            <Skeleton className="h-8 w-48" />
+                            <Skeleton className="h-4 w-32" />
+                        </div>
+                    </div>
+                </div>
+                <div className="pt-12 flex gap-8 border-b border-slate-800">
+                    {[1, 2, 3, 4, 5].map(i => (
+                        <Skeleton key={i} className="w-20 h-4 mb-4" />
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="space-y-6">
+                        <Skeleton className="h-64 rounded-2xl" />
+                        <Skeleton className="h-32 rounded-2xl" />
+                        <Skeleton className="h-48 rounded-2xl" />
+                    </div>
+                    <div className="lg:col-span-2 space-y-6">
+                        <Skeleton className="h-48 rounded-2xl" />
+                        <Skeleton className="h-96 rounded-2xl" />
+                    </div>
+                </div>
             </div>
         );
     }
@@ -339,30 +374,43 @@ export default function ProfilePage() {
                     <>
                         {/* Left Column: Info & Socials */}
                         <div className="space-y-6">
+                            import SpecializedProfileCard from '@/components/profile/SpecializedProfileCard';
+                            ...
                             {!user.roles.includes('CLIENT') && (
-                                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="font-semibold text-white text-sm uppercase tracking-wider">Profile View</h3>
-                                        <button
-                                            onClick={() => setSpecModal({ open: true, data: null })}
-                                            className="p-1 hover:bg-slate-800 rounded text-blue-500 transition-all"
-                                            title="Add Specialized Profile"
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                        </button>
+                                <div className="space-y-4">
+                                    <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <h3 className="font-semibold text-white text-sm uppercase tracking-wider">Profile View</h3>
+                                            <button
+                                                onClick={() => setSpecializedProfileModal({ open: true, data: null })}
+                                                className="p-1 hover:bg-slate-800 rounded text-blue-500 transition-all"
+                                                title="Add Specialized Profile"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <ProfileSwitcher
+                                            profiles={specializedProfiles}
+                                            selectedId={selectedProfileId}
+                                            onSelect={setSelectedProfileId}
+                                        />
                                     </div>
-                                    <ProfileSwitcher
-                                        profiles={specializedProfiles}
-                                        selectedId={selectedProfileId}
-                                        onSelect={setSelectedProfileId}
-                                    />
-                                    {selectedProfileId && (
-                                        <button
-                                            onClick={() => setSpecModal({ open: true, data: specializedProfiles.find(p => p.id === selectedProfileId) })}
-                                            className="w-full mt-2 py-2 text-xs font-bold text-slate-400 hover:text-white bg-slate-800/50 rounded-lg border border-slate-700/50 transition-all"
-                                        >
-                                            Edit This Specialized Profile
-                                        </button>
+
+                                    {selectedProfile && (
+                                        <SpecializedProfileCard
+                                            profile={selectedProfile}
+                                            onEdit={(p: any) => setSpecializedProfileModal({ open: true, data: p })}
+                                            onDelete={async (id: string) => {
+                                                if (confirm('Are you sure you want to delete this specialized profile?')) {
+                                                    await api.delete(`/profiles/specialized/${id}`);
+                                                    fetchProfileData();
+                                                }
+                                            }}
+                                            onSetDefault={async (id: string) => {
+                                                await api.patch(`/profiles/specialized/${id}/set-default`);
+                                                fetchProfileData();
+                                            }}
+                                        />
                                     )}
                                 </div>
                             )}
@@ -912,12 +960,24 @@ export default function ProfilePage() {
                 existingLanguages={user.languages || []}
             />
             <SpecializedProfileModal
-                isOpen={specModal.open}
-                onClose={() => setSpecModal({ open: false, data: null })}
+                isOpen={specializedProfileModal.open}
+                onClose={() => setSpecializedProfileModal({ open: false, data: null })}
                 onSuccess={fetchProfileData}
                 userId={userId!}
-                initialData={specModal.data}
+                initialData={specializedProfileModal.data}
             />
+
+            {twoFactorModal && (
+                <TwoFactorSetupModal
+                    isOpen={twoFactorModal}
+                    onClose={() => setTwoFactorModal(false)}
+                    onSuccess={() => {
+                        fetchProfileData();
+                        setTwoFactorModal(false);
+                    }}
+                    userId={userId!}
+                />
+            )}
         </div>
     );
 }

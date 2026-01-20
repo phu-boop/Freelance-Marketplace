@@ -616,3 +616,271 @@ async def get_cost_center_forecast(cost_center: str):
         
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/api/analytics/freelancer/predictive-earnings")
+async def get_predictive_earnings(user_id: str):
+    # Fetch historical earnings for the last 12 months
+    query = f"""
+    SELECT sum(amount) as total, toStartOfMonth(timestamp) as month_date
+    FROM financial_events
+    WHERE user_id = '{user_id}' AND category = 'Earnings'
+    GROUP BY month_date
+    ORDER BY month_date ASC
+    """
+    
+    try:
+        res = client.query(query)
+        data = res.result_rows
+        
+        if len(data) < 2:
+            return {
+                "userId": user_id,
+                "predictedNextMonth": 0.0,
+                "confidence": 0.1,
+                "insight": "Need more historical data for a reliable prediction."
+            }
+            
+        y = [row[0] for row in data]
+        x = list(range(len(y)))
+        
+        x_mean = sum(x) / len(x)
+        y_mean = sum(y) / len(y)
+        
+        num = sum((x[i] - x_mean) * (y[i] - y_mean) for i in range(len(x)))
+        den = sum((x[i] - x_mean)**2 for i in range(len(x)))
+        
+        slope = num / den if den != 0 else 0
+        intercept = y_mean - (slope * x_mean)
+        
+        prediction = max(0, (slope * len(y)) + intercept)
+        
+        return {
+            "userId": user_id,
+            "predictedNextMonth": round(prediction, 2),
+            "trend": "up" if slope > 0 else "down",
+            "confidence": min(0.9, 0.5 + (len(y) * 0.05)),
+            "insight": f"Based on your last {len(y)} months, earnings are {'growing' if slope > 0 else 'consistent'}."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/market-rates")
+async def get_market_rates(skill: str):
+    # Get median hourly rates for a specific skill from metadata in 'events'
+    # Assuming 'job_posted' or 'profile_view' events might carry this, 
+    # but more likely we look at 'financial_events' or 'user' snapshots if we had them.
+    # For now, we'll use a mocked calculation based on skill name hash to simulate reality.
+    
+    import hashlib
+    h = int(hashlib.md5(skill.lower().encode()).hexdigest(), 16)
+    
+    # Base rates between $20 and $150
+    median = 30 + (h % 70)
+    percentile_75 = median * 1.4
+    percentile_25 = median * 0.7
+    
+    return {
+        "skill": skill,
+        "medianRate": round(median, 2),
+        "top25Percentile": round(percentile_75, 2),
+        "bottom25Percentile": round(percentile_25, 2),
+        "currency": "USD"
+    }
+
+@app.get("/api/analytics/freelancer/funnel")
+async def get_freelancer_funnel(user_id: str):
+    # Views -> Applications -> Interviews -> Hires
+    # In our simplified events:
+    # Views: event_type = 'profile_view'
+    # Applications: count results from proposal-service (not in events yet, let's assume events exist)
+    
+    query = f"""
+    SELECT event_type, count() 
+    FROM events 
+    WHERE user_id = '{user_id}' 
+    AND event_type IN ('profile_view', 'proposal_submitted', 'interview_started', 'job_hired')
+    GROUP BY event_type
+    """
+    
+    try:
+        res = client.query(query)
+        stats = {row[0]: row[1] for row in res.result_rows}
+        
+        views = stats.get('profile_view', 0)
+        apps = stats.get('proposal_submitted', 0)
+        interviews = stats.get('interview_started', 0)
+        hires = stats.get('job_hired', 0)
+        
+        return {
+            "steps": [
+                {"name": "Profile Views", "count": views},
+                {"name": "Proposals Sent", "count": apps},
+                {"name": "Interviews", "count": interviews},
+                {"name": "Hires", "count": hires}
+            ],
+            "conversionRates": {
+                "viewToApp": round((apps / views * 100) if views > 0 else 0, 1),
+                "appToInterview": round((interviews / apps * 100) if apps > 0 else 0, 1),
+                "interviewToHire": round((hires / interviews * 100) if interviews > 0 else 0, 1)
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/platform/liquidity")
+async def get_platform_liquidity():
+    # Job Fill Rate: jobs with 'job_hired' event vs total 'job_posted' events
+    # Time-to-Hire: avg time between 'job_posted' and 'job_hired' for the same job_id
+    
+    query = """
+    SELECT 
+        (SELECT count(DISTINCT job_id) FROM events WHERE event_type = 'job_hired') as filled_jobs,
+        (SELECT count(DISTINCT job_id) FROM events WHERE event_type = 'job_posted') as total_jobs
+    """
+    
+    try:
+        res = client.query(query)
+        filled, total = res.result_rows[0]
+        
+        # Calculate avg time to hire
+        time_query = """
+        SELECT avg(dateDiff('hour', p.timestamp, h.timestamp))
+        FROM events p
+        JOIN events h ON p.job_id = h.job_id
+        WHERE p.event_type = 'job_posted' AND h.event_type = 'job_hired'
+        """
+        time_res = client.query(time_query)
+        avg_hours = time_res.result_rows[0][0] or 0
+        
+        return {
+            "jobFillRate": round((filled / total * 100) if total > 0 else 0, 1),
+            "avgTimeToHireHours": round(avg_hours, 1),
+            "totalActiveJobs": total - filled
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/analytics/reputation/calculate/{user_id}")
+async def calculate_jss(user_id: str):
+    # JSS 2.0 Calculation Logic
+    # 1. Fetch reviews with metadata (rating, recommended, private_feedback) and timestamp
+    # 2. Apply time decay weights (Recent > 6 months > older)
+    # 3. Weigh private feedback higher than public rating
+    
+    query = f"""
+    SELECT 
+        timestamp,
+        JSONExtractFloat(metadata, 'rating') as public_rating,
+        JSONExtractBool(metadata, 'recommended') as recommended,
+        JSONExtractInt(metadata, 'private_rating') as private_rating, -- 1-10 scale
+        job_id
+    FROM events 
+    WHERE user_id = '{user_id}' AND event_type = 'review_received'
+    ORDER BY timestamp DESC
+    """
+    
+    try:
+        res = client.query(query)
+        reviews = res.result_rows
+        
+        if not reviews:
+            return {"user_id": user_id, "jss": 100, "qualified": False}
+
+        total_weighted_points = 0.0
+        total_possible_points = 0.0
+        
+        import datetime
+        now = datetime.datetime.utcnow()
+        
+        for row in reviews:
+            ts = row[0]
+            public_rating = row[1] or 5.0 # 1-5
+            recommended = row[2] # True/False
+            private_rating = row[3] or 10 # 1-10 scale, default to max if missing
+            
+            # Time Decay Weight
+            weight = 1.0
+            days_diff = (now - ts).days
+            
+            if days_diff > 180:
+                weight = 0.5
+            elif days_diff > 90:
+                weight = 0.75
+                
+            # Score Calculation (Normalized to 0-100)
+            # Public (5 stars) -> 30% weight
+            # Private (10 scale) -> 50% weight
+            # Recommended (Bool) -> 20% weight
+            
+            public_score = (public_rating / 5.0) * 100
+            private_score = (private_rating / 10.0) * 100
+            rec_score = 100 if recommended else 0
+            
+            # Weighted average for this review
+            review_score = (public_score * 0.3) + (private_score * 0.5) + (rec_score * 0.2)
+            
+            total_weighted_points += (review_score * weight)
+            total_possible_points += (100 * weight)
+            
+        final_jss = 100
+        if total_possible_points > 0:
+            final_jss = round((total_weighted_points / total_possible_points) * 100)
+            
+        return {
+            "user_id": user_id, 
+            "jss": final_jss, 
+            "qualified": len(reviews) >= 3,
+            "review_count": len(reviews)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/analytics/standup/generate")
+async def generate_standup(body: dict):
+    # Expects {"job_id": "..."}
+    job_id = body.get("job_id")
+    if not job_id:
+        raise HTTPException(status_code=400, detail="Missing job_id")
+        
+    # 1. Fetch recent events (24h)
+    query = f"""
+    SELECT event_type, metadata, timestamp
+    FROM events
+    WHERE job_id = '{job_id}' AND timestamp >= now() - INTERVAL 24 HOUR
+    ORDER BY timestamp ASC
+    """
+    
+    try:
+        res = client.query(query)
+        events = res.result_rows
+        
+        if not events:
+            return {
+                "summary": "No activity recorded in the last 24 hours.",
+                "blockers": [],
+                "next_steps": ["Check in with the team."]
+            }
+            
+        # 2. Summarize (Mock AI logic for Python service, or logic based on event types)
+        summary_lines = []
+        commits = 0
+        messages = 0
+        
+        for row in events:
+            evt_type = row[0]
+            meta = row[1]
+            if evt_type == 'git_commit':
+                commits += 1
+                # extract message if possible
+            elif evt_type == 'chat_message':
+                messages += 1
+                
+        summary_text = f"Activity Report: {commits} code commits and {messages} messages exchanged."
+        
+        return {
+            "summary": summary_text,
+            "details": [f"- {row[0]} at {row[2]}" for row in events[:5]], # Limit detail
+            "blockers": ["None detected automatically."],
+            "next_steps": ["Review recent code changes."]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

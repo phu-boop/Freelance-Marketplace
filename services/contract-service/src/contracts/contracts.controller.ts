@@ -16,13 +16,21 @@ import { DisputeContractDto } from './dto/dispute-contract.dto';
 import { Roles, Public } from 'nest-keycloak-connect';
 
 import { DisputesService } from './disputes.service';
+import { JurisdictionService } from './jurisdiction.service';
 
 @Controller('api/contracts')
 export class ContractsController {
   constructor(
     private readonly contractsService: ContractsService,
-    private readonly disputesService: DisputesService
+    private readonly disputesService: DisputesService,
+    private readonly jurisdictionService: JurisdictionService
   ) { }
+
+  @Get('jurisdiction/:countryCode')
+  @Public()
+  getJurisdictionClauses(@Param('countryCode') countryCode: string) {
+    return this.jurisdictionService.getClausesForCountry(countryCode.toUpperCase());
+  }
 
   @Get('between/:otherUserId')
   @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
@@ -55,8 +63,12 @@ export class ContractsController {
   }
 
   @Get()
-  findAll() {
-    return this.contractsService.findAll();
+  findAll(
+    @Query('freelancerId') freelancerId?: string,
+    @Query('clientId') clientId?: string,
+    @Query('agencyId') agencyId?: string,
+  ) {
+    return this.contractsService.findAll(freelancerId, clientId, agencyId);
   }
 
   @Get('disputed')
@@ -110,6 +122,12 @@ export class ContractsController {
   @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
   getRiskAnalysis(@Param('id') id: string) {
     return this.contractsService.getRiskAnalysis(id);
+  }
+
+  @Get(':id/timeline')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER', 'realm:ADMIN', 'ADMIN'] })
+  getTimeline(@Param('id') id: string) {
+    return this.contractsService.getDisputeTimeline(id);
   }
 
   @Post(':id/milestones')
@@ -230,6 +248,12 @@ export class ContractsController {
     @Request() req
   ) {
     return this.disputesService.addEvidence(id, req.user.sub, data);
+  }
+
+  @Get('disputes/:id/ai-analysis')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN', 'realm:INVESTIGATOR', 'INVESTIGATOR', 'realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
+  getAiDisputeAnalysis(@Param('id') id: string) {
+    return this.disputesService.getAiAnalysis(id);
   }
 
   @Post(':id/log-time')
@@ -422,6 +446,24 @@ export class ContractsController {
     return this.disputesService.resolveCase(caseId, data.decision, req.user?.sub);
   }
 
+  @Post('arbitration/:caseId/resolve-split')
+  @Roles({
+    roles: ['realm:INVESTIGATOR', 'INVESTIGATOR', 'realm:ADMIN', 'ADMIN'],
+  })
+  resolveWithSplit(
+    @Param('caseId') caseId: string,
+    @Body() data: { milestoneId: string; freelancerPercentage: number; decision: string },
+    @Request() req
+  ) {
+    return this.disputesService.resolveCaseWithSplit(
+      caseId,
+      data.milestoneId,
+      data.freelancerPercentage,
+      data.decision,
+      req.user?.sub
+    );
+  }
+
   @Get('arbitration/list')
   @Roles({
     roles: ['realm:ADMIN', 'ADMIN', 'realm:INVESTIGATOR', 'INVESTIGATOR'],
@@ -460,7 +502,8 @@ export class ContractsController {
   @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:ADMIN', 'ADMIN'] })
   approveHire(@Param('id') id: string, @Request() req) {
     const userId = req.user.sub;
-    return this.contractsService.approveContract(id, userId);
+    const roles = req.user.realm_access?.roles || [];
+    return this.contractsService.approveContract(id, userId, roles);
   }
 
   @Post(':id/reject-hire')

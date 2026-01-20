@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { JssService } from './jss.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 
@@ -14,7 +15,8 @@ export class ReviewsService {
     constructor(
         private prisma: PrismaService,
         private httpService: HttpService,
-        private configService: ConfigService
+        private configService: ConfigService,
+        private jssService: JssService
     ) { }
 
     async create(createReviewDto: CreateReviewDto) {
@@ -45,6 +47,7 @@ export class ReviewsService {
         const review = await this.prisma.review.create({
             data: {
                 ...createReviewDto,
+                contractValue: createReviewDto.contractValue || 0,
                 status: status as any,
                 revealedAt,
             },
@@ -61,9 +64,14 @@ export class ReviewsService {
             });
 
             // Trigger user stats update for both parties
+            const [jssSideA, jssSideB] = await Promise.all([
+                this.jssService.calculateJss(review.reviewee_id),
+                this.jssService.calculateJss(opposing.reviewee_id),
+            ]);
+
             await Promise.all([
-                this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall),
-                this.triggerStatsUpdate(opposing.reviewee_id, opposing.ratingOverall),
+                this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall, jssSideA),
+                this.triggerStatsUpdate(opposing.reviewee_id, opposing.ratingOverall, jssSideB),
                 this.logToAnalytics(review.reviewee_id, review.ratingOverall, review.contract_id),
                 this.logToAnalytics(opposing.reviewee_id, opposing.ratingOverall, opposing.contract_id)
             ]);
@@ -72,12 +80,13 @@ export class ReviewsService {
         return review;
     }
 
-    private async triggerStatsUpdate(userId: string, rating: number) {
+    private async triggerStatsUpdate(userId: string, rating: number, jss: number) {
         try {
             const userServiceUrl = this.configService.get<string>('USER_SERVICE_INTERNAL_URL', 'http://user-service:3000/api/users');
             await firstValueFrom(
                 this.httpService.post(`${userServiceUrl}/${userId}/stats`, {
-                    rating
+                    rating,
+                    jss
                 })
             );
         } catch (error) {
@@ -209,7 +218,8 @@ export class ReviewsService {
                     }
                 });
 
-                await this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall);
+                const jss = await this.jssService.calculateJss(review.reviewee_id);
+                await this.triggerStatsUpdate(review.reviewee_id, review.ratingOverall, jss);
 
                 // Log to analytics
                 await this.logToAnalytics(review.reviewee_id, review.ratingOverall, review.contract_id);

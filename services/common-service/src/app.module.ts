@@ -5,6 +5,9 @@ import { CommonController } from './common.controller';
 import { CommonService } from './common.service';
 import { HealthController } from './health/health.controller';
 
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { EventBusService } from './events/event-bus.service';
+
 @Module({
   imports: [
     ThrottlerModule.forRoot([{
@@ -12,8 +15,10 @@ import { HealthController } from './health/health.controller';
       limit: 10,
     }]),
     TerminusModule,
+    EventEmitterModule.forRoot(),
   ],
   controllers: [CommonController, HealthController],
-  providers: [CommonService],
+  providers: [CommonService, EventBusService],
+  exports: [EventBusService],
 })
 export class AppModule { }

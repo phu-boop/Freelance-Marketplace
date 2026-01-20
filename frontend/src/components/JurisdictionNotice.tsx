@@ -16,7 +16,7 @@ interface JurisdictionNoticeProps {
 }
 
 export default function JurisdictionNotice({ countryCode }: JurisdictionNoticeProps) {
-    const [reqs, setReqs] = useState<LegalRequirement | null>(null);
+    const [clauses, setClauses] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -28,8 +28,9 @@ export default function JurisdictionNotice({ countryCode }: JurisdictionNoticePr
     const fetchJurisdiction = async (code: string) => {
         setLoading(true);
         try {
-            const res = await api.get(`/users/jurisdiction/${code}`);
-            setReqs(res.data);
+            // Updated endpoint
+            const res = await api.get(`/contracts/jurisdiction/${code}`);
+            setClauses(res.data);
         } catch (err) {
             console.error('Failed to fetch jurisdiction info', err);
         } finally {
@@ -37,37 +38,35 @@ export default function JurisdictionNotice({ countryCode }: JurisdictionNoticePr
         }
     };
 
-    if (!countryCode || !reqs) return null;
+    if (!countryCode || clauses.length === 0) return null;
 
     return (
         <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2 text-blue-400">
                 <Scale className="w-4 h-4" />
-                <span className="text-sm font-bold uppercase tracking-wider">Legal Framework: {reqs.jurisdiction}</span>
+                <span className="text-sm font-bold uppercase tracking-wider">Legal Jurisdiction: {countryCode}</span>
             </div>
 
-            <div className="space-y-2">
-                {reqs.requiredClauses.map((clause, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs text-slate-400">
-                        <div className="w-1 h-1 rounded-full bg-blue-500 mt-1.5 shrink-0" />
-                        <p>{clause}</p>
+            <div className="space-y-3">
+                {clauses.map((clause, idx) => (
+                    <div key={idx} className="p-3 bg-slate-900/50 rounded-lg border border-slate-800/50 space-y-1">
+                        <div className="flex items-center gap-2">
+                            {clause.mandatory && (
+                                <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-[10px] font-bold text-red-400 uppercase">Mandatory</span>
+                            )}
+                            <h4 className="text-xs font-bold text-slate-300">{clause.title}</h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed italic">"{clause.content}"</p>
                     </div>
                 ))}
             </div>
 
-            {reqs.isGdprSubject && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
-                    <ShieldAlert className="w-4 h-4 text-indigo-400" />
-                    <span className="text-[10px] font-medium text-indigo-300">Subject to GDPR Data Protection Regulations</span>
-                </div>
-            )}
-
-            {reqs.taxIdType && (
-                <div className="flex items-center gap-2 text-[10px] text-slate-500 italic">
-                    <Info className="w-3 h-3" />
-                    <span>Hiring in this region requires a valid {reqs.taxIdType}.</span>
-                </div>
-            )}
+            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
+                <Info className="w-4 h-4 text-indigo-400" />
+                <span className="text-[10px] font-medium text-indigo-300">
+                    These clauses will be automatically appended to your contract PDF.
+                </span>
+            </div>
         </div>
     );
 }

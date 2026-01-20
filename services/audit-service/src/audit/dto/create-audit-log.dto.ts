@@ -24,4 +24,16 @@ export class CreateAuditLogDto {
     @IsString()
     @IsOptional()
     referenceId?: string;
+
+    @IsNumber()
+    @IsOptional()
+    durationMs?: number;
+
+    @IsString()
+    @IsOptional()
+    traceId?: string;
+
+    @IsString()
+    @IsOptional()
+    status?: string;
 }

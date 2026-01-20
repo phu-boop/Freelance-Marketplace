@@ -10,6 +10,7 @@ import {
     Settings,
     LogOut,
     ShieldAlert,
+    ShieldCheck,
     Briefcase,
     Tags,
     Terminal,
@@ -22,6 +23,7 @@ import { useKeycloak } from '@/components/KeycloakProvider';
 const adminMenuItems = [
     { icon: LayoutDashboard, label: 'Overview', href: '/admin' },
     { icon: Users, label: 'User Management', href: '/admin/users' },
+    { icon: ShieldCheck, label: 'Compliance', href: '/admin/compliance' },
     { icon: Briefcase, label: 'Job Approval', href: '/admin/jobs' },
     { icon: ShieldAlert, label: 'Disputes', href: '/admin/disputes' },
     { icon: DollarSign, label: 'Payments & Escrow', href: '/admin/payments' },

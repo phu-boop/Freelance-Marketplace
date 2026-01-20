@@ -25,6 +25,9 @@ import * as crypto from 'crypto';
 
 import { BadgesService } from './badges.service';
 import { AiService } from './ai.service';
+import { EncryptionService } from './encryption.service';
+import { ComplianceService } from './compliance.service';
+import { SpecializedProfilesService } from '../profile/specialized-profiles.service';
 
 @Injectable()
 export class UsersService {
@@ -38,6 +41,9 @@ export class UsersService {
     private configService: ConfigService,
     private badgesService: BadgesService,
     private aiService: AiService,
+    private encryptionService: EncryptionService,
+    private complianceService: ComplianceService,
+    private specializedProfilesService: SpecializedProfilesService,
   ) { }
 
   async checkBadges(userId: string) {
@@ -69,6 +75,27 @@ export class UsersService {
     const prefix = firstName.slice(0, 3).toUpperCase();
     const random = crypto.randomBytes(3).toString('hex').toUpperCase();
     return `${prefix}-${random}`;
+  }
+
+  // Audit helper
+  private async logAudit(eventType: string, actorId: string, metadata: any = {}) {
+    const auditServiceUrl = this.configService.get<string>(
+      'AUDIT_SERVICE_URL',
+      'http://audit-service:3005/api/audit',
+    );
+    try {
+      await firstValueFrom(
+        this.httpService.post(auditServiceUrl, {
+          service: 'user-service',
+          eventType,
+          actorId,
+          metadata,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    } catch (err) {
+      this.logger.error(`Failed to send audit log: ${err.message}`);
+    }
   }
 
   async register(createUserDto: CreateUserDto & { referralCode?: string }) {
@@ -104,7 +131,18 @@ export class UsersService {
         await this.processReferral(user.id, providedCode);
       }
 
-      // 4. Send welcome email
+      // 4. Create default specialized profile for freelancers
+      if (user.roles?.includes('FREELANCER')) {
+        await this.specializedProfilesService.create(user.id, {
+          headline: user.title || 'Professional Freelancer',
+          bio: user.overview || 'Standard specialized profile',
+          hourlyRate: Number(user.hourlyRate) || 0,
+          skills: user.skills || [],
+          isDefault: true,
+        }).catch(err => this.logger.error(`Failed to create default specialized profile: ${err.message}`));
+      }
+
+      // 5. Send welcome email
       this.sendWelcomeEmail(user.email, user.firstName || 'User');
 
       return user;
@@ -125,36 +163,13 @@ export class UsersService {
     }
   }
 
-  // Encryption helpers
+  // Encryption helpers (updated to use EncryptionService)
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const key = crypto.scryptSync(
-      process.env.JWT_SECRET || 'secret',
-      'salt',
-      32,
-    );
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString('hex') + ':' + encrypted.toString('hex');
+    return this.encryptionService.encrypt(text);
   }
 
   private decrypt(text: string): string {
-    const textParts = text.split(':');
-    const ivHex = textParts.shift();
-    if (!ivHex) throw new Error('Invalid encrypted text');
-
-    const iv = Buffer.from(ivHex, 'hex');
-    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    const key = crypto.scryptSync(
-      process.env.JWT_SECRET || 'secret',
-      'salt',
-      32,
-    );
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    return this.encryptionService.decrypt(text);
   }
 
   async login(credentials: { email: string; password: string }) {
@@ -433,6 +448,15 @@ export class UsersService {
         },
       });
 
+      // Create default specialized profile for JIT social users
+      await this.specializedProfilesService.create(user.id, {
+        headline: 'Professional Freelancer',
+        bio: 'Auto-generated specialized profile from social login',
+        hourlyRate: 0,
+        skills: [],
+        isDefault: true,
+      }).catch(err => this.logger.error(`Failed to create default specialized profile for JIT user: ${err.message}`));
+
       // Sync role to Keycloak immediately
       try {
         await this.keycloakService.assignRole(user.id, 'FREELANCER');
@@ -479,9 +503,24 @@ export class UsersService {
     // Sanitize data for Prisma
     const { baseVersion, ...data } = updateUserDto;
 
+    // Field-level encryption for PII
+    const sensitiveData: any = { ...data };
+    if (data.address) {
+      sensitiveData.addressEncrypted = this.encrypt(data.address);
+      sensitiveData.address = data.address.slice(0, 4) + '...'; // Mask
+    }
+    if (data.taxId) {
+      sensitiveData.taxIdEncrypted = this.encrypt(data.taxId);
+      sensitiveData.taxId = `***-**-${data.taxId.slice(-4)}`;
+    }
+    if (data.billingAddress) {
+      sensitiveData.billingAddressEncrypted = this.encrypt(data.billingAddress);
+      sensitiveData.billingAddress = data.billingAddress.slice(0, 5) + '...';
+    }
+
     const user = await this.prisma.user.update({
       where: { id },
-      data: data as any,
+      data: sensitiveData as any,
     });
     console.log('UPDATE RESULT:', JSON.stringify(user));
 
@@ -515,6 +554,7 @@ export class UsersService {
   }
 
   async remove(id: string) {
+    await this.logAudit('USER_DELETION', id, { reason: 'GDPR_RIGHT_TO_BE_FORGOTTEN' });
     const result = await this.prisma.user.delete({
       where: { id },
     });
@@ -615,17 +655,26 @@ export class UsersService {
 
   async updateTaxInfo(
     userId: string,
-    data: { taxId: string; taxIdType: string; billingAddress: string },
+    data: { taxId: string; taxIdType: string; billingAddress: string; taxFormType?: string },
   ) {
-    // Simple mock encryption (Base64 + salt for demonstration)
-    const encryptedTaxId = Buffer.from(`SALT_${data.taxId}`).toString('base64');
+    // Validate format
+    if (!this.complianceService.validateTaxId(data.taxIdType, data.taxId)) {
+      throw new BadRequestException('Invalid Tax ID format for the selected type.');
+    }
+
+    // Secure AES-256-GCM encryption
+    const encryptedTaxId = this.encryptionService.encrypt(data.taxId);
+    const encryptedAddress = this.encryptionService.encrypt(data.billingAddress);
 
     return this.prisma.user.update({
       where: { id: userId },
       data: {
-        taxId: encryptedTaxId,
+        taxId: this.complianceService.getMaskedId(data.taxId), // Use service logic for masking
+        taxIdEncrypted: encryptedTaxId,
         taxIdType: data.taxIdType,
-        billingAddress: data.billingAddress,
+        taxFormType: data.taxFormType,
+        billingAddress: data.billingAddress.split(' ')[0] + ' ***', // Partially masked
+        billingAddressEncrypted: encryptedAddress,
         taxVerifiedStatus: 'PENDING',
       },
     });
@@ -701,7 +750,7 @@ export class UsersService {
     return user;
   }
 
-  async updateStats(userId: string, rating: number) {
+  async updateStats(userId: string, rating: number, jss?: number) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return;
 
@@ -739,9 +788,13 @@ export class UsersService {
       data: {
         rating: newRating,
         reviewCount: newCount,
-        jobSuccessScore: newJss,
+        jobSuccessScore: jss !== undefined ? jss : newJss,
       },
     });
+
+    // Trigger badge eligibility check
+    await this.badgesService.checkEligibility(userId);
+    return updatedUser;
 
     await this.checkBadges(userId);
     return updatedUser;
@@ -1014,20 +1067,22 @@ export class UsersService {
       billingAddress: string;
     },
   ) {
-    // Simple mock encryption
-    const encryptedTaxId = Buffer.from(`SALT_${data.taxId}`).toString('base64');
+    const encryptedTaxId = this.encrypt(data.taxId);
+    const encryptedBillingAddress = this.encrypt(data.billingAddress);
 
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        taxId: encryptedTaxId,
+        taxId: `***-**-${data.taxId.slice(-4)}`, // Mask original
+        taxIdEncrypted: encryptedTaxId,
         taxIdType: data.taxIdType,
         taxFormType: data.taxFormType,
         taxSignatureName: data.taxSignatureName,
         taxSignatureIp: data.taxSignatureIp,
         taxSignatureDate: new Date(),
-        billingAddress: data.billingAddress,
-        taxVerifiedStatus: 'VERIFIED', // Simulate instant verification
+        billingAddress: data.billingAddress.slice(0, 5) + '...', // Mask original
+        billingAddressEncrypted: encryptedBillingAddress,
+        taxVerifiedStatus: 'VERIFIED',
       },
     });
 
@@ -1235,9 +1290,23 @@ export class UsersService {
 
     if (!user) throw new NotFoundException('User not found');
 
-    // Remove sensitive data before export
+    await this.logAudit('GDPR_DATA_EXPORT', userId);
+
+    // Remove sensitive data before export and decrypt PII
     const { password, twoFactorSecret, ...safeData } = user;
-    return safeData;
+
+    const exportObj: any = { ...safeData };
+    if (user.addressEncrypted) {
+      exportObj.address = this.decrypt(user.addressEncrypted);
+    }
+    if (user.taxIdEncrypted) {
+      exportObj.taxId = this.decrypt(user.taxIdEncrypted);
+    }
+    if (user.billingAddressEncrypted) {
+      exportObj.billingAddress = this.decrypt(user.billingAddressEncrypted);
+    }
+
+    return exportObj;
   }
 
   async getAvailability(userId: string) {
@@ -1638,6 +1707,89 @@ export class UsersService {
           lastActiveAt: new Date().toISOString(),
         } as any,
       },
+    });
+  }
+
+  async incrementJobPostedCount(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { jobsPostedCount: { increment: 1 } },
+    });
+  }
+
+  async incrementJobHiredCount(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { jobsHiredCount: { increment: 1 } },
+    });
+  }
+
+  async updateTotalSpend(userId: string, amount: number) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { totalSpend: { increment: amount } },
+    });
+  }
+
+  // Safety & Appeals (Phase 31)
+  async submitAppeal(userId: string, data: { type: string; reason: string; evidenceUrls?: string[] }) {
+    return this.prisma.appeal.create({
+      data: {
+        userId,
+        type: data.type,
+        reason: data.reason,
+        evidenceUrls: data.evidenceUrls || [],
+        status: 'PENDING'
+      }
+    });
+  }
+
+  async getAppeals(status?: string) {
+    return this.prisma.appeal.findMany({
+      where: status ? { status } : {},
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async resolveAppeal(id: string, data: { status: 'APPROVED' | 'REJECTED'; adminNotes?: string }) {
+    const appeal = await this.prisma.appeal.update({
+      where: { id },
+      data: {
+        status: data.status,
+        adminNotes: data.adminNotes,
+      },
+      include: { user: true }
+    });
+
+    if (data.status === 'APPROVED') {
+      // Automatically lift suspension if it was a suspension appeal
+      if (appeal.type === 'SUSPENSION') {
+        await this.activateUser(appeal.userId);
+      }
+    }
+
+    return appeal;
+  }
+
+  async createSafetyReport(data: { userId: string; type: string; severity: string; description: string; evidence?: any }) {
+    return this.prisma.safetyReport.create({
+      data: {
+        userId: data.userId,
+        type: data.type,
+        severity: data.severity,
+        description: data.description,
+        evidence: data.evidence || {},
+        status: 'OPEN'
+      }
+    });
+  }
+
+  async getSafetyReports(status?: string) {
+    return this.prisma.safetyReport.findMany({
+      where: status ? { status } : {},
+      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      orderBy: { createdAt: 'desc' }
     });
   }
 }

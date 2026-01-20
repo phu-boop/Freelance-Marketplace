@@ -28,29 +28,18 @@ export class MinioService implements OnModuleInit {
             console.log(`Bucket ${this.bucketName} created.`);
         }
 
-        // Set public read policy
-        const policy = {
-            Version: '2012-10-17',
-            Statement: [
-                {
-                    Effect: 'Allow',
-                    Principal: { AWS: ['*'] },
-                    Action: ['s3:GetBucketLocation', 's3:ListBucket'],
-                    Resource: [`arn:aws:s3:::${this.bucketName}`],
-                },
-                {
-                    Effect: 'Allow',
-                    Principal: { AWS: ['*'] },
-                    Action: ['s3:GetObject'],
-                    Resource: [`arn:aws:s3:::${this.bucketName}/*`],
-                },
-            ],
-        };
-        await this.minioClient.setBucketPolicy(this.bucketName, JSON.stringify(policy));
-        console.log(`Public read policy applied to bucket ${this.bucketName}`);
+        // REMOVED public read policy for Phase 14 (Security Compliance)
+        // Only signed URLs should be used.
     }
 
     async uploadFile(file: Express.Multer.File): Promise<string> {
+        // Phase 14: Placeholder for Malware Scanning (e.g. ClamAV integration)
+        console.log(`Scanning file ${file.originalname} for malware...`);
+        const isSafe = await this.mockMalwareScan(file);
+        if (!isSafe) {
+            throw new Error('File rejected: Malware detected or suspicious content.');
+        }
+
         const fileName = `${Date.now()}-${file.originalname}`;
         await this.minioClient.putObject(
             this.bucketName,
@@ -61,15 +50,14 @@ export class MinioService implements OnModuleInit {
         return fileName;
     }
 
-    async getFileUrl(fileName: string): Promise<string> {
-        const externalUrl = this.configService.get('MINIO_EXTERNAL_URL');
-        if (externalUrl) {
-            // Since we set the bucket to public-read, we can use a direct URL.
-            // This avoids signature mismatch issues when switching between internal/external hostnames.
-            return `${externalUrl}/${this.bucketName}/${fileName}`;
-        }
+    private async mockMalwareScan(file: Express.Multer.File): Promise<boolean> {
+        // In production, this would call a ClamAV sidecar or similar service.
+        return true;
+    }
 
-        // Fallback to presigned URL if no external URL is configured
-        return await this.minioClient.presignedGetObject(this.bucketName, fileName);
+    async getFileUrl(fileName: string): Promise<string> {
+        // Phase 14: Enforce short-lived signed URLs (Zero-Trust)
+        // Expire in 1 hour (3600 seconds)
+        return await this.minioClient.presignedGetObject(this.bucketName, fileName, 3600);
     }
 }

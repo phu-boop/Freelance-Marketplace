@@ -5,7 +5,8 @@ import { io, Socket } from 'socket.io-client';
 import dynamic from 'next/dynamic';
 import 'react-quill/dist/quill.snow.css';
 import { useKeycloak } from '@/components/KeycloakProvider';
-import { Users, Wifi, WifiOff } from 'lucide-react';
+import { Users, Wifi, WifiOff, Sparkles } from 'lucide-react';
+import AiWorkspaceAssistant from './AiWorkspaceAssistant';
 
 const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
 
@@ -158,19 +159,30 @@ export default function CollaborativeEditor({ contractId }: CollaborativeEditorP
                 )}
             </div>
 
-            <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
-                <ReactQuill
-                    theme="snow"
-                    value={content}
-                    onChange={handleChange}
-                    modules={modules}
-                    placeholder="Start collaborating on project requirements..."
-                    className="h-[500px]"
-                />
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-3 space-y-4">
+                    <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
+                        <ReactQuill
+                            theme="snow"
+                            value={content}
+                            onChange={handleChange}
+                            modules={modules}
+                            placeholder="Start collaborating on project requirements..."
+                            className="h-[500px]"
+                        />
+                    </div>
+                    <div className="text-xs text-slate-500 text-center">
+                        Document version: {version} • Changes are saved automatically
+                    </div>
+                </div>
 
-            <div className="text-xs text-slate-500 text-center">
-                Document version: {version} • Changes are saved automatically
+                <div className="lg:col-span-1 h-[540px]">
+                    <AiWorkspaceAssistant
+                        contractId={contractId}
+                        content={content}
+                        onApplySuggestion={(newContent) => setContent(newContent)}
+                    />
+                </div>
             </div>
         </div>
     );

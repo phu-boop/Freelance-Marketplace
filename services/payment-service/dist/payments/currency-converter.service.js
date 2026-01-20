@@ -65,7 +65,9 @@ let CurrencyConverterService = CurrencyConverterService_1 = class CurrencyConver
         const fromRate = rates[from] || 1.0;
         const toRate = rates[to] || 1.0;
         const inUsd = amount / fromRate;
-        return inUsd * toRate;
+        const rawConverted = inUsd * toRate;
+        const SPREAD = 0.005;
+        return rawConverted * (1 - SPREAD);
     }
 };
 exports.CurrencyConverterService = CurrencyConverterService;

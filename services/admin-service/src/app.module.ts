@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
+import { HttpModule } from '@nestjs/axios';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -37,6 +38,7 @@ import { APP_GUARD } from '@nestjs/core';
       limit: 10,
     }]),
     TerminusModule,
+    HttpModule,
     PrismaModule,
     AdminsModule,
   ],

@@ -5,4 +5,7 @@ export declare class CreateAuditLogDto {
     amount?: number;
     metadata?: any;
     referenceId?: string;
+    durationMs?: number;
+    traceId?: string;
+    status?: string;
 }

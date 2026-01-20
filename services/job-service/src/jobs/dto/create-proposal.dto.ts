@@ -39,4 +39,12 @@ export class CreateProposalDto {
 
     @IsOptional()
     screeningAnswers?: any;
+
+    @IsString()
+    @IsOptional()
+    specializedProfileId?: string;
+
+    @IsString()
+    @IsOptional()
+    agencyId?: string;
 }

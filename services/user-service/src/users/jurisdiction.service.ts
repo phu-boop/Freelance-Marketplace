@@ -5,6 +5,8 @@ export interface LegalRequirement {
     requiredClauses: string[];
     isGdprSubject: boolean;
     taxIdType?: string; // SSN, EIN, VAT, etc.
+    withholdingRate?: number; // Percentage (e.g., 0.30 for 30%)
+    isSanctioned?: boolean;
 }
 
 @Injectable()
@@ -17,29 +19,38 @@ export class JurisdictionService {
             requiredClauses: ['Section 199A Compliance', 'Prop 65 Warning (if CA)'],
             isGdprSubject: false,
             taxIdType: 'SSN/EIN',
+            withholdingRate: 0.0, // Domestic
         },
         GB: {
             jurisdiction: 'United Kingdom',
             requiredClauses: ['IR35 Determination', 'HMRC Reporting Clause'],
             isGdprSubject: true,
             taxIdType: 'NINO',
+            withholdingRate: 0.0,
         },
         VN: {
             jurisdiction: 'Vietnam',
             requiredClauses: ['VAT Invoice Requirement', 'Social Insurance Contribution'],
             isGdprSubject: false,
             taxIdType: 'MST',
+            withholdingRate: 0.10, // Foreign contractor tax approx
         },
         BR: {
             jurisdiction: 'Brazil',
             requiredClauses: ['ISS/PIS/COFINS Tax Withholding', 'LGPD Data Protection'],
             isGdprSubject: false,
             taxIdType: 'CPF/CNPJ',
+            withholdingRate: 0.15,
         },
+        // Sanctioned Examples
+        KP: { jurisdiction: 'North Korea', requiredClauses: [], isGdprSubject: false, isSanctioned: true },
+        IR: { jurisdiction: 'Iran', requiredClauses: [], isGdprSubject: false, isSanctioned: true },
+
         DEFAULT: {
             jurisdiction: 'International/General',
             requiredClauses: ['General Service Terms', 'Standard Arbitration Clause'],
             isGdprSubject: false,
+            withholdingRate: 0.30, // Default US backup withholding for non-treaty
         },
     };
 

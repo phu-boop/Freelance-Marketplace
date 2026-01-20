@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
-import { Briefcase, Calendar, DollarSign, CheckCircle, Plus, Clock, FileText, ChevronLeft, ArrowUpRight, ShieldCheck, Edit3 } from 'lucide-react';
+import { Briefcase, Calendar, DollarSign, CheckCircle, Plus, Clock, FileText, ChevronLeft, ArrowUpRight, ShieldCheck, Edit3, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistance } from 'date-fns';
@@ -11,7 +11,8 @@ import ContractChat from '@/components/contracts/ContractChat';
 import { TransactionHistory } from '@/components/contracts/TransactionHistory';
 import TimesheetView from '@/components/contracts/TimesheetView';
 import CollaborativeEditor from '@/components/workspace/CollaborativeEditor';
-import AiStandupWidget from '@/components/contracts/AiStandupWidget';
+import AiOperationalInsights from '@/components/workspace/AiOperationalInsights';
+import WorkDiaryViewer from '@/components/contracts/WorkDiaryViewer';
 
 export default function ContractDetailsPage() {
     const params = useParams();
@@ -22,7 +23,7 @@ export default function ContractDetailsPage() {
     const [transactionsLoading, setTransactionsLoading] = React.useState(false);
 
     // UI State
-    const [activeTab, setActiveTab] = React.useState<'milestones' | 'files' | 'messages' | 'payments' | 'timesheet' | 'workspace'>('milestones');
+    const [activeTab, setActiveTab] = React.useState<'milestones' | 'files' | 'messages' | 'payments' | 'timesheet' | 'workspace' | 'work-diary'>('milestones');
     const [isAddMilestoneOpen, setIsAddMilestoneOpen] = React.useState(false);
     const [isSubmitWorkOpen, setIsSubmitWorkOpen] = React.useState(false);
     const [isApprovalOpen, setIsApprovalOpen] = React.useState(false);
@@ -560,6 +561,13 @@ export default function ContractDetailsPage() {
                         {activeTab === 'timesheet' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
                     </button>
                     <button
+                        onClick={() => setActiveTab('work-diary')}
+                        className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'work-diary' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        Work Diary
+                        {activeTab === 'work-diary' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+                    </button>
+                    <button
                         onClick={() => setActiveTab('files')}
                         className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'files' ? 'text-blue-500' : 'text-slate-400 hover:text-white'}`}
                     >
@@ -599,6 +607,11 @@ export default function ContractDetailsPage() {
                                 currentUser={currentUser}
                                 isClient={contract?.job?.client_id === currentUser?.id}
                             />
+                        )}
+                        {activeTab === 'work-diary' && (
+                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
+                                <WorkDiaryViewer contractId={params.id as string} />
+                            </div>
                         )}
                         {activeTab === 'workspace' && (
                             <CollaborativeEditor contractId={params.id as string} />
@@ -667,9 +680,18 @@ export default function ContractDetailsPage() {
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                            <div className="text-sm text-slate-300 line-clamp-2 italic">
+                                                            <div className="text-sm text-slate-300 line-clamp-2 italic mb-2">
                                                                 "{milestone.submissions[0].content}"
                                                             </div>
+                                                            {milestone.submissions[0].aiAnalysis && (
+                                                                <div className={`px-2 py-1 rounded border text-[10px] inline-flex items-center gap-1.5 mb-2 ${milestone.submissions[0].aiRiskLevel === 'HIGH' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
+                                                                    milestone.submissions[0].aiRiskLevel === 'MEDIUM' ? 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400' :
+                                                                        'bg-green-500/5 border-green-500/20 text-green-400'
+                                                                    }`}>
+                                                                    <Sparkles className="w-3 h-3" />
+                                                                    AI: {milestone.submissions[0].aiRiskLevel} RISK
+                                                                </div>
+                                                            )}
                                                             {milestone.submissions[0].attachments?.length > 0 && (
                                                                 <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                                                                     {milestone.submissions[0].attachments.map((file: string, idx: number) => (
@@ -825,7 +847,7 @@ export default function ContractDetailsPage() {
 
                     {/* Sidebar */}
                     <div className="space-y-6">
-                        <AiStandupWidget contractId={params.id as string} />
+                        <AiOperationalInsights contractId={params.id as string} />
                         <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
                             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                                 <DollarSign className="w-5 h-5 text-green-500" />
@@ -1115,6 +1137,18 @@ export default function ContractDetailsPage() {
                                                         {file.split('-').slice(1).join('-') || file}
                                                     </a>
                                                 ))}
+                                            </div>
+                                        )}
+                                        {sub.aiAnalysis && (
+                                            <div className={`mt-3 p-3 rounded-lg border flex gap-3 ${sub.aiRiskLevel === 'HIGH' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
+                                                sub.aiRiskLevel === 'MEDIUM' ? 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400' :
+                                                    'bg-green-500/5 border-green-500/20 text-green-400'
+                                                }`}>
+                                                <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                                                <div className="space-y-1">
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest">AI Safety Scan</div>
+                                                    <p className="text-xs leading-relaxed">{sub.aiAnalysis}</p>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

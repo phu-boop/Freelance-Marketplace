@@ -6,6 +6,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { ForumModule } from './forum/forum.module';
+import { HelpModule } from './help/help.module';
+import { AcademyModule } from './academy/academy.module';
 import { HealthController } from './health/health.controller';
 import {
   KeycloakConnectModule,
@@ -28,6 +30,8 @@ import { APP_GUARD } from '@nestjs/core';
     TerminusModule,
     PrismaModule,
     ForumModule,
+    HelpModule,
+    AcademyModule,
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

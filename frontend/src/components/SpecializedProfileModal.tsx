@@ -140,10 +140,10 @@ export const SpecializedProfileModal = ({ isOpen, onClose, onSuccess, userId, in
                     const wasLinkedBefore = initialData?.[type === 'portfolio' ? 'portfolioItems' : type]?.some((i: any) => i.id === item.id);
 
                     if (isLinkedNow && !wasLinkedBefore) {
-                        const linkType = type === 'portfolio' ? 'portfolio' : type;
+                        const linkType = type === 'portfolio' ? 'portfolio' : type === 'certifications' ? 'certification' : type;
                         await api.post(`/profiles/specialized/${profileId}/link-${linkType}/${item.id}`);
                     } else if (!isLinkedNow && wasLinkedBefore) {
-                        const unlinkType = type === 'portfolio' ? 'portfolio' : type;
+                        const unlinkType = type === 'portfolio' ? 'portfolio' : type === 'certifications' ? 'certification' : type;
                         await api.post(`/profiles/specialized/unlink/${unlinkType}/${item.id}`);
                     }
                 }

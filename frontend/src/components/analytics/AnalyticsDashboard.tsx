@@ -4,8 +4,12 @@ import React, { useEffect, useState } from 'react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Cell } from 'recharts';
-import { DollarSign, Briefcase, TrendingUp, Award, Activity } from 'lucide-react';
+import { DollarSign, Briefcase, TrendingUp, Award, Activity, BarChart3, Target, Zap } from 'lucide-react';
 import axios from 'axios';
+import EarningsChart from './EarningsChart';
+import MarketComparison from './MarketComparison';
+import FunnelChart from './FunnelChart';
+import LiquidityChart from './LiquidityChart';
 
 interface FreelancerOverview {
     userId: string;
@@ -41,6 +45,10 @@ export function AnalyticsDashboard() {
     const [earningsData, setEarningsData] = useState<MonthlyEarning[]>([]);
     const [clientSpend, setClientSpend] = useState<ClientSpend | null>(null);
     const [predictive, setPredictive] = useState<PredictiveRevenue | null>(null);
+    const [predictiveEarnings, setPredictiveEarnings] = useState<any>(null);
+    const [marketRates, setMarketRates] = useState<any>(null);
+    const [funnelData, setFunnelData] = useState<any>(null);
+    const [liquidity, setLiquidity] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -52,20 +60,29 @@ export function AnalyticsDashboard() {
                 const baseUrl = '/api/analytics';
 
                 if (isFreelancer) {
-                    const [overviewRes, earningsRes] = await Promise.all([
+                    const [overviewRes, earningsRes, predRes, funnelRes, marketRes] = await Promise.all([
                         axios.get(`${baseUrl}/freelancer/overview?user_id=${userId}`),
-                        axios.get(`${baseUrl}/freelancer/earnings?user_id=${userId}`)
+                        axios.get(`${baseUrl}/freelancer/earnings?user_id=${userId}`),
+                        axios.get(`${baseUrl}/freelancer/predictive-earnings?user_id=${userId}`),
+                        axios.get(`${baseUrl}/freelancer/funnel?user_id=${userId}`),
+                        axios.get(`${baseUrl}/market-rates?skill=React`) // Default skill for demo
                     ]);
 
                     setOverview(overviewRes.data);
-                    // Reverse to show oldest to newest
                     setEarningsData([...earningsRes.data.monthly_earnings].reverse());
+                    setPredictiveEarnings(predRes.data);
+                    setFunnelData(funnelRes.data);
+                    setMarketRates(marketRes.data);
 
-                    const predictiveRes = await axios.get(`/api/payments/revenue/predictive/${userId}`);
-                    setPredictive(predictiveRes.data);
+                    const legacyPredictiveRes = await axios.get(`/api/payments/revenue/predictive/${userId}`);
+                    setPredictive(legacyPredictiveRes.data);
                 } else if (isClient) {
-                    const res = await axios.get(`${baseUrl}/client/spend?user_id=${userId}`);
+                    const [res, liquidityRes] = await Promise.all([
+                        axios.get(`${baseUrl}/client/spend?user_id=${userId}`),
+                        axios.get(`${baseUrl}/platform/liquidity`)
+                    ]);
                     setClientSpend(res.data);
+                    setLiquidity(liquidityRes.data);
                 }
             } catch (error) {
                 console.error("Failed to fetch analytics:", error);
@@ -137,6 +154,34 @@ export function AnalyticsDashboard() {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {liquidity && (
+                        <Card className="col-span-3 bg-slate-900 border-slate-800">
+                            <CardHeader>
+                                <CardTitle className="text-slate-200">Market Liquidity</CardTitle>
+                                <CardDescription className="text-slate-400">Platform-wide fill rate & speed</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <p className="text-sm text-slate-500">Job Fill Rate</p>
+                                            <h4 className="text-2xl font-bold text-white">{liquidity.jobFillRate}%</h4>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm text-slate-500">Avg Time-to-Hire</p>
+                                            <h4 className="text-2xl font-bold text-blue-400">{liquidity.avgTimeToHireHours}h</h4>
+                                        </div>
+                                    </div>
+                                    <LiquidityChart data={[
+                                        { name: 'Jan', fillRate: 65, timeToHire: 48 },
+                                        { name: 'Feb', fillRate: 68, timeToHire: 45 },
+                                        { name: 'Mar', fillRate: liquidity.jobFillRate, timeToHire: liquidity.avgTimeToHireHours }
+                                    ]} />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
             </div>
         );
@@ -222,77 +267,73 @@ export function AnalyticsDashboard() {
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                     <Card className="col-span-4 bg-slate-900 border-slate-800">
-                        <CardHeader>
-                            <CardTitle className="text-slate-200">Revenue Forecast</CardTitle>
-                            <CardDescription className="text-slate-400">Past earnings vs Future projections</CardDescription>
-                        </CardHeader>
-                        <CardContent className="pl-2">
-                            <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={[
-                                        ...earningsData.map(e => ({ name: e.month, amount: e.amount, type: 'Past' })),
-                                        ...(predictive ? Object.entries(predictive.projections).map(([month, amount]) => ({ name: month, amount: amount, type: 'Projected' })) : [])
-                                    ]}>
-                                        <XAxis
-                                            dataKey="name"
-                                            stroke="#888888"
-                                            fontSize={12}
-                                            tickLine={false}
-                                            axisLine={false}
-                                        />
-                                        <YAxis
-                                            stroke="#888888"
-                                            fontSize={12}
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickFormatter={(value) => `$${value}`}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
-                                            cursor={{ fill: '#334155' }}
-                                        />
-                                        <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
-                                            {
-                                                [
-                                                    ...earningsData.map(e => ({ type: 'Past' })),
-                                                    ...(predictive ? Object.entries(predictive.projections).map(() => ({ type: 'Projected' })) : [])
-                                                ].map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.type === 'Past' ? '#3b82f6' : '#6366f1'} fillOpacity={entry.type === 'Past' ? 1 : 0.6} />
-                                                ))
-                                            }
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-slate-200">Revenue & Projections</CardTitle>
+                                <CardDescription className="text-slate-400">Historical earnings with AI-driven forecast</CardDescription>
                             </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="col-span-3 bg-slate-900 border-slate-800">
-                        <CardHeader>
-                            <CardTitle className="text-slate-200">Recent Activity</CardTitle>
-                            <CardDescription className="text-slate-400">
-                                You made 2 proposals this week.
-                            </CardDescription>
+                            {predictiveEarnings && (
+                                <div className="text-right">
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Next Month Forecast</p>
+                                    <p className="text-lg font-bold text-blue-400">${predictiveEarnings.predictedNextMonth}</p>
+                                </div>
+                            )}
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-4">
-                                {/* Placeholder for recent activity list */}
-                                <div className="flex items-center">
-                                    <div className="ml-4 space-y-1">
-                                        <p className="text-sm font-medium leading-none text-white">Proposal Sent</p>
-                                        <p className="text-sm text-slate-500">To Job: E-commerce Website</p>
-                                    </div>
-                                    <div className="ml-auto font-medium text-slate-400">Just now</div>
-                                </div>
-                                <div className="flex items-center">
-                                    <div className="ml-4 space-y-1">
-                                        <p className="text-sm font-medium leading-none text-white">Payment Received</p>
-                                        <p className="text-sm text-slate-500">+$50.00 from Client B</p>
-                                    </div>
-                                    <div className="ml-auto font-medium text-green-500">2h ago</div>
-                                </div>
-                            </div>
+                            <EarningsChart data={[
+                                ...earningsData.map(e => ({ name: e.month, amount: e.amount, type: 'Past' as const })),
+                                ...(predictiveEarnings?.predictedNextMonth ? [{ name: 'Forecast', amount: predictiveEarnings.predictedNextMonth, type: 'Predicted' as const }] : [])
+                            ]} />
                         </CardContent>
                     </Card>
+
+                    <div className="col-span-3 space-y-4">
+                        {marketRates && (
+                            <Card className="bg-slate-900 border-slate-800">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm text-slate-200 flex items-center gap-2">
+                                        <Target className="w-4 h-4 text-orange-500" />
+                                        Market Rate Discovery
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <MarketComparison
+                                        skill={marketRates.skill}
+                                        userRate={45} // Hardcoded for demo, should come from user profile
+                                        marketData={marketRates}
+                                    />
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {funnelData && (
+                            <Card className="bg-slate-900 border-slate-800">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm text-slate-200 flex items-center gap-2">
+                                        <Zap className="w-4 h-4 text-yellow-500" />
+                                        Conversion Funnel
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <FunnelChart data={funnelData.steps} />
+                                    <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                                        <div className="p-2 rounded-lg bg-slate-800/50">
+                                            <p className="text-[10px] text-slate-500">View → App</p>
+                                            <p className="text-xs font-bold text-white">{funnelData.conversionRates.viewToApp}%</p>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-slate-800/50">
+                                            <p className="text-[10px] text-slate-500">App → Int</p>
+                                            <p className="text-xs font-bold text-white">{funnelData.conversionRates.appToInterview}%</p>
+                                        </div>
+                                        <div className="p-2 rounded-lg bg-slate-800/50">
+                                            <p className="text-[10px] text-slate-500">Int → Hire</p>
+                                            <p className="text-xs font-bold text-white">{funnelData.conversionRates.interviewToHire}%</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
                 </div>
             </div>
         );

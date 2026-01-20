@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowUpRight, Loader2, Plus, Trash2, Check, Banknote, CreditCard } from 'lucide-react';
+import { X, ArrowUpRight, Loader2, Plus, Trash2, Check, Banknote, CreditCard, Smartphone } from 'lucide-react';
 import api from '@/lib/api';
 import { useKeycloak } from '@/components/KeycloakProvider';
 
 interface WithdrawalMethod {
     id: string;
-    type: 'BANK_ACCOUNT' | 'PAYPAL';
+    type: 'BANK_ACCOUNT' | 'PAYPAL' | 'CRYPTO';
     provider: string;
     accountNumber: string;
     accountName: string;
@@ -168,30 +168,44 @@ export default function WithdrawalModal({
                                         </div>
                                     </div>
 
-                                    {/* Instant Pay Toggle */}
-                                    {selectedMethodId && methods.find(m => m.id === selectedMethodId)?.isInstantCapable && (
-                                        <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-3">
+                                    {/* Fee Display */}
+                                    {selectedMethodId && (
+                                        <div className={`p-4 rounded-2xl border space-y-3 ${methods.find(m => m.id === selectedMethodId)?.type === 'CRYPTO'
+                                            ? 'bg-indigo-500/5 border-indigo-500/20'
+                                            : 'bg-amber-500/5 border-amber-500/20'
+                                            }`}>
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
-                                                    <CreditCard className="w-4 h-4 text-amber-500" />
-                                                    <span className="text-sm font-bold text-white">Instant Pay</span>
+                                                    {methods.find(m => m.id === selectedMethodId)?.type === 'CRYPTO'
+                                                        ? <Smartphone className="w-4 h-4 text-indigo-500" />
+                                                        : <CreditCard className="w-4 h-4 text-amber-500" />
+                                                    }
+                                                    <span className="text-sm font-bold text-white uppercase tracking-wider">
+                                                        {methods.find(m => m.id === selectedMethodId)?.type === 'CRYPTO' ? 'Network Fee' : 'Instant Pay'}
+                                                    </span>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsInstant(!isInstant)}
-                                                    className={`w-12 h-6 rounded-full transition-all relative ${isInstant ? 'bg-amber-500' : 'bg-slate-700'}`}
-                                                >
-                                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isInstant ? 'left-7' : 'left-1'}`} />
-                                                </button>
+                                                {methods.find(m => m.id === selectedMethodId)?.type !== 'CRYPTO' && methods.find(m => m.id === selectedMethodId)?.isInstantCapable && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsInstant(!isInstant)}
+                                                        className={`w-12 h-6 rounded-full transition-all relative ${isInstant ? 'bg-amber-500' : 'bg-slate-700'}`}
+                                                    >
+                                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${isInstant ? 'left-7' : 'left-1'}`} />
+                                                    </button>
+                                                )}
                                             </div>
                                             <p className="text-xs text-slate-400">
-                                                Get your funds in minutes for a 1.5% fee (minimum $2.00).
+                                                {methods.find(m => m.id === selectedMethodId)?.type === 'CRYPTO'
+                                                    ? 'Crypto withdrawals incur a flat network fee for secure blockchain processing.'
+                                                    : 'Get your funds in minutes for a 1.5% fee (minimum $2.00).'}
                                             </p>
-                                            {isInstant && amount && parseFloat(amount) > 0 && (
-                                                <div className="pt-2 border-t border-amber-500/10 flex justify-between text-xs">
+                                            {(isInstant || methods.find(m => m.id === selectedMethodId)?.type === 'CRYPTO') && amount && parseFloat(amount) > 0 && (
+                                                <div className="pt-2 border-t border-white/5 flex justify-between text-xs">
                                                     <span className="text-slate-400">Estimated Fee:</span>
-                                                    <span className="text-amber-500 font-bold">
-                                                        {formatAmount(Math.max(parseFloat(amount) * 0.015, 2.0))}
+                                                    <span className={`${methods.find(m => m.id === selectedMethodId)?.type === 'CRYPTO' ? 'text-indigo-400' : 'text-amber-500'} font-bold`}>
+                                                        {methods.find(m => m.id === selectedMethodId)?.type === 'CRYPTO'
+                                                            ? formatAmount(1.0)
+                                                            : formatAmount(Math.max(parseFloat(amount) * 0.015, 2.0))}
                                                     </span>
                                                 </div>
                                             )}
@@ -223,11 +237,11 @@ export default function WithdrawalModal({
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div className={`p-2 rounded-lg ${selectedMethodId === method.id ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                                                            {method.type === 'BANK_ACCOUNT' ? <Banknote className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
+                                                            {method.type === 'BANK_ACCOUNT' ? <Banknote className="w-5 h-5" /> : method.type === 'CRYPTO' ? <Smartphone className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-bold text-white">{method.provider}</p>
-                                                            <p className="text-xs text-slate-400">{method.accountNumber}</p>
+                                                            <p className="text-sm font-bold text-white">{method.provider}{method.type === 'CRYPTO' ? ' (USDC)' : ''}</p>
+                                                            <p className="text-xs text-slate-400 truncate max-w-[150px]">{method.accountNumber}</p>
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
@@ -273,10 +287,13 @@ export default function WithdrawalModal({
                                         >
                                             <option value="BANK_ACCOUNT">Bank Account</option>
                                             <option value="PAYPAL">PayPal</option>
+                                            <option value="CRYPTO">Crypto Wallet (USDC/USDT)</option>
                                         </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-400">Provider / Bank Name</label>
+                                        <label className="text-sm font-bold text-slate-400">
+                                            {newMethod.type === 'CRYPTO' ? 'Provider (e.g. MetaMask, Binance)' : 'Provider / Bank Name'}
+                                        </label>
                                         <input
                                             required
                                             value={newMethod.provider}

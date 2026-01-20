@@ -27,9 +27,11 @@ interface Proposal {
     createdAt: string;
     status: string;
     matchScore?: number;
+    isViewed?: boolean;
+    aiScore?: number;
+    aiAnalysis?: string;
     isBoosted?: boolean;
     boostAmount?: number;
-    aiScore?: number;
 }
 
 export default function JobProposalsPage() {
@@ -60,6 +62,17 @@ export default function JobProposalsPage() {
         }
     };
 
+    const markAsViewed = async (proposalId: string) => {
+        try {
+            await api.post(`/proposals/${proposalId}/view`);
+            setProposals(prev => prev.map(p =>
+                p.id === proposalId ? { ...p, isViewed: true } : p
+            ));
+        } catch (err) {
+            console.error('Failed to mark proposal as viewed', err);
+        }
+    };
+
     useEffect(() => {
         const fetchProposals = async () => {
             try {
@@ -81,7 +94,7 @@ export default function JobProposalsPage() {
                     const match = matchData.find((m: any) => m.id === p.freelancer_id);
                     return {
                         ...p,
-                        freelancerId: p.freelancer_id, // Ensure explicit mapping
+                        freelancerId: p.freelancerId || p.freelancer_id, // Ensure explicit mapping
                         matchScore: match ? match.matchScore : Math.floor(Math.random() * 20) + 70 // Fallback/Mock
                     };
                 });
@@ -217,12 +230,17 @@ export default function JobProposalsPage() {
                                                             🚀 Boosted
                                                         </span>
                                                     )}
-                                                    {proposal.aiScore && proposal.aiScore >= 85 && (
-                                                        <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold border border-purple-500/20">
-                                                            ✨ Best Match
+                                                    {proposal.aiScore !== undefined && (
+                                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${proposal.aiScore >= 80
+                                                            ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                                            : proposal.aiScore >= 50
+                                                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                                            }`}>
+                                                            🤖 {proposal.aiScore}% Match
                                                         </span>
                                                     )}
-                                                    {proposal.matchScore && (
+                                                    {proposal.matchScore && !proposal.aiScore && (
                                                         <span className="px-2 py-0.5 rounded-md bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20">
                                                             💎 {proposal.matchScore}%
                                                         </span>
@@ -244,11 +262,25 @@ export default function JobProposalsPage() {
                                     </div>
 
                                     {/* Proposal Content */}
-                                    <div className="xl:flex-1 space-y-3">
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cover Letter</h4>
-                                        <p className="text-slate-300 leading-relaxed whitespace-pre-wrap text-sm line-clamp-4 hover:line-clamp-none transition-all">
-                                            {proposal.coverLetter}
-                                        </p>
+                                    <div className="xl:flex-1 space-y-4">
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cover Letter</h4>
+                                            <p className="text-slate-300 leading-relaxed whitespace-pre-wrap text-sm line-clamp-4 hover:line-clamp-none transition-all cursor-pointer" onClick={() => !proposal.isViewed && markAsViewed(proposal.id)}>
+                                                {proposal.coverLetter}
+                                            </p>
+                                        </div>
+
+                                        {proposal.aiAnalysis && (
+                                            <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/10 space-y-2">
+                                                <div className="flex items-center gap-2 text-purple-400">
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    <h5 className="text-[10px] font-bold uppercase tracking-wider">AI Analyst Review</h5>
+                                                </div>
+                                                <p className="text-xs text-slate-400 italic leading-relaxed">
+                                                    "{proposal.aiAnalysis}"
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Actions */}

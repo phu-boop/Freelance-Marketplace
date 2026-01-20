@@ -19,6 +19,28 @@ let AuditService = AuditService_1 = class AuditService {
         this.prisma = prisma;
         this.logger = new common_1.Logger(AuditService_1.name);
     }
+    async onModuleInit() {
+        this.logger.log('AuditService initialized. Running initial retention check...');
+        await this.runRetentionPolicy();
+    }
+    async runRetentionPolicy() {
+        const retentionPeriodYears = 7;
+        const cutoffDate = new Date();
+        cutoffDate.setFullYear(cutoffDate.getFullYear() - retentionPeriodYears);
+        try {
+            const deleteResult = await this.prisma.auditLog.deleteMany({
+                where: {
+                    timestamp: {
+                        lt: cutoffDate,
+                    },
+                },
+            });
+            this.logger.log(`Retention policy applied: Removed ${deleteResult.count} logs older than ${retentionPeriodYears} years.`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to apply retention policy: ${error.message}`);
+        }
+    }
     async create(dto) {
         const checksum = this.generateChecksum(dto);
         this.logger.log(`Logging financial event: ${dto.eventType} from ${dto.service}`);
@@ -44,6 +66,9 @@ let AuditService = AuditService_1 = class AuditService {
             amount: dto.amount,
             metadata: dto.metadata,
             referenceId: dto.referenceId,
+            durationMs: dto.durationMs,
+            traceId: dto.traceId,
+            status: dto.status,
             secret: process.env.AUDIT_SECRET || 'fallback-secret',
         });
         return crypto.createHash('sha256').update(data).digest('hex');
@@ -80,6 +105,9 @@ let AuditService = AuditService_1 = class AuditService {
             amount: log.amount ? Number(log.amount) : undefined,
             metadata: log.metadata,
             referenceId: log.referenceId,
+            durationMs: log.durationMs,
+            traceId: log.traceId,
+            status: log.status,
         };
         return log.checksum === this.generateChecksum(dto);
     }

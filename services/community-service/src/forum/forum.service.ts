@@ -1,10 +1,19 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto, CreateCommentDto } from './forum.dto';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class ForumService {
-    constructor(private prisma: PrismaService) { }
+    private readonly logger = new Logger(ForumService.name);
+
+    constructor(
+        private prisma: PrismaService,
+        private httpService: HttpService,
+        private configService: ConfigService,
+    ) { }
 
     // Categories
     async getCategories() {
@@ -15,12 +24,43 @@ export class ForumService {
 
     // Posts
     async createPost(userId: string, dto: CreatePostDto) {
+        const category = await this.prisma.forumCategory.findUnique({
+            where: { id: dto.categoryId }
+        });
+
+        if (!category) throw new NotFoundException('Category not found');
+
+        const cat = category as any;
+        if (cat.isExclusive && cat.requiredBadge) {
+            const hasBadge = await this.userHasBadge(userId, cat.requiredBadge);
+            if (!hasBadge) {
+                throw new ForbiddenException(`This category is exclusive to users with the ${cat.requiredBadge} badge.`);
+            }
+        }
+
         return this.prisma.forumPost.create({
             data: {
                 ...dto,
                 authorId: userId,
             }
         });
+    }
+
+    private async userHasBadge(userId: string, badgeName: string): Promise<boolean> {
+        try {
+            const userServiceUrl = this.configService.get<string>(
+                'USER_SERVICE_INTERNAL_URL',
+                'http://user-service:3000/api/users',
+            );
+            const res = await firstValueFrom(
+                this.httpService.get(`${userServiceUrl}/profile/badges/${userId}`)
+            );
+            const badges = res.data;
+            return badges.some((b: any) => b.name === badgeName);
+        } catch (error) {
+            this.logger.error(`Failed to verify badge for user ${userId}: ${error.message}`);
+            return false;
+        }
     }
 
     async getPosts(categoryId?: string, tag?: string, query?: string) {
@@ -40,7 +80,8 @@ export class ForumService {
                 category: true,
                 _count: { select: { comments: true } }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take: 20, // Default pagination limit
         });
     }
 

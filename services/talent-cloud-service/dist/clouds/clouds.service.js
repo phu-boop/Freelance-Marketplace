@@ -153,6 +153,31 @@ let CloudsService = class CloudsService {
         const url = `${process.env.USER_SERVICE_URL}/api/users/${userId}/cloud-membership`;
         return (0, rxjs_1.firstValueFrom)(this.http.patch(url, payload));
     }
+    async createBudget(cloudId, amount, fiscalYear) {
+        const budget = {
+            id: `budget-${Date.now()}`,
+            cloudId,
+            totalAmount: amount,
+            allocatedAmount: 0,
+            remainingAmount: amount,
+            currency: 'USD',
+            fiscalYear,
+            status: 'ACTIVE'
+        };
+        return budget;
+    }
+    async getBudget(cloudId) {
+        return {
+            id: 'mock-budget-id',
+            cloudId,
+            totalAmount: 100000,
+            allocatedAmount: 25000,
+            remainingAmount: 75000,
+            currency: 'USD',
+            fiscalYear: '2026',
+            status: 'ACTIVE'
+        };
+    }
 };
 exports.CloudsService = CloudsService;
 exports.CloudsService = CloudsService = __decorate([

@@ -22,21 +22,37 @@ import {
     MessageSquare,
     Building2,
     Briefcase,
-    Heart
+    Heart,
+    Sparkles,
+    CheckCircle2
 } from 'lucide-react';
 import { BadgeList } from '@/components/BadgeList';
 import { HireModal } from '@/components/HireModal';
+import ReputationCard from '@/components/profile/ReputationCard';
+import { SkillAssessmentModal } from '@/components/profile/SkillAssessmentModal';
 
 interface ProfileViewProps {
     user: any;
     reviews: any[];
 }
 
-export default function ProfileView({ user, reviews }: ProfileViewProps) {
+export default function ProfileView({ user: initialUser, reviews }: ProfileViewProps) {
     const { userId, roles } = useKeycloak();
+    const [user, setUser] = useState(initialUser);
     const [activeTab, setActiveTab] = useState<'about' | 'reviews' | 'portfolio' | 'proposals'>('about');
     const [isSaved, setIsSaved] = useState(false);
     const [isLoadingSave, setIsLoadingSave] = useState(false);
+    const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
+    const [selectedSkill, setSelectedSkill] = useState('');
+
+    const refreshUser = async () => {
+        try {
+            const res = await api.get(`/users/${user.id}`);
+            setUser(res.data);
+        } catch (error) {
+            console.error('Failed to refresh user data', error);
+        }
+    };
 
     useEffect(() => {
         const checkSavedStatus = async () => {
@@ -201,6 +217,14 @@ export default function ProfileView({ user, reviews }: ProfileViewProps) {
                                 </div>
                             </div>
 
+                            <ReputationCard
+                                jss={user.jobSuccessScore || 100}
+                                badges={user.awardedBadges || []}
+                                reviewCount={user.reviewCount || 0}
+                                rating={Number(user.rating) || 0}
+                                totalEarnings={Number(user.totalSpend) || 0}
+                            />
+
                             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
                                 <h3 className="font-semibold text-white">Languages</h3>
                                 <div className="space-y-3">
@@ -256,14 +280,33 @@ export default function ProfileView({ user, reviews }: ProfileViewProps) {
                                     <h3 className="font-semibold text-white">Skills & Expertise</h3>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {user.skills?.length > 0 ? user.skills.map((skill: string) => (
-                                        <span
-                                            key={skill}
-                                            className="px-4 py-1.5 rounded-xl bg-slate-800 text-sm text-slate-300 border border-slate-700 cursor-default"
-                                        >
-                                            {skill}
-                                        </span>
-                                    )) : (
+                                    {user.skills?.length > 0 ? user.skills.map((skill: string) => {
+                                        const isVerified = (user.assessments || []).some(
+                                            (a: any) => a.skillName === skill && a.status === 'COMPLETED' && a.score >= 80
+                                        );
+                                        return (
+                                            <div key={skill} className="flex items-center gap-2">
+                                                <span
+                                                    className={`px-4 py-1.5 rounded-xl text-sm border cursor-default flex items-center gap-2 ${isVerified
+                                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                                                        }`}
+                                                >
+                                                    {skill}
+                                                    {isVerified && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                                </span>
+                                                {userId === user.id && !isVerified && (
+                                                    <button
+                                                        onClick={() => { setSelectedSkill(skill); setIsAssessmentOpen(true); }}
+                                                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-purple-500/20 hover:text-purple-400 text-slate-500 transition-all border border-slate-700 hover:border-purple-500/30"
+                                                        title="Verify this skill"
+                                                    >
+                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    }) : (
                                         <p className="text-sm text-slate-500">No skills added.</p>
                                     )}
                                 </div>
@@ -439,6 +482,13 @@ export default function ProfileView({ user, reviews }: ProfileViewProps) {
                     </div>
                 ) : null}
             </div>
+            <SkillAssessmentModal
+                isOpen={isAssessmentOpen}
+                onClose={() => setIsAssessmentOpen(false)}
+                userId={user.id}
+                skillName={selectedSkill}
+                onComplete={refreshUser}
+            />
         </div>
     );
 }

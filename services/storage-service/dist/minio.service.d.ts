@@ -8,5 +8,6 @@ export declare class MinioService implements OnModuleInit {
     onModuleInit(): Promise<void>;
     createBucketIfNotExists(): Promise<void>;
     uploadFile(file: Express.Multer.File): Promise<string>;
+    private mockMalwareScan;
     getFileUrl(fileName: string): Promise<string>;
 }

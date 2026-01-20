@@ -134,26 +134,60 @@ export class ContractsService {
           'http://user-service:3001',
         );
         const { data: primaryTeam } = await firstValueFrom(
-          this.httpService.get(`${userServiceUrl}/api/user/teams/internal/primary/${freelancer_id}`),
+          this.httpService.get(
+            `${userServiceUrl}/api/user/teams/internal/primary/${freelancer_id}`,
+          ),
         );
         if (primaryTeam) {
           agencyId = primaryTeam.id;
-          // If no split provided, default to 10% for agency freelancers (MVP logic)
           if (agencyRevenueSplit === undefined || agencyRevenueSplit === null) {
-            agencyRevenueSplit = 10;
+            agencyRevenueSplit = Number(primaryTeam.revenueSplitPercent || 20);
           }
         }
       } catch (err) {
         this.logger.error(`Agency detection failed: ${err.message}`);
       }
+    } else if (
+      agencyId &&
+      (agencyRevenueSplit === undefined || agencyRevenueSplit === null)
+    ) {
+      try {
+        const userServiceUrl = this.configService.get<string>(
+          'USER_SERVICE_URL',
+          'http://user-service:3001',
+        );
+        const { data: team } = await firstValueFrom(
+          this.httpService.get(`${userServiceUrl}/api/user/teams/${agencyId}`),
+        );
+        if (team) {
+          agencyRevenueSplit = Number(team.revenueSplitPercent || 20);
+        }
+      } catch (err) {
+        this.logger.error(`Agency split fetch failed: ${err.message}`);
+        agencyRevenueSplit = 20;
+      }
     }
 
     let status = 'ACTIVE';
-    if (agencyId) {
+    const amountNum = Number(totalAmount || 0);
+
+    // 2. Enterprise Mandatory Approval for high-value contracts (> $10,000)
+    if (amountNum >= 10000) {
+      status = 'PENDING_APPROVAL';
+      this.logger.log(`Contract ${job_id} requires approval due to high value: $${amountNum}`);
+    }
+
+    // 3. EOR (Employer of Record) requires manual vetting by default in this MVP
+    if (rest.type === 'EOR') {
+      status = 'PENDING_APPROVAL';
+      this.logger.log(`Contract ${job_id} requires approval due to EOR type`);
+    }
+
+    if (agencyId && status !== 'PENDING_APPROVAL') {
       const approvalCheck = await this.checkApproval(
         agencyId,
         'HIRE',
-        Number(totalAmount || 0),
+        amountNum,
       );
       if (approvalCheck.required) {
         status = 'PENDING_APPROVAL';
@@ -193,11 +227,23 @@ export class ContractsService {
     });
 
     if (status === 'PENDING_APPROVAL') {
+      const requiredRoles: string[] = [];
+      if (amountNum >= 50000) {
+        requiredRoles.push('FINANCE', 'ADMIN');
+      } else if (amountNum >= 10000) {
+        requiredRoles.push('FINANCE');
+      } else if (rest.type === 'EOR') {
+        requiredRoles.push('ADMIN'); // Admin must vet EOR
+      } else if (agencyId) {
+        requiredRoles.push('MANAGER'); // Agency manager
+      }
+
       await this.prisma.contractApprovalRequest.create({
         data: {
           contractId: contract.id,
           requestedBy: client_id as string,
           status: 'PENDING',
+          requiredRoles: requiredRoles,
         },
       });
     }
@@ -205,7 +251,7 @@ export class ContractsService {
     return contract;
   }
 
-  findAll(freelancerId?: string, clientId?: string) {
+  findAll(freelancerId?: string, clientId?: string, agencyId?: string) {
     const where: any = {};
     if (freelancerId) {
       where.freelancer_id = freelancerId;
@@ -213,10 +259,13 @@ export class ContractsService {
     if (clientId) {
       where.client_id = clientId;
     }
+    if (agencyId) {
+      where.agencyId = agencyId;
+    }
 
     return this.prisma.contract.findMany({
       where,
-      include: { milestones: true },
+      include: { milestones: true, disputes: true },
     });
   }
 
@@ -227,7 +276,7 @@ export class ContractsService {
     }
     const contracts = await this.prisma.contract.findMany({
       where,
-      include: { milestones: true },
+      include: { milestones: true, disputes: true },
     });
     return this.enrichContracts(contracts);
   }
@@ -236,7 +285,7 @@ export class ContractsService {
     const where: any = agencyId ? { agencyId } : { client_id: clientId };
     const contracts = await this.prisma.contract.findMany({
       where,
-      include: { milestones: true },
+      include: { milestones: true, disputes: true },
     });
     return this.enrichContracts(contracts);
   }
@@ -370,21 +419,45 @@ export class ContractsService {
 
     const { milestoneId, ...submissionData } = data;
 
+    // AI Risk Scanning
+    let riskLevel = 'LOW';
+    let riskReport = '';
+
+    try {
+      const jobServiceUrl = this.configService.get('JOB_SERVICE_INTERNAL_URL') || 'http://job-service:3002';
+      const { data: aiAnalysis } = await firstValueFrom(
+        this.httpService.post(`${jobServiceUrl}/api/jobs/ai/scan-submission`, {
+          content: submissionData.content
+        })
+      );
+      riskLevel = aiAnalysis.riskLevel || 'LOW';
+      riskReport = aiAnalysis.report || '';
+    } catch (err) {
+      this.logger.error(`AI Risk Scan failed: ${err.message}`);
+    }
+
     // Create submission record
     await this.prisma.submission.create({
       data: {
         ...submissionData,
         milestoneId,
+        metadata: {
+          riskLevel,
+          riskReport
+        } as any
       },
     });
 
-    // Calculate auto-release date
-    const autoReleaseDate = new Date();
-    autoReleaseDate.setDate(
-      autoReleaseDate.getDate() + (contract.autoReleaseDays || 14),
-    );
+    // Calculate auto-release date (skip if high risk)
+    let autoReleaseDate: Date | null = null;
+    if (riskLevel !== 'HIGH') {
+      autoReleaseDate = new Date();
+      autoReleaseDate.setDate(
+        autoReleaseDate.getDate() + (contract.autoReleaseDays || 14),
+      );
+    }
 
-    // Update milestone status and set auto-release date
+    // Update milestone status
     const updatedMilestone = await this.prisma.milestone.update({
       where: { id: milestoneId },
       data: {
@@ -597,7 +670,53 @@ export class ContractsService {
         'Cannot approve work while contract is paused',
       );
 
-    // Transfer funds from Client to Freelancer via Escrow Release
+    // High-value milestone approval threshold (e.g., $5,000)
+    const APPROVAL_THRESHOLD = 5000;
+    const isHighValue = Number(milestone.amount) >= APPROVAL_THRESHOLD;
+
+    if (isHighValue) {
+      try {
+        const paymentServiceUrl = this.configService.get<string>(
+          'PAYMENT_SERVICE_URL',
+          'http://payment-service:3005',
+        );
+        await firstValueFrom(
+          this.httpService.post(
+            `${paymentServiceUrl}/api/payments/escrow/request-approval`,
+            {
+              contractId,
+              milestoneId: milestone.id,
+              freelancerId: contract.freelancer_id,
+              amount: Number(milestone.amount),
+            },
+            {
+              headers: { Authorization: token },
+            },
+          ),
+        );
+
+        // Update Milestone to PENDING_APPROVAL
+        const updatedMilestone = await this.prisma.milestone.update({
+          where: { id: data.milestoneId },
+          data: { status: 'PENDING_APPROVAL' },
+        });
+
+        await this.sendNotification(
+          contract.client_id,
+          'APPROVAL_REQUIRED',
+          'Payment Approval Required',
+          `Your payment of $${milestone.amount} for milestone "${milestone.description}" exceeds the $5,000 threshold and requires additional approval.`,
+          `/contracts/${contractId}`,
+        );
+
+        return updatedMilestone;
+      } catch (error) {
+        this.logger.error(`Failed to initiate high-value approval: ${error.message}`);
+        throw new ConflictException('Failed to initiate payment approval process.');
+      }
+    }
+
+    // Standard flow for < $5,000
     try {
       const paymentServiceUrl = this.configService.get<string>(
         'PAYMENT_SERVICE_URL',
@@ -813,7 +932,7 @@ export class ContractsService {
   findAllDisputed() {
     return this.prisma.contract.findMany({
       where: { status: 'DISPUTED' },
-      include: { milestones: true },
+      include: { milestones: true, disputes: true },
     });
   }
 
@@ -1470,7 +1589,7 @@ export class ContractsService {
       );
     }
   }
-  async approveContract(contractId: string, userId: string) {
+  async approveContract(contractId: string, userId: string, userRoles: string[]) {
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
       include: { approvalParams: true },
@@ -1479,27 +1598,70 @@ export class ContractsService {
     if (contract.status !== 'PENDING_APPROVAL')
       throw new ConflictException('Contract is not pending approval');
 
-    // Here we should verify if userId has permission to approve (Manager/Admin of the agency)
-    // For MVP, we assume the caller (Controller/Gateway) checks the role or we trust the call.
-    // Ideally: call user-service checkPermissions(agencyId, userId, 'APPROVE_HIRE')
+    if (!contract.approvalParams) {
+      // Direct update if no specific approval workflow
+      await this.prisma.contract.update({
+        where: { id: contractId },
+        data: { status: 'ACTIVE' },
+      });
+      return { message: 'Contract active' };
+    }
 
-    await this.prisma.contract.update({
-      where: { id: contractId },
-      data: { status: 'ACTIVE' },
-    });
+    const approvalReq = contract.approvalParams;
+    const requiredRoles = approvalReq.requiredRoles || [];
 
-    if (contract.approvalParams) {
+    // 1. Identify which role the user is fulfilling
+    // Logic: if user has multiple roles, they fill the one that hasn't been filled yet.
+    const currentApprovals = JSON.parse(JSON.stringify(approvalReq.approvals || []));
+    const alreadyApprovedRoles = currentApprovals.map(a => a.role);
+
+    const roleToFill = requiredRoles.find(r => userRoles.includes(r) && !alreadyApprovedRoles.includes(r));
+
+    if (!roleToFill) {
+      // Check if user is an ADMIN (override)
+      if (userRoles.includes('ADMIN')) {
+        // Proceed to final approval
+      } else {
+        throw new ForbiddenException(`User roles [${userRoles.join(', ')}] cannot approve this contract at this stage.`);
+      }
+    }
+
+    // 2. Add approval
+    if (roleToFill) {
+      currentApprovals.push({
+        role: roleToFill,
+        userId,
+        approvedAt: new Date(),
+      });
+    }
+
+    const allApproved = requiredRoles.every(r => currentApprovals.some(a => a.role === r));
+
+    if (allApproved || userRoles.includes('ADMIN')) {
+      await this.prisma.contract.update({
+        where: { id: contractId },
+        data: { status: 'ACTIVE' },
+      });
+
       await this.prisma.contractApprovalRequest.update({
-        where: { id: contract.approvalParams.id },
+        where: { id: approvalReq.id },
         data: {
           status: 'APPROVED',
           decidedBy: userId,
           decidedAt: new Date(),
+          approvals: currentApprovals,
         },
       });
+      return { message: 'Contract active (Final Approval)' };
+    } else {
+      await this.prisma.contractApprovalRequest.update({
+        where: { id: approvalReq.id },
+        data: {
+          approvals: currentApprovals,
+        },
+      });
+      return { message: `Approved as ${roleToFill}. Awaiting other roles: ${requiredRoles.filter(r => !currentApprovals.some(a => a.role === r)).join(', ')}` };
     }
-
-    return { message: 'Contract active' };
   }
 
   async checkApproval(teamId: string, triggerType: string, amount: number) {
@@ -1784,6 +1946,124 @@ export class ContractsService {
       this.logger.error(`Gemini analysis error: ${error.message}`);
       return { efficiencyLabel: 'Standard', insights: 'Steady progress detected.' };
     }
+  }
+
+  async getDisputeTimeline(contractId: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+      include: {
+        milestones: {
+          include: {
+            submissions: {
+              include: { revisions: true }
+            }
+          }
+        },
+        disputes: {
+          include: {
+            evidence: true,
+            arbitrationCase: true
+          }
+        }
+      }
+    });
+
+    if (!contract) throw new NotFoundException('Contract not found');
+
+    const events: any[] = [];
+
+    // 1. Contract Creation
+    events.push({
+      type: 'CONTRACT_CREATED',
+      date: contract.createdAt,
+      description: `Contract initiated for $${contract.totalAmount}`,
+      metadata: { status: contract.status }
+    });
+
+    // 2. Milestones
+    contract.milestones.forEach(m => {
+      events.push({
+        type: 'MILESTONE_CREATED',
+        date: m.createdAt,
+        description: `Milestone: ${m.description} ($${m.amount})`,
+        metadata: { milestoneId: m.id }
+      });
+
+      if (m.escrowStatus === 'FUNDED' || m.status === 'ACTIVE') {
+        events.push({
+          type: 'MILESTONE_FUNDED',
+          date: m.updatedAt, // Approximate
+          description: `Funds secured for: ${m.description}`,
+          metadata: { milestoneId: m.id }
+        });
+      }
+
+      m.submissions.forEach(s => {
+        events.push({
+          type: 'WORK_SUBMITTED',
+          date: s.createdAt,
+          description: `Work submitted for milestone: ${m.description}`,
+          metadata: { submissionId: s.id, type: s.type }
+        });
+
+        s.revisions.forEach(r => {
+          events.push({
+            type: 'WORK_REJECTED',
+            date: r.createdAt,
+            description: `Revision requested: ${r.feedback.substring(0, 50)}...`,
+            metadata: { feedback: r.feedback }
+          });
+        });
+      });
+
+      if (m.status === 'COMPLETED') {
+        events.push({
+          type: 'WORK_APPROVED',
+          date: m.updatedAt,
+          description: `Milestone completed: ${m.description}`,
+          metadata: { milestoneId: m.id }
+        });
+      }
+    });
+
+    // 3. Disputes
+    contract.disputes.forEach(d => {
+      events.push({
+        type: 'DISPUTE_OPENED',
+        date: d.createdAt,
+        description: `Dispute opened: ${d.reason}`,
+        metadata: { disputeId: d.id, raisedBy: d.raisedById }
+      });
+
+      d.evidence.forEach(e => {
+        events.push({
+          type: 'EVIDENCE_ADDED',
+          date: e.createdAt,
+          description: `Evidence submitted: ${e.description || 'No description'}`,
+          metadata: { uploaderId: e.uploaderId, fileType: e.fileType }
+        });
+      });
+
+      if (d.arbitrationCase) {
+        events.push({
+          type: 'ARBITRATION_OPENED',
+          date: d.arbitrationCase.createdAt,
+          description: `Arbitration initiated. Case ID: ${d.arbitrationCase.id}`,
+          metadata: { caseId: d.arbitrationCase.id }
+        });
+
+        if (d.arbitrationCase.status === 'RESOLVED') {
+          events.push({
+            type: 'ARBITRATION_RESOLVED',
+            date: d.arbitrationCase.updatedAt,
+            description: `Case resolved: ${d.arbitrationCase.decision?.substring(0, 50)}...`,
+            metadata: { decision: d.arbitrationCase.decision }
+          });
+        }
+      }
+    });
+
+    return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
   async createCheckIn(contractId: string, data: any) {
