@@ -170,9 +170,15 @@ export class JobsService {
 
   async findAll(page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
+    const where = {
+      talentCloudId: null, // Only public jobs
+      status: 'OPEN'
+    };
+
     const [total, results] = await Promise.all([
-      this.prisma.job.count(),
+      this.prisma.job.count({ where }),
       this.prisma.job.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -195,6 +201,33 @@ export class JobsService {
       limit,
       results
     };
+  }
+
+  async findJobsByCloud(cloudId: string, page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit;
+    const where = { talentCloudId: cloudId };
+
+    const [total, results] = await Promise.all([
+      this.prisma.job.count({ where }),
+      this.prisma.job.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          category: true,
+          skills: {
+            include: {
+              skill: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
+    ]);
+
+    return { total, page, limit, results };
   }
 
   async findByClient(clientId: string, status?: string, teamId?: string) {

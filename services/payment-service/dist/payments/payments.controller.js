@@ -80,6 +80,9 @@ let PaymentsController = class PaymentsController {
     async getTransactions(query, req) {
         return this.paymentsService.listTransactions(req.user.sub, query);
     }
+    async getTransactionsByReference(referenceId, req) {
+        return this.paymentsService.getTransactionsByReference(referenceId);
+    }
     async getTransaction(id, req) {
         const roles = req.user?.realm_access?.roles || [];
         const isAdmin = roles.includes('ADMIN');
@@ -299,6 +302,17 @@ __decorate([
     __metadata("design:paramtypes", [list_transactions_dto_1.ListTransactionsDto, Object]),
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "getTransactions", null);
+__decorate([
+    (0, nest_keycloak_connect_1.Roles)({
+        roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+    }),
+    (0, common_1.Get)('transactions/reference/:referenceId'),
+    __param(0, (0, common_1.Param)('referenceId')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PaymentsController.prototype, "getTransactionsByReference", null);
 __decorate([
     (0, nest_keycloak_connect_1.Roles)({
         roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],

@@ -470,6 +470,8 @@ export default function PaymentsPage() {
                                                     </div>
                                                 </td>
                                             </tr>
+                                        ))}
+                                    </tbody>
                                 </table>
 
                                 {/* Pagination UI */}

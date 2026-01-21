@@ -101,7 +101,10 @@ export const UserMenu = () => {
                                     {isClientMode ? (
                                         <Link
                                             href="/dashboard"
-                                            onClick={() => setIsOpen(false)}
+                                            onClick={() => {
+                                                setIsOpen(false);
+                                                sessionStorage.setItem('dashboard_mode', 'freelancer');
+                                            }}
                                             className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-blue-400 hover:bg-blue-500/10 rounded-xl transition-colors"
                                         >
                                             <ArrowLeftRight className="w-4 h-4" />
@@ -110,7 +113,10 @@ export const UserMenu = () => {
                                     ) : (
                                         <Link
                                             href="/client/dashboard"
-                                            onClick={() => setIsOpen(false)}
+                                            onClick={() => {
+                                                setIsOpen(false);
+                                                sessionStorage.setItem('dashboard_mode', 'client');
+                                            }}
                                             className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-indigo-400 hover:bg-indigo-500/10 rounded-xl transition-colors"
                                         >
                                             <ArrowLeftRight className="w-4 h-4" />
@@ -124,7 +130,10 @@ export const UserMenu = () => {
                                 <div className="p-2 border-t border-slate-800">
                                     <Link
                                         href="/admin"
-                                        onClick={() => setIsOpen(false)}
+                                        onClick={() => {
+                                            setIsOpen(false);
+                                            sessionStorage.setItem('dashboard_mode', 'admin');
+                                        }}
                                         className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
                                     >
                                         <LayoutDashboard className="w-4 h-4" />

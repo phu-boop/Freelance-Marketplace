@@ -156,7 +156,7 @@ export default function PublicProfilePage() {
                                     {user.jobSuccessScore}% JSS
                                 </div>
                             </div>
-                            <BadgeList user={user} />
+                            <BadgeList userId={user.id} />
                         </div>
                     </div>
                     <div className="absolute -bottom-12 right-8 pb-4 flex items-center gap-3">

@@ -27,6 +27,7 @@ model User {
   language  String?  @default("en")
   roles     String[] @default(["FREELANCER"]) // FREELANCER, CLIENT, ADMIN
   status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, BANNED
+  connects  Int      @default(20)
   banReason String?
   banExpiresAt DateTime?
   isAvailable Boolean @default(true)

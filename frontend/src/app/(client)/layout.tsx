@@ -8,6 +8,8 @@ import { PlusCircle, Search as SearchIcon } from 'lucide-react';
 import { UniversalSearch } from '@/components/UniversalSearch';
 import { UserMenu } from '@/components/UserMenu';
 import { useCurrency } from '@/components/CurrencyProvider';
+import { AccessDenied } from '@/components/AccessDenied';
+import { useKeycloak } from '@/components/KeycloakProvider';
 
 export default function ClientLayout({
     children,
@@ -15,6 +17,13 @@ export default function ClientLayout({
     children: React.ReactNode;
 }) {
     const { currency, setCurrency } = useCurrency();
+    const { authenticated, roles } = useKeycloak();
+
+    const isClient = roles.includes('CLIENT');
+
+    if (authenticated && !isClient) {
+        return <AccessDenied requiredRole="CLIENT" />;
+    }
 
     return (
         <div className="flex min-h-screen bg-slate-950">

@@ -71,7 +71,7 @@ export default function RegisterPage() {
                 roles: [role],
             });
             setSuccess(true);
-            setTimeout(() => router.push('/login'), 2000);
+            setTimeout(() => router.push('http://localhost:8080/realms/freelance-marketplace/protocol/openid-connect/auth?client_id=freelance-frontend&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2F&state=be4dc7c0-5a26-4d51-a2cd-4b25c30a9c4a&response_mode=fragment&response_type=code&scope=openid&nonce=08f7d28f-5612-4e1e-9056-3b213b237bf1&code_challenge=u0DiDukkaapRFhtkkBzUT6FE4pDepOLPjW0grrAJAHc&code_challenge_method=S256'), 2000);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Registration failed. Please try again.');
         } finally {
@@ -326,7 +326,7 @@ export default function RegisterPage() {
 
                     <div className="mt-8 border-t border-slate-800 pt-8 text-center text-sm text-slate-500">
                         Already have an account?{' '}
-                        <Link href="/login" className="text-blue-400 hover:text-blue-300 font-bold transition-colors">
+                        <Link href="http://localhost:8080/realms/freelance-marketplace/protocol/openid-connect/auth?client_id=freelance-frontend&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2F&state=be4dc7c0-5a26-4d51-a2cd-4b25c30a9c4a&response_mode=fragment&response_type=code&scope=openid&nonce=08f7d28f-5612-4e1e-9056-3b213b237bf1&code_challenge=u0DiDukkaapRFhtkkBzUT6FE4pDepOLPjW0grrAJAHc&code_challenge_method=S256" className="text-blue-400 hover:text-blue-300 font-bold transition-colors">
                             Sign in
                         </Link>
                     </div>

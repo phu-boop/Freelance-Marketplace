@@ -268,6 +268,22 @@ export declare class PaymentsController {
             invoiceId: string | null;
         })[];
     }>;
+    getTransactionsByReference(referenceId: string, req: any): Promise<{
+        id: string;
+        type: string;
+        createdAt: Date;
+        taxAmount: import("@prisma/client/runtime/library").Decimal;
+        walletId: string;
+        amount: import("@prisma/client/runtime/library").Decimal;
+        status: string;
+        referenceId: string | null;
+        departmentId: string | null;
+        costCenter: string | null;
+        description: string | null;
+        clearedAt: Date | null;
+        feeAmount: import("@prisma/client/runtime/library").Decimal;
+        invoiceId: string | null;
+    }[]>;
     getTransaction(id: string, req: any): Promise<{
         wallet: {
             currency: string;

@@ -6,6 +6,13 @@ import { Public, Roles, AuthenticatedUser } from 'nest-keycloak-connect';
 export class CloudsController {
     constructor(private readonly cloudsService: CloudsService) { }
 
+    @Get()
+    @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
+    async getMyClouds(@AuthenticatedUser() user: any) {
+        if (!user?.sub) throw new UnauthorizedException();
+        return this.cloudsService.getCloudsForUser(user.sub);
+    }
+
     @Post()
     @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
     async create(@Body() dto: { name: string; description?: string; ownerId: string; visibility?: 'PRIVATE' | 'PUBLIC' }) {

@@ -27,6 +27,24 @@ export class CloudsService {
         return cloud;
     }
 
+    async getCloudsForUser(userId: string) {
+        return this.prisma.talentCloud.findMany({
+            where: {
+                members: {
+                    some: {
+                        userId: userId,
+                        status: 'ACTIVE'
+                    }
+                }
+            },
+            include: {
+                _count: {
+                    select: { members: true }
+                }
+            }
+        });
+    }
+
     async inviteMember(cloudId: string, inviteeId: string, inviterId: string) {
         // Create invitation
         const invitation = await this.prisma.talentCloudInvitation.create({

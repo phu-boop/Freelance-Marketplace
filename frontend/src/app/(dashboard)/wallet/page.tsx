@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 import { Wallet, Loader2, Plus, Globe, Smartphone, Save, CheckCircle2, Zap } from 'lucide-react';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import DepositModal from '@/components/DepositModal';
 import WithdrawalModal from '@/components/WithdrawalModal';
 import { useCurrency } from '@/components/CurrencyProvider';

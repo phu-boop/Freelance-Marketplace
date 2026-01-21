@@ -44,7 +44,7 @@ import { VideoKYCModal } from '@/components/VideoKYCModal';
 import { TwoFactorSetupModal } from '@/components/profile/TwoFactorSetupModal';
 import SpecializedProfileCard from '@/components/profile/SpecializedProfileCard';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Review {
     id: string;

@@ -20,5 +20,6 @@ echo "Creating Roles..."
 docker exec -i freelance_keycloak /opt/keycloak/bin/kcadm.sh create roles -r freelance-marketplace -s name=FREELANCER || echo "Role FREELANCER exists"
 docker exec -i freelance_keycloak /opt/keycloak/bin/kcadm.sh create roles -r freelance-marketplace -s name=CLIENT || echo "Role CLIENT exists"
 docker exec -i freelance_keycloak /opt/keycloak/bin/kcadm.sh create roles -r freelance-marketplace -s name=ADMIN || echo "Role ADMIN exists"
+docker exec -i freelance_keycloak /opt/keycloak/bin/kcadm.sh update realms/freelance-marketplace -s loginTheme=freelance
 
 echo "Keycloak Initialization Complete"

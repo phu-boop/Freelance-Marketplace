@@ -3,12 +3,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import dynamic from 'next/dynamic';
-import 'react-quill/dist/quill.snow.css';
+import 'react-quill-new/dist/quill.snow.css';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { Users, Wifi, WifiOff, Sparkles } from 'lucide-react';
 import AiWorkspaceAssistant from './AiWorkspaceAssistant';
 
-const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 interface CollaborativeEditorProps {
     contractId: string;

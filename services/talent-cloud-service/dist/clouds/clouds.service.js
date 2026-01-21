@@ -36,6 +36,23 @@ let CloudsService = class CloudsService {
         await this.notifyUserService(data.ownerId, { hasCloudOwnership: true });
         return cloud;
     }
+    async getCloudsForUser(userId) {
+        return this.prisma.talentCloud.findMany({
+            where: {
+                members: {
+                    some: {
+                        userId: userId,
+                        status: 'ACTIVE'
+                    }
+                }
+            },
+            include: {
+                _count: {
+                    select: { members: true }
+                }
+            }
+        });
+    }
     async inviteMember(cloudId, inviteeId, inviterId) {
         const invitation = await this.prisma.talentCloudInvitation.create({
             data: {

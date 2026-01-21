@@ -141,51 +141,88 @@ async function main() {
         }
     ];
 
-    for (const u of users) {
+    // --- RANDOM DATA GENERATORS ---
+    const firstNames = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'David', 'Elizabeth', 'William', 'Barbara', 'Richard', 'Susan', 'Joseph', 'Jessica', 'Thomas', 'Sarah', 'Charles', 'Karen', 'Daniel', 'Lisa', 'Matthew', 'Nancy', 'Anthony', 'Betty', 'Mark', 'Margaret', 'Donald', 'Sandra', 'Steven', 'Ashley', 'Paul', 'Kimberly', 'Andrew', 'Emily', 'Joshua', 'Donna', 'Kenneth', 'Michelle', 'Kevin', 'Carol', 'Brian', 'Amanda', 'George', 'Melissa', 'Edward', 'Deborah', 'Ronald', 'Stephanie', 'Timothy', 'Rebecca', 'Jason', 'Sharon', 'Jeffrey', 'Laura', 'Ryan', 'Cynthia', 'Jacob', 'Kathleen', 'Gary', 'Amy', 'Nicholas', 'Shirley', 'Eric', 'Angela', 'Jonathan', 'Helen', 'Stephen', 'Anna', 'Larry', 'Brenda', 'Justin', 'Pamela', 'Scott', 'Nicole', 'Brandon', 'Emma', 'Benjamin', 'Samantha', 'Samuel', 'Katherine', 'Gregory', 'Christine', 'Frank', 'Debra', 'Alexander', 'Rachel', 'Raymond', 'Catherine', 'Patrick', 'Carolyn', 'Jack', 'Janet', 'Dennis', 'Ruth', 'Jerry', 'Maria', 'Tyler', 'Heather', 'Aaron', 'Diane'];
+    const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott', 'Torres', 'Nguyen', 'Hill', 'Flores', 'Green', 'Adams', 'Nelson', 'Baker', 'Hall', 'Rivera', 'Campbell', 'Mitchell', 'Carter', 'Roberts'];
+    const titles = ['Software Engineer', 'Product Manager', 'Data Scientist', 'UX Designer', 'DevOps Engineer', 'Content Writer', 'Digital Marketer', 'Project Manager', 'QA Engineer', 'Sales Representative', 'Customer Support Specialist', 'Graphic Designer', 'Video Editor', 'Copywriter', 'SEO Specialist', 'Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'Mobile Developer', 'AI Researcher'];
+    const companies = ['TechCorp', 'InnovateX', 'GlobalSolutions', 'NextLevel', 'CloudNine', 'DataDriven', 'CreativeMinds', 'FutureTech', 'SmartSystems', 'WebWizards', 'AppMasters', 'DesignStudio', 'MarketingGurus', 'SalesForce', 'SupportHeroes', 'GreenEnergy', 'BlueOcean', 'RedRock', 'YellowSun', 'PurpleRain'];
+    const skillsList = ['JavaScript', 'Python', 'Java', 'C++', 'C#', 'Ruby', 'PHP', 'Swift', 'Go', 'Rust', 'TypeScript', 'Kotlin', 'Scala', 'R', 'MATLAB', 'HTML', 'CSS', 'SQL', 'NoSQL', 'React', 'Angular', 'Vue.js', 'Node.js', 'Django', 'Flask', 'Spring', 'ASP.NET', 'Laravel', 'Ruby on Rails', 'Express.js', 'TensorFlow', 'PyTorch', 'Keras', 'Scikit-learn', 'Pandas', 'NumPy', 'Matplotlib', 'Seaborn', 'Tableau', 'Power BI'];
+    const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'Australia', 'Japan', 'China', 'India', 'Brazil', 'Spain', 'Italy', 'Russia', 'South Korea', 'Mexico', 'Indonesia', 'Netherlands', 'Saudi Arabia', 'Turkey', 'Switzerland'];
+
+    function getRandomElement<T>(arr: T[]): T {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function getRandomSubarray<T>(arr: T[], size: number): T[] {
+        const shuffled = arr.slice(0);
+        let i = arr.length;
+        while (i--) {
+            const index = Math.floor(Math.random() * (i + 1));
+            const temp = shuffled[i];
+            shuffled[i] = shuffled[index];
+            shuffled[index] = temp;
+        }
+        return shuffled.slice(0, size);
+    }
+
+    const randomUsers = Array.from({ length: 50 }).map((_, i) => {
+        const firstName = getRandomElement(firstNames);
+        const lastName = getRandomElement(lastNames);
+        const role = Math.random() > 0.3 ? 'FREELANCER' : 'CLIENT';
+        const isFreelancer = role === 'FREELANCER';
+
+        return {
+            id: `rad-u-${i + 100}`, // Predictable IDs for syncing
+            email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}@example.com`,
+            firstName,
+            lastName,
+            roles: [role],
+            title: isFreelancer ? getRandomElement(titles) : undefined,
+            companyName: !isFreelancer ? getRandomElement(companies) : undefined,
+            overview: isFreelancer ? `Experienced ${getRandomElement(titles)} with a passion for delivering high-quality results. Proven track record in the industry.` : undefined,
+            hourlyRate: isFreelancer ? Math.floor(Math.random() * 150) + 20 : undefined,
+            skills: isFreelancer ? getRandomSubarray(skillsList, Math.floor(Math.random() * 5) + 3) : [],
+            isAvailable: true,
+            rating: isFreelancer ? parseFloat((Math.random() * 2 + 3).toFixed(2)) : undefined,
+            reviewCount: isFreelancer ? Math.floor(Math.random() * 50) : undefined,
+            jobSuccessScore: isFreelancer ? Math.floor(Math.random() * 30) + 70 : undefined,
+            // Use a diverse set of random user images
+            avatarUrl: `https://i.pravatar.cc/150?u=${firstName}${lastName}${i}`,
+            country: getRandomElement(countries),
+            completionPercentage: isFreelancer ? Math.floor(Math.random() * 40) + 60 : undefined,
+        };
+    });
+
+    const allUsers = [...users, ...randomUsers];
+
+    console.log(`Seeding ${allUsers.length} users...`);
+
+    for (const u of allUsers) {
         await prisma.user.upsert({
             where: { email: u.email },
             update: u,
             create: u,
         });
 
-        // Seed Experience for Alex
-        if (u.firstName === 'Alex') {
-            await prisma.experience.createMany({
-                data: [
-                    {
+        // Add some random experience/education for freelancers
+        if (u.roles.includes('FREELANCER') && u.id.startsWith('rad-u')) {
+            // 50% chance to have experience
+            if (Math.random() > 0.5) {
+                await prisma.experience.create({
+                    data: {
                         userId: u.id,
-                        company: 'AWS (Amazon Web Services)',
-                        title: 'Senior Solutions Architect',
-                        startDate: new Date('2018-01-01'),
+                        company: getRandomElement(companies),
+                        title: u.title || 'Developer',
+                        startDate: new Date('2020-01-01'),
                         endDate: new Date('2022-01-01'),
-                        description: 'Designed highly available systems for enterprise customers.',
-                    },
-                    {
-                        userId: u.id,
-                        company: 'CloudNative Inc.',
-                        title: 'Kubernetes Engineer',
-                        startDate: new Date('2015-06-01'),
-                        endDate: new Date('2017-12-01'),
-                        description: 'Early adopter and implementer of K8s clusters.',
+                        description: 'Worked on key projects and lead a team of 5.'
                     }
-                ]
-            });
-
-            await prisma.portfolioItem.createMany({
-                data: [
-                    {
-                        userId: u.id,
-                        title: 'Auto-Scaling Infrastructure for Fintech',
-                        description: 'Reduced infrastructure costs by 40% while improving latency.',
-                        imageUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=600&auto=format&fit=crop',
-                        skills: ['Terraform', 'AWS', 'RDS'],
-                    }
-                ]
-            });
+                });
+            }
         }
     }
 
-    console.log(`Seeded ${users.length} users with rich profiles!`);
+    console.log(`Seeded ${allUsers.length} users with rich profiles!`);
 }
 
 main()

@@ -160,7 +160,7 @@ export default function AdminPaymentsPage() {
                         <Button
                             key={status}
                             onClick={() => setSelectedStatus(status)}
-                            variant={selectedStatus === status ? 'default' : 'outline'}
+                            variant={selectedStatus === status ? 'primary' : 'outline'}
                             className={cn(
                                 "rounded-2xl px-6 h-14 font-bold transition-all",
                                 selectedStatus === status

@@ -122,7 +122,7 @@ export default function LandingPage() {
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               {authenticated ? (
                 <Link
-                  href={roles.includes('ADMIN') ? '/admin' : roles.includes('CLIENT') ? '/client/dashboard' : '/dashboard'}
+                  href={roles.some(r => r === 'ADMIN' || r === 'realm:ADMIN') ? '/admin' : roles.some(r => r === 'CLIENT' || r === 'realm:CLIENT') ? '/client/dashboard' : '/dashboard'}
                   className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full font-semibold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20"
                 >
                   Go to Dashboard <ArrowRight className="w-5 h-5" />

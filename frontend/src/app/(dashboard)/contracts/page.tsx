@@ -9,7 +9,7 @@ import {
 import Link from 'next/link';
 import { formatDistance } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useKeycloak } from '@/components/KeycloakProvider';
 
 export default function ContractsPage() {

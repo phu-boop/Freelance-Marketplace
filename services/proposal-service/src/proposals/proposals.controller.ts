@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
 import { Public, Roles } from 'nest-keycloak-connect';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
@@ -16,6 +16,12 @@ export class ProposalsController {
   ) {
     const entityList = entities ? entities.split(',') : ['Proposal'];
     return this.proposalsService.sync(since || new Date(0).toISOString(), entityList);
+  }
+
+  @Get('my')
+  @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
+  async findMy(@Req() req: any) {
+    return this.proposalsService.findByFreelancer(req.user.sub);
   }
 
   @Post()
