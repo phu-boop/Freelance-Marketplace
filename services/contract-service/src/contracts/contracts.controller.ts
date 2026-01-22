@@ -100,6 +100,12 @@ export class ContractsController {
     return this.contractsService.handleDisputeTimeouts();
   }
 
+  @Get('agency/:id/active-count')
+  @Public() // Accessible internally via user-service
+  getAgencyActiveCount(@Param('id') id: string) {
+    return this.contractsService.getAgencyActiveContractsCount(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.contractsService.findOne(id);

@@ -35,6 +35,9 @@ let PaymentsController = class PaymentsController {
         const formatted = await this.currencyService.format(converted, to);
         return { amount: converted, formatted, currency: to };
     }
+    getMetrics() {
+        return this.paymentsService.getMetrics();
+    }
     updateCryptoAddress(req, address) {
         return this.paymentsService.updateCryptoAddress(req.user.sub, address);
     }
@@ -49,6 +52,9 @@ let PaymentsController = class PaymentsController {
     }
     getPredictiveRevenue(userId) {
         return this.paymentsService.getPredictiveRevenue(userId);
+    }
+    getAgencyRevenue(id) {
+        return this.paymentsService.getAgencyRevenue(id);
     }
     getAgencyWallet(agencyId) {
         return this.paymentsService.getWallet(agencyId);
@@ -136,7 +142,7 @@ let PaymentsController = class PaymentsController {
         return this.paymentsService.fundEscrow(req.user.sub, body);
     }
     releaseEscrow(body) {
-        return this.paymentsService.releaseEscrow(body.contractId, body.milestoneId, body.freelancerId);
+        return this.paymentsService.releaseEscrow(body.contractId, body.milestoneId, body.freelancerId, body.agencyId, body.agencyRevenueSplit);
     }
     requestEscrowApproval(body) {
         return this.paymentsService.requestEscrowReleaseApproval(body.contractId, body.milestoneId, body.freelancerId, body.amount);
@@ -184,6 +190,13 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PaymentsController.prototype, "convertCurrency", null);
 __decorate([
+    (0, common_1.Get)('metrics'),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getMetrics", null);
+__decorate([
     (0, common_1.Patch)('wallet/crypto-address'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'realm:CLIENT'] }),
     __param(0, (0, common_1.Request)()),
@@ -226,6 +239,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], PaymentsController.prototype, "getPredictiveRevenue", null);
+__decorate([
+    (0, common_1.Get)('agency/:id/revenue'),
+    (0, nest_keycloak_connect_1.Public)(),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PaymentsController.prototype, "getAgencyRevenue", null);
 __decorate([
     (0, common_1.Get)('wallet/agency/:agencyId'),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] }),

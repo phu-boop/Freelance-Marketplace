@@ -374,8 +374,6 @@ export default function ProfilePage() {
                     <>
                         {/* Left Column: Info & Socials */}
                         <div className="space-y-6">
-                            import SpecializedProfileCard from '@/components/profile/SpecializedProfileCard';
-                            ...
                             {!user.roles.includes('CLIENT') && (
                                 <div className="space-y-4">
                                     <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">

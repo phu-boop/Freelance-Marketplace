@@ -55,9 +55,12 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                     setPortfolioItems(res.data.portfolio || []);
                     setSpecializedProfiles(res.data.specializedProfiles || []);
 
-                    const defaultProfile = res.data.specializedProfiles?.find((p: any) => p.isDefault);
-                    if (defaultProfile) {
-                        setSelectedProfileId(defaultProfile.id);
+                    const savedProfileId = localStorage.getItem('active_specialized_profile_id');
+                    const profileToSelect = res.data.specializedProfiles?.find((p: any) => p.id === savedProfileId)
+                        || res.data.specializedProfiles?.find((p: any) => p.isDefault);
+
+                    if (profileToSelect) {
+                        setSelectedProfileId(profileToSelect.id);
                     }
                 }).catch(console.error);
 
@@ -230,6 +233,37 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                                                     ))}
                                                 </div>
                                             </div>
+
+                                            {userAgencies.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium text-slate-300">Submit Via Agency</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedAgencyId(null)}
+                                                            className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all ${selectedAgencyId === null
+                                                                ? 'bg-blue-600/10 border-blue-500/50 text-blue-400'
+                                                                : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                                                                }`}
+                                                        >
+                                                            Individual
+                                                        </button>
+                                                        {userAgencies.map((agency) => (
+                                                            <button
+                                                                key={agency.id}
+                                                                type="button"
+                                                                onClick={() => setSelectedAgencyId(agency.id)}
+                                                                className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all ${selectedAgencyId === agency.id
+                                                                    ? 'bg-blue-600/10 border-blue-500/50 text-blue-400'
+                                                                    : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                                                                    }`}
+                                                            >
+                                                                {agency.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div className="space-y-2">

@@ -43,6 +43,12 @@ export class PaymentsController {
     return { amount: converted, formatted, currency: to };
   }
 
+  @Get('metrics')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  getMetrics() {
+    return this.paymentsService.getMetrics();
+  }
+
   @Patch('wallet/crypto-address')
   @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
   updateCryptoAddress(@Request() req, @Body('address') address: string) {
@@ -72,6 +78,12 @@ export class PaymentsController {
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   getPredictiveRevenue(@Param('userId') userId: string) {
     return this.paymentsService.getPredictiveRevenue(userId);
+  }
+
+  @Get('agency/:id/revenue')
+  @Public() // Accessible via internal calls from user-service
+  getAgencyRevenue(@Param('id') id: string) {
+    return this.paymentsService.getAgencyRevenue(id);
   }
 
   @Get('wallet/agency/:agencyId')
@@ -241,7 +253,14 @@ export class PaymentsController {
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   addWithdrawalMethod(
     @Request() req,
-    @Body() body: { type: string; details: any; isDefault?: boolean },
+    @Body() body: {
+      type: string;
+      provider: string;
+      accountNumber: string;
+      accountName: string;
+      isDefault?: boolean;
+      isInstantCapable?: boolean;
+    },
   ) {
     return this.paymentsService.addWithdrawalMethod(req.user.sub, body);
   }
@@ -314,12 +333,16 @@ export class PaymentsController {
       contractId: string;
       milestoneId: string;
       freelancerId: string;
+      agencyId?: string;
+      agencyRevenueSplit?: any;
     },
   ) {
     return this.paymentsService.releaseEscrow(
       body.contractId,
       body.milestoneId,
       body.freelancerId,
+      body.agencyId,
+      body.agencyRevenueSplit,
     );
   }
 

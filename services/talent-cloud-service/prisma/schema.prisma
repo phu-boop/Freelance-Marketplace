@@ -121,6 +121,7 @@ enum InvitationStatus {
 enum PolicyType {
   RATE_LIMIT
   REQUIRED_SKILL
+  REQUIRED_BADGE
   LOCATION_RESTRICTION
   CUSTOM
   @@schema("talent_clouds")

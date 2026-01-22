@@ -1,10 +1,22 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSpecializedProfileDto } from './dto/create-specialized-profile.dto';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class SpecializedProfilesService {
-    constructor(private readonly prisma: PrismaService) { }
+    private readonly logger = new Logger(SpecializedProfilesService.name);
+    private readonly searchServiceUrl: string;
+
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly httpService: HttpService,
+        private readonly configService: ConfigService,
+    ) {
+        this.searchServiceUrl = this.configService.get<string>('SEARCH_SERVICE_URL', 'http://search-service:3008');
+    }
 
     async create(userId: string, dto: CreateSpecializedProfileDto) {
         const count = await (this.prisma as any).specializedProfile.count({
@@ -22,12 +34,25 @@ export class SpecializedProfilesService {
             });
         }
 
-        return (this.prisma as any).specializedProfile.create({
+        const profile = await (this.prisma as any).specializedProfile.create({
             data: {
                 ...dto,
                 userId,
             },
         });
+
+        await this.syncToSearch(profile);
+        return profile;
+    }
+
+    async syncToSearch(profile: any) {
+        try {
+            await firstValueFrom(
+                this.httpService.post(`${this.searchServiceUrl}/api/search/profiles/index`, profile)
+            );
+        } catch (error) {
+            this.logger.error(`Failed to sync specialized profile ${profile.id} to search: ${error.message}`);
+        }
     }
 
     async findAll(userId: string) {
@@ -76,10 +101,13 @@ export class SpecializedProfilesService {
             });
         }
 
-        return (this.prisma as any).specializedProfile.update({
+        const updatedProfile = await (this.prisma as any).specializedProfile.update({
             where: { id },
             data: dto,
         });
+
+        await this.syncToSearch(updatedProfile);
+        return updatedProfile;
     }
 
     async remove(userId: string, id: string) {
@@ -96,6 +124,14 @@ export class SpecializedProfilesService {
                 await this.update(userId, nextProfile.id, { isDefault: true } as any);
             }
         }
+        try {
+            await firstValueFrom(
+                this.httpService.delete(`${this.searchServiceUrl}/api/search/profiles/${id}`)
+            );
+        } catch (error) {
+            this.logger.error(`Failed to remove specialized profile ${id} from search: ${error.message}`);
+        }
+
         return result;
     }
 

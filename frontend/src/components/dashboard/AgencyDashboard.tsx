@@ -31,8 +31,10 @@ export function AgencyDashboard({ user }: { user: any }) {
     const [agency, setAgency] = React.useState<any>(null);
     const [members, setMembers] = React.useState<any[]>([]);
     const [contracts, setContracts] = React.useState<any[]>([]);
+    const [metrics, setMetrics] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
     const [activeTab, setActiveTab] = React.useState<'overview' | 'team' | 'financials' | 'settings'>('overview');
+    const [updatingSplit, setUpdatingSplit] = React.useState(false);
 
     React.useEffect(() => {
         const fetchAgencyData = async () => {
@@ -44,11 +46,15 @@ export function AgencyDashboard({ user }: { user: any }) {
                 if (primaryAgency) {
                     setAgency(primaryAgency);
 
+                    // Fetch metrics
+                    const metricsRes = await api.get(`/agencies/${primaryAgency.id}/metrics`);
+                    setMetrics(metricsRes.data);
+
                     // Fetch agency details (members)
                     const agencyDetailsRes = await api.get(`/user/teams/${primaryAgency.id}`);
                     setMembers(agencyDetailsRes.data.members || []);
 
-                    // Fetch agency contracts
+                    // Fetch agency contracts (optional, metrics already has count)
                     const contractsRes = await api.get(`/contracts/my?agencyId=${primaryAgency.id}`);
                     setContracts(contractsRes.data || []);
                 }
@@ -90,14 +96,60 @@ export function AgencyDashboard({ user }: { user: any }) {
         );
     }
 
-    const totalRevenue = contracts.reduce((sum, c) => sum + Number(c.totalAmount || 0), 0);
-    const agencyShare = totalRevenue * (Number(agency.revenueSplitPercent || 20) / 100);
+    const agencyShare = (metrics?.totalRevenue || 0) * (Number(agency.revenueSplitPercent || 20) / 100);
+
+    const handleUpdateSplit = async () => {
+        const newSplit = prompt('Enter new revenue split percentage (0-100):', agency.revenueSplitPercent.toString());
+        if (newSplit === null) return;
+
+        const splitVal = parseFloat(newSplit);
+        if (isNaN(splitVal) || splitVal < 0 || splitVal > 100) {
+            alert('Please enter a valid percentage between 0 and 100');
+            return;
+        }
+
+        try {
+            setUpdatingSplit(true);
+            await api.post(`/agencies/${agency.id}/settings`, { revenueSplitPercent: splitVal });
+            setAgency({ ...agency, revenueSplitPercent: splitVal });
+            setMetrics({ ...metrics, revenueSplitPercent: splitVal });
+        } catch (error) {
+            console.error('Failed to update split:', error);
+            alert('Failed to update split percentage');
+        } finally {
+            setUpdatingSplit(false);
+        }
+    };
 
     const stats = [
-        { label: 'Agency Revenue', value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'text-green-400', bg: 'bg-green-400/10' },
-        { label: 'Active Members', value: members.length.toString(), icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-        { label: 'Live Contracts', value: contracts.filter(c => c.status === 'ACTIVE').length.toString(), icon: Briefcase, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-        { label: 'Revenue Share', value: `${agency.revenueSplitPercent}%`, icon: PieChart, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+        {
+            label: 'Agency Revenue',
+            value: `$${(metrics?.totalRevenue || 0).toLocaleString()}`,
+            icon: DollarSign,
+            color: 'text-green-400',
+            bg: 'bg-green-400/10'
+        },
+        {
+            label: 'Active Members',
+            value: (members.length).toString(),
+            icon: Users,
+            color: 'text-blue-400',
+            bg: 'bg-blue-400/10'
+        },
+        {
+            label: 'Live Contracts',
+            value: (metrics?.activeContractsCount || 0).toString(),
+            icon: Briefcase,
+            color: 'text-purple-400',
+            bg: 'bg-purple-400/10'
+        },
+        {
+            label: 'Revenue Share',
+            value: `${agency.revenueSplitPercent}%`,
+            icon: PieChart,
+            color: 'text-yellow-400',
+            bg: 'bg-yellow-400/10'
+        },
     ];
 
     return (
@@ -251,8 +303,12 @@ export function AgencyDashboard({ user }: { user: any }) {
                                             This amount is automatically deducted from payouts and credited to the agency wallet.
                                         </p>
                                     </div>
-                                    <button className="w-full py-4 bg-white text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-blue-50 transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl shadow-white/5">
-                                        Update Split
+                                    <button
+                                        onClick={handleUpdateSplit}
+                                        disabled={updatingSplit}
+                                        className="w-full py-4 bg-white text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-blue-50 transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl shadow-white/5 disabled:opacity-50"
+                                    >
+                                        {updatingSplit ? 'Updating...' : 'Update Split'}
                                     </button>
                                 </div>
                             </div>

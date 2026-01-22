@@ -16,6 +16,7 @@ import { AccessDenied } from '@/components/AccessDenied';
 import { UniversalSearch } from '@/components/UniversalSearch';
 import { UserMenu } from '@/components/UserMenu';
 import { CommandPalette } from '@/components/CommandPalette';
+import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 
 export default function DashboardLayout({
     children,
@@ -90,8 +91,12 @@ export default function DashboardLayout({
                 <header className="h-16 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between gap-8">
                     <div className="flex items-center gap-8 flex-1">
                         <Link href="/dashboard" className="text-lg font-bold text-white whitespace-nowrap hidden lg:block">
-                            {isFreelancer ? 'Freelancer Portal' : isClient ? 'Client Portal' : isAdmin ? 'Admin Portal' : 'User Portal'}
+                            {pathname.startsWith('/admin') ? 'Admin Portal' : pathname.startsWith('/client') ? 'Client Portal' : 'Freelancer Portal'}
                         </Link>
+
+                        {isFreelancer && !pathname.startsWith('/admin') && !pathname.startsWith('/client') && (
+                            <ProfileSwitcher />
+                        )}
 
                         <div className="hidden xl:flex items-center gap-4">
                             <Link

@@ -585,6 +585,7 @@ services:
       - ADMIN_SERVICE_URL=http://admin-service:3009
       - AUDIT_SERVICE_URL=http://audit-service:3011
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
+      - CONTRACT_SERVICE_URL=http://contract-service:3004
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"

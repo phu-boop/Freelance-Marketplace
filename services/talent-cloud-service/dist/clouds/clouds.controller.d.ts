@@ -90,7 +90,8 @@ export declare class CloudsController {
         userIds: string[];
         role?: 'ADMIN' | 'MEMBER';
     }): Promise<{
-        count: number;
+        successfulCount: number;
+        errors: any[];
     }>;
     removeMember(cloudId: string, userId: string): Promise<{
         success: boolean;
