@@ -52,7 +52,7 @@ export class AdminsService {
     async suspendUser(userId: string, token?: string) {
         const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
         const res = await firstValueFrom(
-            this.httpService.post(`${userServiceUrl}/${userId}/suspend`, {}, {
+            this.httpService.post(`${userServiceUrl}/api/users/${userId}/suspend`, {}, {
                 headers: token ? { Authorization: token } : undefined
             })
         );
@@ -62,7 +62,7 @@ export class AdminsService {
     async banUser(userId: string, token?: string) {
         const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
         const res = await firstValueFrom(
-            this.httpService.post(`${userServiceUrl}/${userId}/ban`, {}, {
+            this.httpService.post(`${userServiceUrl}/api/users/${userId}/ban`, {}, {
                 headers: token ? { Authorization: token } : undefined
             })
         );
@@ -72,7 +72,7 @@ export class AdminsService {
     async activateUser(userId: string, token?: string) {
         const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
         const res = await firstValueFrom(
-            this.httpService.post(`${userServiceUrl}/${userId}/activate`, {}, {
+            this.httpService.post(`${userServiceUrl}/api/users/${userId}/activate`, {}, {
                 headers: token ? { Authorization: token } : undefined
             })
         );
@@ -82,7 +82,7 @@ export class AdminsService {
     async verifyKyc(userId: string, data: { status: 'APPROVED' | 'REJECTED', reason?: string }, token?: string) {
         const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
         const res = await firstValueFrom(
-            this.httpService.post(`${userServiceUrl}/${userId}/kyc/verify`, data, {
+            this.httpService.post(`${userServiceUrl}/api/users/${userId}/kyc/verify`, data, {
                 headers: token ? { Authorization: token } : undefined
             })
         );
@@ -199,21 +199,24 @@ export class AdminsService {
             const config = token ? { headers: { Authorization: token } } : undefined;
 
             const [usersRes, jobsRes, paymentsRes] = await Promise.all([
-                firstValueFrom(this.httpService.get(`${userServiceUrl}/`, config)),
+                firstValueFrom(this.httpService.get(`${userServiceUrl}/api/users`, config)),
                 firstValueFrom(this.httpService.get(`${jobServiceUrl}/api/jobs`, config)),
-                firstValueFrom(this.httpService.get(`${paymentServiceUrl}/metrics`, config))
+                firstValueFrom(this.httpService.get(`${paymentServiceUrl}/api/payments/metrics`, config))
             ]);
 
             const users = usersRes.data;
             const jobs = jobsRes.data;
             const payments = paymentsRes.data;
 
+            const userList = users?.results || (Array.isArray(users) ? users : []);
+            const jobList = jobs?.results || (Array.isArray(jobs) ? jobs : []);
+
             return {
-                totalUsers: Array.isArray(users) ? users.length : 0,
-                totalJobs: Array.isArray(jobs) ? jobs.length : 0,
-                pendingJobs: Array.isArray(jobs) ? jobs.filter(j => j.status === 'PENDING_APPROVAL').length : 0,
-                activeJobs: Array.isArray(jobs) ? jobs.filter(j => j.status === 'OPEN').length : 0,
-                suspendedUsers: Array.isArray(users) ? users.filter(u => u.status === 'SUSPENDED').length : 0,
+                totalUsers: users?.total || userList.length || 0,
+                totalJobs: jobs?.total || jobList.length || 0,
+                pendingJobs: jobList.filter(j => j.status === 'PENDING_APPROVAL').length,
+                activeJobs: jobList.filter(j => j.status === 'OPEN').length,
+                suspendedUsers: userList.filter(u => u.status === 'SUSPENDED').length,
                 totalVolume: payments?.totalVolume || 0,
                 totalPayments: payments?.totalPayments || 0
             };
@@ -264,7 +267,7 @@ export class AdminsService {
         try {
             if (type === 'users') {
                 const userServiceUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:3001');
-                const res = await firstValueFrom(this.httpService.get(`${userServiceUrl}/`, config));
+                const res = await firstValueFrom(this.httpService.get(`${userServiceUrl}/api/users`, config));
                 data = res.data;
                 fields = ['id', 'email', 'firstName', 'lastName', 'role', 'status', 'createdAt'];
             } else if (type === 'jobs') {
@@ -274,7 +277,7 @@ export class AdminsService {
                 fields = ['id', 'title', 'budget', 'status', 'clientId', 'createdAt'];
             } else if (type === 'transactions') {
                 const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://localhost:3005');
-                const res = await firstValueFrom(this.httpService.get(`${paymentServiceUrl}/transactions?limit=1000`, config));
+                const res = await firstValueFrom(this.httpService.get(`${paymentServiceUrl}/api/payments/transactions?limit=1000`, config));
                 data = res.data;
                 fields = ['id', 'amount', 'type', 'status', 'createdAt', 'referenceId', 'walletId'];
             }
@@ -402,9 +405,9 @@ export class AdminsService {
         for (const userId of userIds) {
             try {
                 if (action === 'SUSPEND') {
-                    await firstValueFrom(this.httpService.post(`${userServiceUrl}/${userId}/suspend`, {}, config));
+                    await firstValueFrom(this.httpService.post(`${userServiceUrl}/api/users/${userId}/suspend`, {}, config));
                 } else if (action === 'ACTIVATE') {
-                    await firstValueFrom(this.httpService.post(`${userServiceUrl}/${userId}/activate`, {}, config));
+                    await firstValueFrom(this.httpService.post(`${userServiceUrl}/api/users/${userId}/activate`, {}, config));
                 }
                 // Action DELETE typically not supported directly for users in this demo, usually soft delete or ban
                 results.success.push(userId);
@@ -424,7 +427,7 @@ export class AdminsService {
         const config = token ? { headers: { Authorization: token } } : undefined;
 
         await firstValueFrom(
-            this.httpService.post(`${paymentServiceUrl}/transactions/${transactionId}/chargeback`, {}, config)
+            this.httpService.post(`${paymentServiceUrl}/api/payments/transactions/${transactionId}/chargeback`, {}, config)
         );
 
         await this.logAction('WARN', 'ADMIN', `Chargeback processed for transaction ${transactionId} by ${adminId}`, { transactionId, adminId });
@@ -435,21 +438,21 @@ export class AdminsService {
     async createTaxSetting(data: any, token?: string) {
         const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://localhost:3005');
         const config = token ? { headers: { Authorization: token } } : undefined;
-        const res = await firstValueFrom(this.httpService.post(`${paymentServiceUrl}/taxes`, data, config));
+        const res = await firstValueFrom(this.httpService.post(`${paymentServiceUrl}/api/payments/taxes`, data, config));
         return res.data;
     }
 
     async getTaxSettings(token?: string) {
         const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://localhost:3005');
         const config = token ? { headers: { Authorization: token } } : undefined;
-        const res = await firstValueFrom(this.httpService.get(`${paymentServiceUrl}/taxes`, config));
+        const res = await firstValueFrom(this.httpService.get(`${paymentServiceUrl}/api/payments/taxes`, config));
         return res.data;
     }
 
     async updateTaxSetting(id: string, data: any, token?: string) {
         const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL', 'http://localhost:3005');
         const config = token ? { headers: { Authorization: token } } : undefined;
-        const res = await firstValueFrom(this.httpService.put(`${paymentServiceUrl}/taxes/${id}`, data, config));
+        const res = await firstValueFrom(this.httpService.put(`${paymentServiceUrl}/api/payments/taxes/${id}`, data, config));
         return res.data;
     }
 

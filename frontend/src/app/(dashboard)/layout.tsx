@@ -11,21 +11,47 @@ import { useCurrency } from '@/components/CurrencyProvider';
 import Link from 'next/link';
 import { Smartphone, Globe, Search as SearchIcon, PlusCircle } from 'lucide-react';
 import SupportChat from '@/components/support/SupportChat';
+import { AccessDenied } from '@/components/AccessDenied';
 
 import { UniversalSearch } from '@/components/UniversalSearch';
 import { UserMenu } from '@/components/UserMenu';
 import { CommandPalette } from '@/components/CommandPalette';
+import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 
 export default function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const { authenticated, userId } = useKeycloak();
+    const { authenticated, userId, roles } = useKeycloak();
     const { currency, setCurrency } = useCurrency();
+    const pathname = usePathname();
+
+    const isFreelancer = roles.includes('FREELANCER');
+    const isClient = roles.includes('CLIENT');
+    const isAdmin = roles.includes('ADMIN');
+
+    // Define paths that are shared across all roles
+    const SHARED_PATHS = [
+        '/messages',
+        '/notifications',
+        '/profile',
+        '/settings',
+        '/wallet',
+        '/payments',
+        '/account',
+        '/categories',
+        '/pricing'
+    ];
+
+    const isSharedPath = SHARED_PATHS.some(path => pathname.startsWith(path));
+
+    // Refined guard: Only block if it's NOT a shared path and user is NOT a freelancer
+    if (authenticated && !isFreelancer && !isSharedPath) {
+        return <AccessDenied requiredRole="FREELANCER" />;
+    }
     const [showOnboarding, setShowOnboarding] = React.useState(false);
     const router = useRouter();
-    const pathname = usePathname();
 
     React.useEffect(() => {
         const checkOnboarding = async () => {
@@ -64,7 +90,13 @@ export default function DashboardLayout({
             <main className="flex-1 overflow-y-auto">
                 <header className="h-16 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between gap-8">
                     <div className="flex items-center gap-8 flex-1">
-                        <Link href="/dashboard" className="text-lg font-bold text-white whitespace-nowrap hidden lg:block">Freelancer Portal</Link>
+                        <Link href="/dashboard" className="text-lg font-bold text-white whitespace-nowrap hidden lg:block">
+                            {pathname.startsWith('/admin') ? 'Admin Portal' : pathname.startsWith('/client') ? 'Client Portal' : 'Freelancer Portal'}
+                        </Link>
+
+                        {isFreelancer && !pathname.startsWith('/admin') && !pathname.startsWith('/client') && (
+                            <ProfileSwitcher />
+                        )}
 
                         <div className="hidden xl:flex items-center gap-4">
                             <Link

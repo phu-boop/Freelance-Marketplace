@@ -113,6 +113,12 @@ export class JobsController {
     return this.jobsService.findByClient(userId, status, teamId);
   }
 
+  @Get('cloud/:cloudId')
+  @Roles({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] })
+  async getJobsByCloud(@Param('cloudId') cloudId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+    return this.jobsService.findJobsByCloud(cloudId, Number(page), Number(limit));
+  }
+
   // Saved Jobs
   @Get('saved')
   getSavedJobs(@Request() req) {

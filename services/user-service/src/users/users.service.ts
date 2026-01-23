@@ -1221,17 +1221,26 @@ export class UsersService {
         },
       });
       try {
+        // Clear existing conflicting roles in Keycloak to avoid multiple roles
+        const currentRoles = await this.keycloakService.getUserRoles(userId);
+        const rolesToRemove = currentRoles.filter(r =>
+          ['FREELANCER', 'CLIENT'].includes(r.name) && r.name !== pendingRole
+        );
+        if (rolesToRemove.length > 0) {
+          await this.keycloakService.removeRoles(userId, rolesToRemove);
+        }
+
         await this.keycloakService.assignRole(userId, pendingRole);
       } catch (e) {
         console.error(
-          `Failed to assign role ${pendingRole} in Keycloak:`,
+          `Failed to sync roles for ${pendingRole} in Keycloak:`,
           e.message,
         );
       }
       user.roles = [pendingRole];
     } else if (!user.roles || user.roles.length === 0) {
-      // If no role provided and none exists in DB, we need onboarding
-      return { ...user, requiresOnboarding: true };
+      // If no role provided and none exists in DB, force them back to register page
+      return { ...user, requiresRegistration: true };
     }
 
     if (!(user as any).keycloakId && user.id !== userId) {

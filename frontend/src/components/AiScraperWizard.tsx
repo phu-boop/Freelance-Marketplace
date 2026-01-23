@@ -7,7 +7,7 @@ import {
     X,
     Loader2,
     CheckCircle2,
-    ClipboardText,
+    ClipboardList as ClipboardText,
     Wand2,
     ArrowRight,
     FileText

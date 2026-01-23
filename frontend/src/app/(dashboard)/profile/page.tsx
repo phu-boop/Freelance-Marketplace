@@ -44,7 +44,7 @@ import { VideoKYCModal } from '@/components/VideoKYCModal';
 import { TwoFactorSetupModal } from '@/components/profile/TwoFactorSetupModal';
 import SpecializedProfileCard from '@/components/profile/SpecializedProfileCard';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Review {
     id: string;
@@ -374,8 +374,6 @@ export default function ProfilePage() {
                     <>
                         {/* Left Column: Info & Socials */}
                         <div className="space-y-6">
-                            import SpecializedProfileCard from '@/components/profile/SpecializedProfileCard';
-                            ...
                             {!user.roles.includes('CLIENT') && (
                                 <div className="space-y-4">
                                     <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">

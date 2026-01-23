@@ -56,6 +56,7 @@ linkedinUsername        String?
   roles                  String[]               @default(["FREELANCER"])
   skills                 String[]
   status                 String                 @default("ACTIVE")
+  connects               Int                    @default(20)
   timezone               String?                @default("UTC")
   title                  String?
   trustScore             Int                    @default(100)

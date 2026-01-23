@@ -36,6 +36,7 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
     const [userAgencies, setUserAgencies] = useState<any[]>([]);
     const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
     const [proposalTone, setProposalTone] = useState('Professional');
+    const [connectsBalance, setConnectsBalance] = useState<number | null>(null);
 
     React.useEffect(() => {
         if (isOpen) {
@@ -45,13 +46,21 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
             }).catch(console.error);
 
             if (userId) {
+                // Fetch Connects Balance
+                api.get('/payments/connects/balance')
+                    .then(res => setConnectsBalance(res.data))
+                    .catch(err => console.error('Failed to fetch connects', err));
+
                 api.get(`/users/${userId}`).then(res => {
                     setPortfolioItems(res.data.portfolio || []);
                     setSpecializedProfiles(res.data.specializedProfiles || []);
 
-                    const defaultProfile = res.data.specializedProfiles?.find((p: any) => p.isDefault);
-                    if (defaultProfile) {
-                        setSelectedProfileId(defaultProfile.id);
+                    const savedProfileId = localStorage.getItem('active_specialized_profile_id');
+                    const profileToSelect = res.data.specializedProfiles?.find((p: any) => p.id === savedProfileId)
+                        || res.data.specializedProfiles?.find((p: any) => p.isDefault);
+
+                    if (profileToSelect) {
+                        setSelectedProfileId(profileToSelect.id);
                     }
                 }).catch(console.error);
 
@@ -117,6 +126,7 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
         try {
             const response = await api.post('/proposals', {
                 jobId,
+                freelancerId: userId,
                 coverLetter,
                 bidAmount: Number(bidAmount),
                 timeline,
@@ -137,13 +147,21 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                 setTimeline('');
                 setBoostAmount('0');
             }, 2000);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to submit proposal', err);
-            setError('Failed to submit proposal. Please try again.');
+            // Handle Connects Error specifically 
+            if (err.response?.status === 403 || err.response?.data?.message?.includes('connects')) {
+                setError('Insufficient Connects to submit this proposal.');
+            } else {
+                setError('Failed to submit proposal. Please try again.');
+            }
         } finally {
             setLoading(false);
         }
     };
+
+    const totalCost = 2 + (parseInt(boostAmount) || 0);
+    const hasInsufficientConnects = connectsBalance !== null && connectsBalance < totalCost;
 
     return (
         <AnimatePresence>
@@ -153,7 +171,7 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl"
+                        className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl"
                     >
                         <div className="p-6 border-b border-slate-800 flex justify-between items-center">
                             <div>
@@ -215,6 +233,37 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                                                     ))}
                                                 </div>
                                             </div>
+
+                                            {userAgencies.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium text-slate-300">Submit Via Agency</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedAgencyId(null)}
+                                                            className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all ${selectedAgencyId === null
+                                                                ? 'bg-blue-600/10 border-blue-500/50 text-blue-400'
+                                                                : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                                                                }`}
+                                                        >
+                                                            Individual
+                                                        </button>
+                                                        {userAgencies.map((agency) => (
+                                                            <button
+                                                                key={agency.id}
+                                                                type="button"
+                                                                onClick={() => setSelectedAgencyId(agency.id)}
+                                                                className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all ${selectedAgencyId === agency.id
+                                                                    ? 'bg-blue-600/10 border-blue-500/50 text-blue-400'
+                                                                    : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                                                                    }`}
+                                                            >
+                                                                {agency.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div className="space-y-2">
@@ -360,23 +409,39 @@ export function ProposalModal({ isOpen, onClose, jobId, jobTitle, invitationId }
                                                 </div>
                                             </div>
 
-                                            <div className="flex justify-between items-center px-2 py-1 bg-slate-800/50 rounded-lg text-xs">
-                                                <span className="text-slate-500">Total Connects to Spend:</span>
-                                                <span className="font-bold text-white">{2 + (parseInt(boostAmount) || 0)} Connects</span>
+                                            <div className={`flex justify-between items-center px-4 py-3 rounded-xl text-sm border ${hasInsufficientConnects ? 'bg-red-500/10 border-red-500/20' : 'bg-slate-800/50 border-transparent'}`}>
+                                                <div className="flex flex-col">
+                                                    <span className="text-slate-400 text-xs">Total Cost</span>
+                                                    <span className={`font-bold ${hasInsufficientConnects ? 'text-red-400' : 'text-white'}`}>
+                                                        {totalCost} Connects
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-slate-400 text-xs">Available Balance</span>
+                                                    <span className="font-bold text-emerald-400">
+                                                        {connectsBalance !== null ? `${connectsBalance} Connects` : 'Loading...'}
+                                                    </span>
+                                                </div>
                                             </div>
 
                                             {error && <p className="text-sm text-red-400">{error}</p>}
+                                            {hasInsufficientConnects && (
+                                                <p className="text-xs text-red-400 text-center font-bold">
+                                                    You need {totalCost - (connectsBalance || 0)} more connects to submit this proposal.
+                                                </p>
+                                            )}
+
                                             <button
                                                 type="submit"
-                                                disabled={loading}
-                                                className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20"
+                                                disabled={loading || hasInsufficientConnects}
+                                                className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-600/20 disabled:shadow-none"
                                             >
                                                 {loading ? (
                                                     <Loader2 className="w-5 h-5 animate-spin" />
                                                 ) : (
                                                     <>
                                                         <Send className="w-5 h-5" />
-                                                        Submit Proposal ({2 + (parseInt(boostAmount) || 0)} Connects)
+                                                        Submit Proposal
                                                     </>
                                                 )}
                                             </button>

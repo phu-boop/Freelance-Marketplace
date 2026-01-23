@@ -3,11 +3,11 @@ import { IsString, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
 export class CreateProposalDto {
     @IsString()
     @IsNotEmpty()
-    job_id: string;
+    jobId: string;
 
     @IsString()
     @IsNotEmpty()
-    freelancer_id: string;
+    freelancerId: string;
 
     @IsString()
     @IsNotEmpty()
@@ -16,6 +16,24 @@ export class CreateProposalDto {
     @IsNumber()
     @IsNotEmpty()
     bidAmount: number;
+
+    @IsString()
+    @IsOptional()
+    timeline?: string;
+
+    @IsOptional()
+    screeningAnswers?: any;
+
+    @IsOptional()
+    portfolioItemIds?: string[];
+
+    @IsString()
+    @IsOptional()
+    specializedProfileId?: string;
+
+    @IsString()
+    @IsOptional()
+    agencyId?: string;
 
     @IsString()
     @IsOptional()

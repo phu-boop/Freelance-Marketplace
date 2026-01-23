@@ -269,6 +269,15 @@ export class ContractsService {
     });
   }
 
+  async getAgencyActiveContractsCount(agencyId: string) {
+    return this.prisma.contract.count({
+      where: {
+        agencyId,
+        status: { in: ['ACTIVE', 'IN_PROGRESS', 'DISPUTED'] },
+      },
+    });
+  }
+
   async findByFreelancer(freelancerId: string, agencyId?: string) {
     const where: any = { freelancer_id: freelancerId };
     if (agencyId) {
@@ -665,9 +674,9 @@ export class ContractsService {
 
     if (!contract || !milestone)
       throw new NotFoundException('Contract or Milestone not found');
-    if (contract.status === 'PAUSED')
+    if (contract.status === 'PAUSED' || contract.status === 'DISPUTED')
       throw new ConflictException(
-        'Cannot approve work while contract is paused',
+        'Cannot approve work while contract is paused or disputed',
       );
 
     // High-value milestone approval threshold (e.g., $5,000)
@@ -729,6 +738,8 @@ export class ContractsService {
             contractId,
             milestoneId: milestone.id,
             freelancerId: contract.freelancer_id,
+            agencyId: contract.agencyId,
+            agencyRevenueSplit: contract.agencyRevenueSplit,
           },
           {
             headers: { Authorization: token },

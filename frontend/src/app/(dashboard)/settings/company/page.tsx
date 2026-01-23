@@ -79,10 +79,32 @@ export default function CompanyTeamPage() {
                 setNewTeam({ name: '', description: '' });
                 fetchTeams();
             } else {
-                setError(resp.data.message || 'Failed to create organization');
+                const errorData = resp.data;
+                const message = typeof errorData.message === 'string'
+                    ? errorData.message
+                    : Array.isArray(errorData.message)
+                        ? errorData.message.join(', ')
+                        : 'Failed to create organization';
+                setError(message);
             }
         } catch (err: any) {
-            setError(err.response?.data?.message || 'An error occurred. Please try again.');
+            const errorData = err.response?.data;
+            let message = 'An error occurred. Please try again.';
+
+            if (errorData?.message) {
+                if (typeof errorData.message === 'string') {
+                    message = errorData.message;
+                } else if (Array.isArray(errorData.message)) {
+                    // NestJS ValidationPipe often returns an array of error objects or strings
+                    message = errorData.message.map((e: any) =>
+                        typeof e === 'string' ? e : JSON.stringify(e.constraints || e)
+                    ).join(', ');
+                } else if (typeof errorData.message === 'object') {
+                    message = JSON.stringify(errorData.message);
+                }
+            }
+
+            setError(message);
         }
     };
 

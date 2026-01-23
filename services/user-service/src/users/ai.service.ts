@@ -85,7 +85,7 @@ export class AiService {
       return this.mockPortfolioItem(freelancerId, contractData, jobData);
     }
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
     const prompt = `
       You are an expert career consultant.
@@ -187,7 +187,7 @@ export class AiService {
       };
     }
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
     const prompt = `
             Analyze the following contract custom clauses for risks to either the freelancer or the client.
             Look for: IP ownership issues, excessive liability, non-compete overreach, and payment ambiguity.
@@ -229,7 +229,7 @@ export class AiService {
       });
     }
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
     const prompt = `
             Generate 5 technical interview questions for the skill: ${skillName}.
             The questions should be challenging and test deep knowledge of the subject.
@@ -283,7 +283,7 @@ export class AiService {
       });
     }
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
     const prompt = `
             Grade the following technical assessment for ${assessment.skillName}.
             
@@ -355,7 +355,7 @@ export class AiService {
       content = 'Content could not be fetched. Verify based on URL pattern.';
     }
 
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
     const prompt = `
             You are a technical recruiter verifying a portfolio item.
             URL: ${itemUrl}

@@ -24,7 +24,8 @@ import {
     Briefcase,
     Heart,
     Sparkles,
-    CheckCircle2
+    CheckCircle2,
+    Loader2
 } from 'lucide-react';
 import { BadgeList } from '@/components/BadgeList';
 import { HireModal } from '@/components/HireModal';
@@ -453,15 +454,12 @@ export default function ProfileView({ user: initialUser, reviews }: ProfileViewP
                         {user.portfolio?.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {user.portfolio.map((item: any) => (
-                                    <div key={item.id} className="group relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-blue-500/50 transition-all">
-                                        <div className="aspect-video relative overflow-hidden">
-                                            <img src={getPublicUrl(item.imageUrl)} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                        </div>
-                                        <div className="p-4">
-                                            <h4 className="font-bold text-white mb-1">{item.title}</h4>
-                                            <p className="text-sm text-slate-400 line-clamp-2">{item.description}</p>
-                                        </div>
-                                    </div>
+                                    <PortfolioItemCard
+                                        key={item.id}
+                                        item={item}
+                                        isOwner={userId === user.id}
+                                        onVerify={() => refreshUser()}
+                                    />
                                 ))}
                             </div>
                         ) : (
@@ -489,6 +487,79 @@ export default function ProfileView({ user: initialUser, reviews }: ProfileViewP
                 skillName={selectedSkill}
                 onComplete={refreshUser}
             />
+        </div>
+    );
+}
+
+function PortfolioItemCard({ item, isOwner, onVerify }: { item: any, isOwner: boolean, onVerify: () => void }) {
+    const [verifying, setVerifying] = useState(false);
+
+    const handleVerify = async () => {
+        setVerifying(true);
+        try {
+            await api.post(`/users/portfolio/${item.id}/verify`);
+            onVerify();
+        } catch (error) {
+            console.error('Verification failed', error);
+            alert('Failed to verify portfolio item.');
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    return (
+        <div className="group relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-blue-500/50 transition-all flex flex-col">
+            <div className="aspect-video relative overflow-hidden bg-slate-800">
+                <img src={getPublicUrl(item.imageUrl)} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                {item.isVerified && (
+                    <div className="absolute top-3 right-3 px-2 py-1 bg-emerald-500/90 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg shadow-lg flex items-center gap-1.5 backdrop-blur-sm">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Verified
+                    </div>
+                )}
+            </div>
+            <div className="p-4 flex flex-col flex-1">
+                <h4 className="font-bold text-white mb-1 line-clamp-1" title={item.title}>{item.title}</h4>
+                <p className="text-sm text-slate-400 line-clamp-2 mb-4 flex-1">{item.description}</p>
+
+                {/* AI Feedback / Tags */}
+                {item.isVerified && (
+                    <div className="mb-3 space-y-2">
+                        <div className="flex flex-wrap gap-1">
+                            {(item.skills || []).slice(0, 3).map((tag: string) => (
+                                <span key={tag} className="px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[10px] rounded border border-slate-700">
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                        {item.aiFeedback && (
+                            <p className="text-[10px] text-emerald-400/80 italic border-l-2 border-emerald-500/30 pl-2">
+                                "{item.aiFeedback}"
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* Actions */}
+                <div className="pt-3 border-t border-slate-800/50 flex justify-between items-center mt-auto">
+                    {item.projectUrl && (
+                        <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium">
+                            View Project <ExternalLink className="w-3 h-3" />
+                        </a>
+                    )}
+
+                    {isOwner && !item.isVerified && (
+                        <button
+                            onClick={handleVerify}
+                            disabled={verifying}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                            {verifying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-purple-400" />}
+                            {verifying ? 'Verifying...' : 'Verify with AI'}
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

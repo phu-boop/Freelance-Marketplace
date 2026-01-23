@@ -13,7 +13,7 @@ import {
     Loader2
 } from 'lucide-react';
 import api from '@/lib/api';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ProposalModal } from '@/components/ProposalModal';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { MatchScoreBadge } from '@/components/dashboard/MatchScoreBadge';

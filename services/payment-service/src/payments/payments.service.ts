@@ -655,6 +655,24 @@ export class PaymentsService {
     return updated;
   }
 
+  async getAgencyRevenue(agencyId: string) {
+    const wallet = await this.getWallet(agencyId);
+    if (!wallet) return { total: 0 };
+
+    const result = await this.prisma.transaction.aggregate({
+      where: {
+        walletId: wallet.id,
+        type: 'AGENCY_REVENUE_SHARE',
+        status: 'COMPLETED',
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    return { total: Number(result._sum.amount || 0) };
+  }
+
   async getTransactionsByReference(referenceId: string) {
     return this.prisma.transaction.findMany({
       where: { referenceId },
@@ -1188,6 +1206,8 @@ export class PaymentsService {
     contractId: string,
     milestoneId: string,
     freelancerId: string,
+    agencyId?: string,
+    agencyRevenueSplit?: any,
   ) {
     const hold = await (this.prisma as any).escrowHold.findFirst({
       where: { contractId, milestoneId, status: 'HELD' },
@@ -1200,41 +1220,18 @@ export class PaymentsService {
     }
 
     // Check if contract is disputed
-    const contractUrl = this.configService.get<string>(
-      'CONTRACT_SERVICE_URL',
-      'http://contract-service:3003',
-    );
-    let contract: any;
-    try {
-      const contractRes = await firstValueFrom(
-        this.httpService.get(`${contractUrl}/api/contracts/${contractId}`),
-      );
-      contract = contractRes.data;
-      if (contract.status === 'DISPUTED') {
-        throw new BadRequestException(
-          'Cannot release escrow while contract is in DISPUTED status. Please resolve arbitration first.',
-        );
-      }
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      this.logger.error(`Failed to verify contract status: ${error.message}`);
-      // If contract service is down, we might want to fail safe or proceed.
-      // Safe option: block release.
-      throw new BadRequestException(
-        'Could not verify contract status. Try again later.',
-      );
-    }
+    // Contract status check (DISPUTED/PAUSED) should be handled by the caller (Contract Service)
+    // to avoid circular dependencies and auth issues.
 
     const freelancerWallet = await this.getWallet(freelancerId);
 
     return this.prisma.$transaction(async (prisma) => {
       let freelancerAmount = hold.amount;
       let agencyAmount = new Decimal(0);
-      const agencyId = contract.agencyId;
-      const agencySplit = contract.agencyRevenueSplit ? new Decimal(contract.agencyRevenueSplit) : new Decimal(0);
+      const split = agencyRevenueSplit ? new Decimal(agencyRevenueSplit) : new Decimal(0);
 
-      if (agencyId && agencySplit.greaterThan(0)) {
-        agencyAmount = hold.amount.mul(agencySplit).div(100);
+      if (agencyId && split.greaterThan(0)) {
+        agencyAmount = hold.amount.mul(split).div(100);
         freelancerAmount = hold.amount.sub(agencyAmount);
 
         // Credit Agency

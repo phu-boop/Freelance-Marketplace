@@ -22,6 +22,21 @@ export declare class CloudsService {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    getCloudsForUser(userId: string): Promise<({
+        _count: {
+            members: number;
+        };
+    } & {
+        id: string;
+        name: string;
+        description: string | null;
+        ownerId: string;
+        visibility: import(".prisma/client").$Enums.Visibility;
+        costCenter: string | null;
+        budget: number | null;
+        createdAt: Date;
+        updatedAt: Date;
+    })[]>;
     inviteMember(cloudId: string, inviteeId: string, inviterId: string): Promise<{
         id: string;
         createdAt: Date;
@@ -69,7 +84,8 @@ export declare class CloudsService {
         cloudId: string;
     }>;
     addMembersBulk(cloudId: string, userIds: string[], role?: 'ADMIN' | 'MEMBER'): Promise<{
-        count: number;
+        successfulCount: number;
+        errors: any[];
     }>;
     removeMember(cloudId: string, userId: string): Promise<{
         success: boolean;

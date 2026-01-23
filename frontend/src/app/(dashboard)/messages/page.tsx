@@ -348,9 +348,9 @@ const MessagesPage = () => {
             const enrichedConvs = await Promise.all(convs.map(async (c: any) => {
                 try {
                     const userRes = await api.get(`/users/${c.otherId}`);
-                    return { ...c, user: userRes.data, id: c._id };
+                    return { ...c, user: userRes.data, id: c.otherId };
                 } catch (e) {
-                    return { ...c, user: { firstName: 'Unknown', lastName: 'User', email: '' }, id: c._id };
+                    return { ...c, user: { firstName: 'Unknown', lastName: 'User', email: '' }, id: c.otherId };
                 }
             }));
 

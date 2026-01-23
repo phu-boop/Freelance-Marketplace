@@ -78,11 +78,13 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
             const currentPath = window.location.pathname;
             let targetPath: string | null = null;
 
-            if (user.requiresOnboarding && currentPath !== '/onboarding') {
+            if (user.requiresRegistration && currentPath !== '/register') {
+                targetPath = '/register';
+            } else if (user.requiresOnboarding && currentPath !== '/onboarding') {
                 targetPath = '/onboarding';
             } else if (!user.requiresOnboarding && currentPath === '/onboarding') {
                 targetPath = '/dashboard';
-            } else if (currentPath === '/login' || currentPath === '/register') {
+            } else if (currentPath === '/register') {
                 const latestRole = user.roles?.find((r: string) => r === 'ADMIN' || r === 'CLIENT' || r === 'FREELANCER') || 'FREELANCER';
                 if (latestRole === 'ADMIN') {
                     targetPath = '/admin';
@@ -105,7 +107,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
             console.error('[AUTH] Backend sync failed:', error);
             console.groupEnd();
             setInitialized(true);
-            if (window.location.pathname === '/login' || window.location.pathname === '/register') {
+            if (window.location.pathname === '/register') {
                 window.location.href = '/dashboard';
             }
         } finally {
@@ -158,7 +160,7 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                 })
                 .catch((err) => {
                     console.error('Keycloak init failed', err);
-                    // Clear stale tokens to prevent persistent errors
+                    // Clear stale tokens to prevent persistent errors (loops)
                     localStorage.removeItem('kc_token');
                     localStorage.removeItem('kc_refreshToken');
                     setAuthenticated(false);
@@ -168,7 +170,14 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     }, []);
 
     const login = (options?: any) => keycloak?.login(options);
-    const logout = () => keycloak?.logout();
+
+    const logout = () => {
+        // Clear storage to prevent stale state on next load
+        localStorage.removeItem('kc_token');
+        localStorage.removeItem('kc_refreshToken');
+        keycloak?.logout({ redirectUri: window.location.origin });
+    };
+
     const register = (options?: any) => keycloak?.register(options);
 
     const setTokens = async (tokens: { access_token: string; refresh_token: string }) => {

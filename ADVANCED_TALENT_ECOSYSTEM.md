@@ -1,45 +1,48 @@
-# 💎 Advanced Talent Ecosystem Plan
+# 🦅 Advanced Talent Ecosystem Plan
 
-Inspired by Upwork's agency model and specialized profiles, this plan focuses on how freelancers present themselves and how they organize into teams.
+This phase transforms the platform from an individualistic marketplace to a multi-layered talent hub, supporting specialized professional identities and agency-scale operations.
 
-## 1. Specialized Profiles (The Multi-Identity)
-Currently, a user has one set of skills/bio. We will implement "Sub-profiles".
-### 🎯 Features
-- **Profile Versions:** A freelancer can create up to 3 specialized profiles (e.g., "React Native Expert" vs "Python Data Scientist").
-- **Targeted Portfolio:** Map portfolio items to specific specialized profiles.
-- **Specific Rates:** Different hourly rates for different specializations.
+## 1. Specialized Profiles (Professional Identity 2.0)
+Allow freelancers to maintain up to 3 distinct professional identities (e.g., "React Specialist" and "Node.js Architect").
+
+### 🎯 Key Features
+- **Profile Context Switching:** UI for freelancers to toggle between specialized views.
+- **Isolated Reputations:** Track success scores and earnings per specialized profile (optional/configurable).
+- **Proposal Linking:** When bidding, freelancers MUST select which profile to present to the client.
+
 ### 🛠️ Sub-tasks
-- [ ] **Backend (User Service):**
-    - Create `SpecializedProfile` model linked to `User`.
-    - Update `PortfolioItem` to include `specializedProfileId`.
-- [ ] **Frontend:**
-    - New "Profile Switcher" in the Freelancer Profile view.
-    - Specialized Edit flow for each sub-profile.
+- [ ] **Frontend Profile Hub:**
+    - Create `ProfileSelector` component.
+    - Build `SpecializedProfileBuilder` wizard (Skills/Portfolio selection).
+- [ ] **Cross-Service Integration:**
+    - Update `proposal-service` to store `specializedProfileId`.
+    - Update `search-service` to index specialized profiles separately for better matching.
 
-## 2. Agency 3.0: Collaborative Work
-The current `Team` model is basic. We need to turn it into a revenue-generating Agency.
-### 🎯 Features
-- **Agency Manager Role:** Can bid on jobs on behalf of agency members.
-- **Shared Financials:** Agency-wide wallet vs individual member earnings.
-- **Agency Portfolio:** Aggregate portfolio items from all members to show collective power.
-### 🛠️ Sub-tasks
-- [ ] **Backend (User/Contract Service):**
-    - Implement `agencyId` tracking across all `Proposals` and `Contracts`.
-    - Add `revenueSplit` logic to automatically distribute funds.
-- [ ] **Frontend:**
-    - Agency Dashboard showing team performance and active contracts.
+## 2. Agency Mode 2.0 (The Firm Workspace)
+Moving beyond simple "Teams" to professional firms that can hire, manage, and bill as a single entity.
 
-## 3. Verified Talent Clouds (Enterprise)
-Private marketplaces for high-end clients.
-### 🎯 Features
-- **Invitation-Only Membership:** Clients "vett" freelancers into their private cloud.
-- **Cloud-Specific Roles:** Different permissions within the cloud (e.g., "Lead Freelancer", "Contributor").
-- **Cloud Budgeting:** Clients allocate budgets specifically for work within the cloud.
+### 🎯 Key Features
+- **Agency Branding:** Dedicated company profiles with shared portfolios.
+- **Hierarchical Permissions:** 
+    - *Owner:* Full control, financial oversight.
+    - *Manager:* Can post jobs, hire, and review work.
+    - *Associate:* Purely execution, can be assigned to agency contracts.
+- **Commission Management:** Automated revenue distribution based on the `revenueSplitPercent` defined in the Team schema.
+
 ### 🛠️ Sub-tasks
-- [ ] **Backend (Talent Cloud Service):**
-    - Implement `TalentCloudBudget` and `Policy` models.
-    - Integration with `Job Service` to restrict job postings to specific clouds.
+- [ ] **Agency Workspace UI:**
+    - Build `AgencyDashboard` showing aggregate metrics (Total Team Earnings, Active Member Contracts).
+    - Implement `MemberInvite` flow with role selection.
+- [ ] **Financial Integration:**
+    - Link `payment-service` to Agency accounts for automated split-payouts.
+
+## 3. Vetted Talent Clouds
+Private, curated pools of freelancers for enterprise clients.
+
+### 🎯 Key Features
+- **By-Appointment Entry:** Clients can "Invite" talent to their private cloud.
+- **Custom Rates:** Pre-negotiated hourly rates for cloud members.
 
 ---
 > [!IMPORTANT]
-> This requires a careful UI/UX balance to ensure users don't get confused by multiple profile IDs.
+> A specialized profile is NOT a separate user account. It shares the same login and core wallet but presents different professional credentials and history.

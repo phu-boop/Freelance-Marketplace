@@ -135,12 +135,12 @@ export class KeycloakService {
       emailVerified: false,
       credentials: userData.password
         ? [
-            {
-              type: 'password',
-              value: userData.password,
-              temporary: false,
-            },
-          ]
+          {
+            type: 'password',
+            value: userData.password,
+            temporary: false,
+          },
+        ]
         : [],
     };
 
@@ -233,7 +233,10 @@ export class KeycloakService {
       const userId = users[0].id;
 
       // Trigger reset email
-      const resetUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/execute-actions-email`;
+      const redirectUri = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+      const clientId = this.configService.get<string>('KEYCLOAK_FRONTEND_CLIENT_ID', 'freelance-frontend');
+      const resetUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/execute-actions-email?redirect_uri=${encodeURIComponent(redirectUri)}&client_id=${clientId}`;
+
       await firstValueFrom(
         this.httpService.put(resetUrl, ['UPDATE_PASSWORD'], {
           headers: { Authorization: `Bearer ${token}` },
@@ -342,6 +345,42 @@ export class KeycloakService {
     } catch (error) {
       this.logger.error(
         `Failed to assign role ${roleName} to user ${userId}: ${error.message}`,
+      );
+    }
+  }
+
+  public async getUserRoles(userId: string): Promise<any[]> {
+    const token = await this.getAdminToken();
+    const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/role-mappings/realm`;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      );
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get roles for user ${userId}: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  public async removeRoles(userId: string, roles: any[]) {
+    if (!roles || roles.length === 0) return;
+    const token = await this.getAdminToken();
+    const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/role-mappings/realm`;
+    try {
+      await firstValueFrom(
+        this.httpService.delete(url, {
+          headers: { Authorization: `Bearer ${token}` },
+          data: roles,
+        }),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to remove roles for user ${userId}: ${error.message}`,
       );
     }
   }

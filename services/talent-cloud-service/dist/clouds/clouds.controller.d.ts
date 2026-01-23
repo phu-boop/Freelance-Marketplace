@@ -2,6 +2,21 @@ import { CloudsService } from './clouds.service';
 export declare class CloudsController {
     private readonly cloudsService;
     constructor(cloudsService: CloudsService);
+    getMyClouds(user: any): Promise<({
+        _count: {
+            members: number;
+        };
+    } & {
+        id: string;
+        name: string;
+        description: string | null;
+        ownerId: string;
+        visibility: import(".prisma/client").$Enums.Visibility;
+        costCenter: string | null;
+        budget: number | null;
+        createdAt: Date;
+        updatedAt: Date;
+    })[]>;
     create(dto: {
         name: string;
         description?: string;
@@ -75,7 +90,8 @@ export declare class CloudsController {
         userIds: string[];
         role?: 'ADMIN' | 'MEMBER';
     }): Promise<{
-        count: number;
+        successfulCount: number;
+        errors: any[];
     }>;
     removeMember(cloudId: string, userId: string): Promise<{
         success: boolean;

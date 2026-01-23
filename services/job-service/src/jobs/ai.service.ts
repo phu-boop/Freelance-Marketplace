@@ -49,7 +49,7 @@ export class AiService {
             return this.mockProposal(job, userProfile);
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const portfolioItems = userProfile?.portfolio || [];
         const portfolioContext = portfolioItems.map((item: any, index: number) =>
@@ -116,7 +116,7 @@ export class AiService {
             return this.mockMilestones(budget);
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
       You are an expert project manager. 
@@ -166,7 +166,7 @@ export class AiService {
             };
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
       You are an expert technical project manager and recruiter. 
@@ -217,7 +217,7 @@ export class AiService {
             return { complexity: 'Low', suggestedRange: '$500 - $1,000', confidence: 0.5 };
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
       Analyze the professional complexity of the following job description.
@@ -255,7 +255,7 @@ export class AiService {
             return 'Proactive'; // Default
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const history = messages.join('\n');
         const prompt = `
@@ -287,7 +287,7 @@ export class AiService {
             return { isSafe: true, report: "Submission too short or AI service unavailable." };
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
       You are a senior code reviewer and security auditor.
@@ -327,7 +327,7 @@ export class AiService {
             return { summary: "No recent activity recorded for today." };
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const history = messages.join('\n');
         const prompt = `
@@ -371,7 +371,7 @@ export class AiService {
             return this.mockDetectFraud(content);
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
       Analyze the following chat message for potential fraud, scams, or violations of marketplace policy.
@@ -422,7 +422,7 @@ export class AiService {
             };
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const history = context.messages.slice(-10).join('\n'); // Last 10 messages for context
         const prompt = `
@@ -509,7 +509,7 @@ export class AiService {
             return;
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const specializedProfile = (freelancerProfile?.specializedProfiles || []).find(sp => sp.id === proposal.specializedProfileId) || (freelancerProfile?.specializedProfiles?.[0]);
 
@@ -624,7 +624,7 @@ export class AiService {
             };
         }
 
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
         const chatLog = messages.join('\n');
 
         const prompt = `

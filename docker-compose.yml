@@ -189,7 +189,7 @@ services:
       - PAYMENT_SERVICE_URL=http://payment-service:3005
       - EMAIL_SERVICE_INTERNAL_URL=http://email-service:3012
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
-      - GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
+      - GEMINI_API_KEY=AIzaSyBkvyKmQNjOOhRarI2AOedzzckVPCXRDZw
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
@@ -585,6 +585,7 @@ services:
       - ADMIN_SERVICE_URL=http://admin-service:3009
       - AUDIT_SERVICE_URL=http://audit-service:3011
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
+      - CONTRACT_SERVICE_URL=http://contract-service:3004
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"

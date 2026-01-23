@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowUpRight, ArrowDownLeft, Wallet, FileText, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import api from '@/lib/api';
 import { useCurrency } from '@/components/CurrencyProvider';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import TransactionDetailsModal from './TransactionDetailsModal';
 
 interface Transaction {

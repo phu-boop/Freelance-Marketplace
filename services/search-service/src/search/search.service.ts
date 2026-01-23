@@ -36,7 +36,7 @@ export class SearchService implements OnModuleInit {
     }
 
     private async initializeIndices() {
-        const indices = ['jobs', 'users'];
+        const indices = ['jobs', 'users', 'specialized-profiles'];
         for (const index of indices) {
             const exists = await this.elasticsearchService.indices.exists({ index });
             if (!exists) {
@@ -74,6 +74,18 @@ export class SearchService implements OnModuleInit {
                             reliabilityScore: { type: 'float' },
                             rating: { type: 'float' },
                             isPromoted: { type: 'boolean' }
+                        }
+                    };
+                } else if (index === 'specialized-profiles') {
+                    body.mappings = {
+                        properties: {
+                            id: { type: 'keyword' },
+                            userId: { type: 'keyword' },
+                            headline: { type: 'text' },
+                            bio: { type: 'text' },
+                            skills: { type: 'keyword' },
+                            hourlyRate: { type: 'float' },
+                            primaryCategoryId: { type: 'keyword' }
                         }
                     };
                 }
@@ -122,6 +134,45 @@ export class SearchService implements OnModuleInit {
         // Invalidate caches
         await this.invalidateCache(['search:users:*', 'search:rec:jobs:*']);
         return result;
+    }
+
+    async indexSpecializedProfile(profile: any) {
+        this.logger.log(`Indexing specialized profile ${profile.id} for user ${profile.userId}`);
+        const doc = {
+            id: profile.id,
+            userId: profile.userId,
+            headline: profile.headline,
+            bio: profile.bio,
+            skills: profile.skills,
+            hourlyRate: profile.hourlyRate ? parseFloat(profile.hourlyRate.toString()) : 0,
+            primaryCategoryId: profile.primaryCategoryId
+        };
+        const result = await this.elasticsearchService.index({
+            index: 'specialized-profiles',
+            id: profile.id,
+            document: doc,
+        });
+        // Invalidate caches
+        await this.invalidateCache(['search:users:*', 'search:profiles:*']);
+        return result;
+    }
+
+    async deleteSpecializedProfile(id: string) {
+        this.logger.log(`Deleting specialized profile ${id} from index`);
+        try {
+            const result = await this.elasticsearchService.delete({
+                index: 'specialized-profiles',
+                id: id,
+            });
+            await this.invalidateCache(['search:users:*', 'search:profiles:*']);
+            return result;
+        } catch (error) {
+            if (error.meta?.statusCode === 404) {
+                this.logger.warn(`Specialized profile ${id} not found for deletion`);
+                return;
+            }
+            throw error;
+        }
     }
 
     private async invalidateCache(patterns: string[]) {

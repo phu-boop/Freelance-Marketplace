@@ -20,6 +20,11 @@ let CloudsController = class CloudsController {
     constructor(cloudsService) {
         this.cloudsService = cloudsService;
     }
+    async getMyClouds(user) {
+        if (!user?.sub)
+            throw new common_1.UnauthorizedException();
+        return this.cloudsService.getCloudsForUser(user.sub);
+    }
     async create(dto) {
         return this.cloudsService.createCloud(dto);
     }
@@ -59,6 +64,14 @@ let CloudsController = class CloudsController {
     }
 };
 exports.CloudsController = CloudsController;
+__decorate([
+    (0, common_1.Get)(),
+    (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:CLIENT', 'CLIENT', 'realm:FREELANCER', 'FREELANCER'] }),
+    __param(0, (0, nest_keycloak_connect_1.AuthenticatedUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], CloudsController.prototype, "getMyClouds", null);
 __decorate([
     (0, common_1.Post)(),
     (0, nest_keycloak_connect_1.Roles)({ roles: ['realm:ADMIN', 'ADMIN'] }),

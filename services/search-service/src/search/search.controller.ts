@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, Delete } from '@nestjs/common';
 import { SearchService } from './search.service';
 
 @Controller('api/search')
@@ -13,6 +13,16 @@ export class SearchController {
     @Post('users/index')
     async indexUser(@Body() user: any) {
         return this.searchService.indexUser(user);
+    }
+
+    @Post('profiles/index')
+    async indexSpecializedProfile(@Body() profile: any) {
+        return this.searchService.indexSpecializedProfile(profile);
+    }
+
+    @Delete('profiles/:id')
+    async deleteSpecializedProfile(@Param('id') id: string) {
+        return this.searchService.deleteSpecializedProfile(id);
     }
 
     @Get('jobs')

@@ -11,6 +11,7 @@ const api = axios.create({
 const PUBLIC_ENDPOINTS = [
     '/auth/login',
     '/auth/register',
+    '/auth/forgot-password',
     '/auth/login/2fa',
     '/jobs/categories',
     '/jobs/skills',
@@ -58,12 +59,8 @@ api.interceptors.response.use(
             // 2. It's a Public endpoint
             // 3. We are ALREADY on the login page (to prevent loops)
             if (!isAuthRequest && !isPublic && typeof window !== 'undefined') {
-                if (window.location.pathname !== '/login') {
-                    console.info('[API] Redirecting to login due to unauthorized protected request');
-                    keycloak?.login();
-                } else {
-                    console.info('[API] Suppressing redirect because we are already on /login');
-                }
+                console.info('[API] Redirecting to login due to unauthorized protected request');
+                keycloak?.login();
             }
         }
         return Promise.reject(error);

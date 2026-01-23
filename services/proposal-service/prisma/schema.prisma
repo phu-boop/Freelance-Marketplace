@@ -29,6 +29,13 @@ model Proposal {
   counterOfferAmount Decimal?
   counterOfferTerms  String?
 
+  // Missing fields payload
+  timeline           String?
+  screeningAnswers   Json?
+  portfolioItemIds   String[]
+  specializedProfileId String?
+  agencyId           String?
+  
   @@unique([job_id, freelancer_id])
   
   // Boosting

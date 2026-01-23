@@ -26,7 +26,7 @@
         </#if>
         
         <#if realm.resetPasswordAllowed>
-          <a href="${url.loginResetCredentialsUrl}" class="kc-forgot-password">Forgot password?</a>
+          <a href="${properties.forgotPasswordUrl!url.loginResetCredentialsUrl}" class="kc-forgot-password">Forgot password?</a>
         </#if>
       </div>
 
@@ -57,7 +57,7 @@
     <#if realm.password>
         <p>
             Don't have an account? 
-            <a href="http://localhost:3000/register">Create one</a>
+            <a href="${properties.registerUrl!}">Create one</a>
         </p>
     </#if>
   </#if>

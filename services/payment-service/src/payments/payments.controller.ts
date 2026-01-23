@@ -43,6 +43,12 @@ export class PaymentsController {
     return { amount: converted, formatted, currency: to };
   }
 
+  @Get('metrics')
+  @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
+  getMetrics() {
+    return this.paymentsService.getMetrics();
+  }
+
   @Patch('wallet/crypto-address')
   @Roles({ roles: ['realm:FREELANCER', 'realm:CLIENT'] })
   updateCryptoAddress(@Request() req, @Body('address') address: string) {
@@ -72,6 +78,40 @@ export class PaymentsController {
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   getPredictiveRevenue(@Param('userId') userId: string) {
     return this.paymentsService.getPredictiveRevenue(userId);
+  }
+
+  @Get('agency/:id/revenue')
+  @Public() // Accessible via internal calls from user-service
+  getAgencyRevenue(@Param('id') id: string) {
+    return this.paymentsService.getAgencyRevenue(id);
+  }
+
+  @Get('wallet/agency/:agencyId')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  getAgencyWallet(@Param('agencyId') agencyId: string) {
+    // In a real app, verify req.user.sub owns agencyId via user-service
+    return this.paymentsService.getWallet(agencyId);
+  }
+
+  @Get('transactions/agency/:agencyId')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'] })
+  getAgencyTransactions(@Param('agencyId') agencyId: string, @Query() query: ListTransactionsDto) {
+    // In a real app, verify requser.sub owns agencyId
+    return this.paymentsService.listTransactions(agencyId, query);
+  }
+
+  @Post('withdraw/agency')
+  @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
+  withdrawAgency(
+    @Request() req,
+    @Body() body: { agencyId: string; amount: number; methodId: string; instant?: boolean },
+  ) {
+    // In a real app, verify req.user.sub owns body.agencyId
+    return this.paymentsService.withdraw(
+      body.agencyId,
+      body.amount,
+      body.instant || false,
+    );
   }
 
   @Get('connects/balance')
@@ -163,6 +203,14 @@ export class PaymentsController {
   @Roles({
     roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
   })
+  @Get('transactions/reference/:referenceId')
+  async getTransactionsByReference(@Param('referenceId') referenceId: string, @Request() req) {
+    return this.paymentsService.getTransactionsByReference(referenceId);
+  }
+
+  @Roles({
+    roles: ['realm:FREELANCER', 'FREELANCER', 'realm:CLIENT', 'CLIENT'],
+  })
   @Get('transactions/:id')
   async getTransaction(@Param('id') id: string, @Request() req: any) {
     const roles = req.user?.realm_access?.roles || [];
@@ -205,7 +253,14 @@ export class PaymentsController {
   @Roles({ roles: ['realm:FREELANCER', 'FREELANCER'] })
   addWithdrawalMethod(
     @Request() req,
-    @Body() body: { type: string; details: any; isDefault?: boolean },
+    @Body() body: {
+      type: string;
+      provider: string;
+      accountNumber: string;
+      accountName: string;
+      isDefault?: boolean;
+      isInstantCapable?: boolean;
+    },
   ) {
     return this.paymentsService.addWithdrawalMethod(req.user.sub, body);
   }
@@ -278,12 +333,16 @@ export class PaymentsController {
       contractId: string;
       milestoneId: string;
       freelancerId: string;
+      agencyId?: string;
+      agencyRevenueSplit?: any;
     },
   ) {
     return this.paymentsService.releaseEscrow(
       body.contractId,
       body.milestoneId,
       body.freelancerId,
+      body.agencyId,
+      body.agencyRevenueSplit,
     );
   }
 

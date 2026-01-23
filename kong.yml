@@ -34,6 +34,7 @@ services:
           - /api/users
           - /api/user/teams
           - /api/profiles
+          - /api/referrals
         methods:
           - GET
           - POST
@@ -56,6 +57,16 @@ services:
           - /api/timesheets
           - /api/service-packages
         strip_path: false
+
+
+  - name: proposal-service
+    url: http://freelance_proposal_service:3003
+    routes:
+      - name: proposal-all-routes
+        paths:
+          - /api/proposals
+        strip_path: false
+
 
   - name: contract-service
     url: http://freelance_contract_service:3004

@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
+import { useCurrency } from '@/components/CurrencyProvider';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Clock, DollarSign, History, TrendingUp, Calendar } from 'lucide-react';
 import {
     BarChart,
@@ -114,6 +115,8 @@ export default function PaymentsPage() {
         }
     };
 
+    const { formatAmount } = useCurrency();
+
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -143,7 +146,7 @@ export default function PaymentsPage() {
                         </div>
                         <div>
                             <div className="text-slate-400 text-sm font-medium mb-1">Available Balance</div>
-                            <div className="text-3xl font-bold text-white">${Number(wallet?.balance || 0).toFixed(2)}</div>
+                            <div className="text-3xl font-bold text-white">{formatAmount(wallet?.balance || 0)}</div>
                         </div>
                         <div className="mt-8 flex gap-3">
                             <button className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded-xl font-medium transition-colors text-sm">
@@ -159,7 +162,7 @@ export default function PaymentsPage() {
                         </div>
                         <div>
                             <div className="text-slate-400 text-sm font-medium mb-1">Pending Clearance</div>
-                            <div className="text-3xl font-bold text-white">${Number(wallet?.pendingBalance || 0).toFixed(2)}</div>
+                            <div className="text-3xl font-bold text-white">{formatAmount(wallet?.pendingBalance || 0)}</div>
                         </div>
                         <div className="mt-8">
                             <div className="text-xs text-slate-500 bg-slate-800/50 p-2 rounded-lg">
@@ -175,7 +178,7 @@ export default function PaymentsPage() {
                         </div>
                         <div>
                             <div className="text-slate-400 text-sm font-medium mb-1">Total Earnings</div>
-                            <div className="text-3xl font-bold text-white">${totalEarnings.toFixed(2)}</div>
+                            <div className="text-3xl font-bold text-white">{formatAmount(totalEarnings)}</div>
                         </div>
                         <div className="mt-8">
                             <div className="text-xs text-slate-400 bg-blue-500/10 inline-block px-2 py-1 rounded">
@@ -232,7 +235,7 @@ export default function PaymentsPage() {
                                         fontSize={12}
                                         tickLine={false}
                                         axisLine={false}
-                                        tickFormatter={(val) => `$${val}`}
+                                        tickFormatter={(val) => formatAmount(val)}
                                     />
                                     <Tooltip
                                         cursor={{ fill: 'rgba(255,255,255,0.05)' }}
@@ -242,7 +245,7 @@ export default function PaymentsPage() {
                                             borderRadius: '12px',
                                             color: '#fff'
                                         }}
-                                        formatter={(val: any) => [`$${(val || 0).toFixed(2)}`, 'Earnings']}
+                                        formatter={(val: any) => [formatAmount(val || 0), 'Earnings']}
                                     />
                                     <Bar
                                         dataKey="totalEarnings"
@@ -438,30 +441,30 @@ export default function PaymentsPage() {
                                                 <td className={`p-4 text-right font-medium ${tx.type === 'DEPOSIT' || (tx.type === 'PAYMENT' && tx.status === 'COMPLETED') ? 'text-green-400' : 'text-slate-300'}`}>
                                                     <div className="flex flex-col items-end">
                                                         <div>
-                                                            {tx.type === 'DEPOSIT' || tx.type === 'PAYMENT' ? '+' : '-'}${Number(tx.amount).toFixed(2)}
+                                                            {tx.type === 'DEPOSIT' || tx.type === 'PAYMENT' ? '+' : '-'}{formatAmount(tx.amount)}
                                                         </div>
                                                         {tx.type === 'PAYMENT' && tx.feeAmount && Number(tx.feeAmount) > 0 && (
                                                             <div className="text-[10px] text-slate-500 font-normal mt-1 flex items-center gap-1 group/fee relative">
-                                                                <span>Incl. ${(Number(tx.feeAmount) + Number(tx.taxAmount || 0)).toFixed(2)} fees</span>
+                                                                <span>Incl. {formatAmount(Number(tx.feeAmount) + Number(tx.taxAmount || 0))} fees</span>
                                                                 <div className="absolute bottom-full right-0 mb-2 w-48 p-3 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl opacity-0 group-hover/fee:opacity-100 transition-all duration-200 pointer-events-none z-50 transform translate-y-2 group-hover/fee:translate-y-0 text-left">
                                                                     <div className="space-y-2 text-xs">
                                                                         <div className="flex justify-between border-b border-slate-800 pb-2 mb-2">
                                                                             <span className="text-slate-400">Total Charged</span>
-                                                                            <span className="text-white font-bold">${(Number(tx.amount) + Number(tx.feeAmount) + Number(tx.taxAmount || 0)).toFixed(2)}</span>
+                                                                            <span className="text-white font-bold">{formatAmount(Number(tx.amount) + Number(tx.feeAmount) + Number(tx.taxAmount || 0))}</span>
                                                                         </div>
                                                                         <div className="flex justify-between">
                                                                             <span className="text-slate-400">Platform Fee</span>
-                                                                            <span className="text-slate-300">-${Number(tx.feeAmount).toFixed(2)}</span>
+                                                                            <span className="text-slate-300">-{formatAmount(tx.feeAmount)}</span>
                                                                         </div>
                                                                         {tx.taxAmount && Number(tx.taxAmount) > 0 && (
                                                                             <div className="flex justify-between">
                                                                                 <span className="text-slate-400">Tax</span>
-                                                                                <span className="text-slate-300">-${Number(tx.taxAmount).toFixed(2)}</span>
+                                                                                <span className="text-slate-300">-{formatAmount(tx.taxAmount)}</span>
                                                                             </div>
                                                                         )}
                                                                         <div className="flex justify-between border-t border-slate-800 pt-2 mt-2 font-bold bg-slate-800/50 -mx-3 px-3 py-1 rounded-b-xl">
                                                                             <span className="text-slate-200">You Receive</span>
-                                                                            <span className="text-green-400">${Number(tx.amount).toFixed(2)}</span>
+                                                                            <span className="text-green-400">{formatAmount(tx.amount)}</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -470,6 +473,8 @@ export default function PaymentsPage() {
                                                     </div>
                                                 </td>
                                             </tr>
+                                        ))}
+                                    </tbody>
                                 </table>
 
                                 {/* Pagination UI */}

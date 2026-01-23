@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import { AccessDenied } from '@/components/AccessDenied';
 import {
     Search,
     Bell,
@@ -26,8 +27,14 @@ export default function AdminLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { authenticated, username, logout } = useKeycloak();
+    const { authenticated, username, logout, roles } = useKeycloak();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+    const isAdmin = roles.includes('ADMIN');
+
+    if (authenticated && !isAdmin) {
+        return <AccessDenied requiredRole="ADMIN" />;
+    }
 
     return (
         <div className="flex min-h-screen bg-slate-950 text-slate-200">

@@ -36,6 +36,23 @@ let CloudsService = class CloudsService {
         await this.notifyUserService(data.ownerId, { hasCloudOwnership: true });
         return cloud;
     }
+    async getCloudsForUser(userId) {
+        return this.prisma.talentCloud.findMany({
+            where: {
+                members: {
+                    some: {
+                        userId: userId,
+                        status: 'ACTIVE'
+                    }
+                }
+            },
+            include: {
+                _count: {
+                    select: { members: true }
+                }
+            }
+        });
+    }
     async inviteMember(cloudId, inviteeId, inviterId) {
         const invitation = await this.prisma.talentCloudInvitation.create({
             data: {
@@ -88,6 +105,25 @@ let CloudsService = class CloudsService {
         });
     }
     async addMember(cloudId, userId, role = 'MEMBER') {
+        const cloud = await this.prisma.talentCloud.findUnique({
+            where: { id: cloudId },
+            include: { policies: true }
+        });
+        if (!cloud)
+            throw new Error('Cloud not found');
+        if (cloud.policies.length > 0) {
+            const userProfile = await this.getUserProfile(userId);
+            for (const policy of cloud.policies) {
+                if (policy.type === 'REQUIRED_BADGE' && policy.isActive) {
+                    const config = policy.config;
+                    const requiredBadge = config?.badge;
+                    const hasBadge = userProfile.badges?.some((b) => b.name === requiredBadge || b.slug === requiredBadge);
+                    if (!hasBadge) {
+                        throw new Error(`User does not have the required badge: ${requiredBadge}`);
+                    }
+                }
+            }
+        }
         const member = await this.prisma.talentCloudMember.upsert({
             where: { cloudId_userId: { cloudId, userId } },
             update: { role, status: 'ACTIVE' },
@@ -97,14 +133,42 @@ let CloudsService = class CloudsService {
         return member;
     }
     async addMembersBulk(cloudId, userIds, role = 'MEMBER') {
-        const operations = userIds.map(userId => this.prisma.talentCloudMember.upsert({
-            where: { cloudId_userId: { cloudId, userId } },
-            update: { role, status: 'ACTIVE' },
-            create: { cloudId, userId, role, status: 'ACTIVE' }
-        }));
-        const results = await Promise.all(operations);
-        await Promise.all(userIds.map(userId => this.notifyUserService(userId, { isCloudMember: true, cloudId }).catch(() => { })));
-        return { count: results.length };
+        const cloud = await this.prisma.talentCloud.findUnique({
+            where: { id: cloudId },
+            include: { policies: true }
+        });
+        if (!cloud)
+            throw new Error('Cloud not found');
+        const successfulUserIds = [];
+        const errors = [];
+        for (const userId of userIds) {
+            try {
+                if (cloud.policies.length > 0) {
+                    const userProfile = await this.getUserProfile(userId);
+                    for (const policy of cloud.policies) {
+                        if (policy.type === 'REQUIRED_BADGE' && policy.isActive) {
+                            const config = policy.config;
+                            const requiredBadge = config?.badge;
+                            const hasBadge = userProfile.badges?.some((b) => b.name === requiredBadge || b.slug === requiredBadge);
+                            if (!hasBadge) {
+                                throw new Error(`User ${userId} does not have the required badge: ${requiredBadge}`);
+                            }
+                        }
+                    }
+                }
+                await this.prisma.talentCloudMember.upsert({
+                    where: { cloudId_userId: { cloudId, userId } },
+                    update: { role, status: 'ACTIVE' },
+                    create: { cloudId, userId, role, status: 'ACTIVE' }
+                });
+                successfulUserIds.push(userId);
+            }
+            catch (err) {
+                errors.push({ userId, error: err.message });
+            }
+        }
+        await Promise.all(successfulUserIds.map(userId => this.notifyUserService(userId, { isCloudMember: true, cloudId }).catch(() => { })));
+        return { successfulCount: successfulUserIds.length, errors };
     }
     async removeMember(cloudId, userId) {
         await this.prisma.talentCloudMember.deleteMany({ where: { cloudId, userId } });

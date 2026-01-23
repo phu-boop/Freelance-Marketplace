@@ -1,107 +1,63 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-    LayoutDashboard,
-    Briefcase,
-    FileText,
-    MessageSquare,
-    Bell,
-    User,
-    Settings,
-    Users,
-    GraduationCap,
-    Building,
-    Search,
-    PlusCircle,
-    BarChart2,
-    LogOut
-} from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
-import { cn } from '@/lib/utils';
-
-const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-    { icon: Search, label: 'Find Jobs', href: '/marketplace' },
-    { icon: Briefcase, label: 'My Jobs', href: '/my-jobs' },
-    { icon: PlusCircle, label: 'Post a Job', href: '/marketplace/create' },
-    { icon: FileText, label: 'My Proposals', href: '/proposals' },
-    { icon: Briefcase, label: 'My Contracts', href: '/contracts' },
-    { icon: Users, label: 'Talent Clouds', href: '/clouds' },
-    { icon: BarChart2, label: 'Analytics', href: '/analytics' },
-    { icon: Building, label: 'Agency', href: '/agency' },
-    { icon: GraduationCap, label: 'Academy', href: '/community/academy' },
-    { icon: MessageSquare, label: 'Forum', href: '/community/forum' },
-    { icon: MessageSquare, label: 'Messages', href: '/messages' },
-    { icon: Bell, label: 'Notifications', href: '/notifications' },
-    { icon: User, label: 'Profile', href: '/profile' },
-    { icon: Settings, label: 'Settings', href: '/settings/profile' },
-];
+import { FreelancerSidebar } from './FreelancerSidebar';
+import { ClientSidebar } from './ClientSidebar';
+import { AdminSidebar } from './AdminSidebar';
+import { AgencySidebar } from './AgencySidebar';
 
 export function Sidebar() {
     const pathname = usePathname();
-    const { logout, roles } = useKeycloak();
+    const { roles, authenticated } = useKeycloak();
 
-    const isClient = roles.includes('CLIENT');
+    // Sticky mode logic using sessionStorage
+    const [activeMode, setActiveMode] = React.useState<string | null>(null);
 
-    const filteredMenu = menuItems.map(item => {
-        if (item.label === 'Analytics' && isClient) {
-            return { ...item, href: '/client/analytics' };
-        }
-        return item;
-    }).filter(item => {
-        if (isClient) {
-            // Clients don't see "Find Jobs" or "My Proposals"
-            return !['/marketplace', '/proposals'].includes(item.href);
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const savedMode = sessionStorage.getItem('dashboard_mode');
+
+        // Update mode based on explicit route markers
+        if (pathname.startsWith('/admin')) {
+            sessionStorage.setItem('dashboard_mode', 'admin');
+            setActiveMode('admin');
+        } else if (pathname.startsWith('/client')) {
+            sessionStorage.setItem('dashboard_mode', 'client');
+            setActiveMode('client');
+        } else if (pathname.startsWith('/dashboard') || pathname.startsWith('/proposals') || pathname.startsWith('/contracts') || pathname.startsWith('/marketplace')) {
+            // Note: /marketplace browse is freelancer-only in current design
+            sessionStorage.setItem('dashboard_mode', 'freelancer');
+            setActiveMode('freelancer');
+        } else if (savedMode) {
+            setActiveMode(savedMode);
         } else {
-            // Freelancers don't see "Post a Job"
-            return !['/marketplace/create'].includes(item.href);
+            // Default based on roles if no saved mode
+            const defaultMode = roles.includes('CLIENT') ? 'client' : 'freelancer';
+            setActiveMode(defaultMode);
         }
-    });
+    }, [pathname, roles]);
 
-    return (
-        <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col h-screen sticky top-0">
-            <div className="p-6">
-                <Link href="/dashboard" className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <Briefcase className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-xl font-bold text-white">FreelanceHub</span>
-                </Link>
-            </div>
+    if (!authenticated) return null;
 
-            <nav className="flex-1 px-4 space-y-1">
-                {filteredMenu.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={cn(
-                                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-nowrap whitespace-nowrap overflow-hidden",
-                                isActive
-                                    ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
-                                    : "text-slate-400 hover:text-white hover:bg-slate-900"
-                            )}
-                        >
-                            <item.icon className="w-5 h-5 shrink-0" />
-                            <span className="truncate">{item.label}</span>
-                        </Link>
-                    );
-                })}
-            </nav>
+    // 1. Admin Mode
+    if (activeMode === 'admin' && (roles.includes('ADMIN') || roles.includes('realm:ADMIN'))) {
+        return <AdminSidebar />;
+    }
 
-            <div className="p-4 border-t border-slate-800">
-                <button
-                    onClick={logout}
-                    className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
-                >
-                    <LogOut className="w-5 h-5" />
-                    Logout
-                </button>
-            </div>
-        </aside>
-    );
+    // 2. Agency Context (Special Case)
+    if (pathname.startsWith('/agency/') && pathname.split('/').length > 2) {
+        return <AgencySidebar />;
+    }
+
+    // 3. Client Mode
+    if (activeMode === 'client') {
+        return <ClientSidebar />;
+    }
+
+    // 4. Default / Freelancer Mode
+    return <FreelancerSidebar />;
 }
+

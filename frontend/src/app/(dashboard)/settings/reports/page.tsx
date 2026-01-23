@@ -169,7 +169,7 @@ export default function ClientReportsPage() {
                                 <RechartsTooltip
                                     contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '12px' }}
                                     itemStyle={{ color: '#94a3b8', fontWeight: 600 }}
-                                    formatter={(value: number) => `$${value.toLocaleString()}`}
+                                    formatter={(value: any) => `$${Number(value || 0).toLocaleString()}`}
                                 />
                                 <Legend
                                     verticalAlign="bottom"

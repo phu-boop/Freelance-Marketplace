@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
@@ -56,6 +57,7 @@ import { PerformanceInterceptor } from './common/interceptors/performance.interc
     AnalyticsModule,
     AiModule,
     VettingModule,
+    ScheduleModule.forRoot(),
     KeycloakConnectModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

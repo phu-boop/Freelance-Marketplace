@@ -22,6 +22,39 @@ model TalentCloud {
   updatedAt   DateTime @updatedAt
   members     TalentCloudMember[]
   invitations TalentCloudInvitation[]
+  budgets     CloudBudget[]
+  policies    CloudPolicy[]
+
+  @@schema("talent_clouds")
+}
+
+model CloudBudget {
+  id          String   @id @default(uuid())
+  cloudId     String
+  amount      Decimal
+  currency    String   @default("USD")
+  period      String   // MONTHLY, QUARTERLY, PROJECT
+  startDate   DateTime
+  endDate     DateTime?
+  spent       Decimal  @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  cloud       TalentCloud @relation(fields: [cloudId], references: [id])
+  
+  @@schema("talent_clouds")
+}
+
+model CloudPolicy {
+  id          String   @id @default(uuid())
+  cloudId     String
+  type        PolicyType
+  config      Json     // Flexible configuration
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cloud       TalentCloud @relation(fields: [cloudId], references: [id])
 
   @@schema("talent_clouds")
 }
@@ -82,5 +115,14 @@ enum InvitationStatus {
   ACCEPTED
   REJECTED
   EXPIRED
+  @@schema("talent_clouds")
+}
+
+enum PolicyType {
+  RATE_LIMIT
+  REQUIRED_SKILL
+  REQUIRED_BADGE
+  LOCATION_RESTRICTION
+  CUSTOM
   @@schema("talent_clouds")
 }

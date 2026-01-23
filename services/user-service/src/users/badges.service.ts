@@ -1,11 +1,38 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class BadgesService {
   private readonly logger = new Logger(BadgesService.name);
 
   constructor(private prisma: PrismaService) { }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async handleNightlyScan() {
+    this.logger.log('Starting nightly badge eligibility scan...');
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { status: 'ACTIVE' },
+        select: { id: true },
+      });
+
+      this.logger.log(`Found ${users.length} active users to scan.`);
+
+      let processed = 0;
+      for (const user of users) {
+        await this.checkEligibility(user.id);
+        processed++;
+        if (processed % 100 === 0) {
+          this.logger.log(`Processed ${processed}/${users.length} users...`);
+        }
+      }
+
+      this.logger.log('Nightly badge scan completed successfully.');
+    } catch (error) {
+      this.logger.error('Error during nightly badge scan', error);
+    }
+  }
 
   async checkEligibility(userId: string) {
     const user = await this.prisma.user.findUnique({

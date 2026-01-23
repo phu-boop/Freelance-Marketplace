@@ -24,9 +24,9 @@ export class ProposalsService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: createProposalDto.freelancer_id,
+          userId: createProposalDto.freelancerId,
           amount: totalConnects,
-          reason: `Proposal submission for job ${createProposalDto.job_id}${boostAmount > 0 ? ' (Boosted)' : ''}`
+          reason: `Proposal submission for job ${createProposalDto.jobId}${boostAmount > 0 ? ' (Boosted)' : ''}`
         }),
       });
 
@@ -44,14 +44,17 @@ export class ProposalsService {
 
     // 2. Create proposal
     try {
+      const { jobId, freelancerId, ...rest } = createProposalDto;
       const proposal = await this.prisma.proposal.create({
         data: {
-          ...createProposalDto,
+          ...rest,
+          job_id: jobId,
+          freelancer_id: freelancerId,
           isBoosted: boostAmount > 0,
         },
       });
 
-      this.trackEvent('proposal_sent', createProposalDto.freelancer_id, createProposalDto.job_id, {
+      this.trackEvent('proposal_sent', createProposalDto.freelancerId, createProposalDto.jobId, {
         isBoosted: boostAmount > 0,
         boostAmount,
       });
