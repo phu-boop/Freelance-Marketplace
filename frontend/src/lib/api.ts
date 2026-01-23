@@ -11,6 +11,7 @@ const api = axios.create({
 const PUBLIC_ENDPOINTS = [
     '/auth/login',
     '/auth/register',
+    '/auth/forgot-password',
     '/auth/login/2fa',
     '/jobs/categories',
     '/jobs/skills',

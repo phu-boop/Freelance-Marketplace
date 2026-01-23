@@ -13,32 +13,7 @@ import { Public } from 'nest-keycloak-connect';
 @Controller('api/auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
-  constructor(private readonly usersService: UsersService) {}
-
-  @Public()
-  @Post('register')
-  register(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.register(createUserDto);
-  }
-
-  @Public()
-  @Post('login')
-  login(@Body() credentials: { email: string; password: string }) {
-    this.logger.log(`Login attempt for email: ${credentials.email}`);
-    return this.usersService.login(credentials);
-  }
-
-  @Public()
-  @Post('login/2fa')
-  verifyLoginTwoFactor(@Body() body: { tempToken: string; code: string }) {
-    return this.usersService.verifyLoginTwoFactor(body.tempToken, body.code);
-  }
-
-  @Public()
-  @Post('forgot-password')
-  forgotPassword(@Body() data: { email: string }) {
-    return this.usersService.forgotPassword(data.email);
-  }
+  constructor(private readonly usersService: UsersService) { }
 
   @Post('sync')
   async sync(@Request() req, @Body() data: { role?: string }) {
@@ -63,5 +38,11 @@ export class AuthController {
       return this.usersService.resendVerificationEmail(req.user.sub);
     }
     throw new UnauthorizedException('User not authenticated');
+  }
+
+  @Public()
+  @Post('forgot-password')
+  forgotPassword(@Body() data: { email: string }) {
+    return this.usersService.forgotPassword(data.email);
   }
 }

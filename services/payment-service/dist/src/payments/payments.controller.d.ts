@@ -21,12 +21,12 @@ export declare class PaymentsController {
     }>;
     updateCryptoAddress(req: any, address: string): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -41,12 +41,12 @@ export declare class PaymentsController {
     }>;
     updatePreferredCurrency(req: any, currency: string): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -84,30 +84,14 @@ export declare class PaymentsController {
     getAgencyTransactions(agencyId: string, query: ListTransactionsDto): Promise<{
         total: number;
         data: ({
-            invoice: {
-                id: string;
-                amount: import("@prisma/client/runtime/library").Decimal;
-                status: string;
-                createdAt: Date;
-                feeAmount: import("@prisma/client/runtime/library").Decimal;
-                taxAmount: import("@prisma/client/runtime/library").Decimal;
-                currency: string;
-                updatedAt: Date;
-                invoiceNumber: string;
-                senderId: string;
-                receiverId: string;
-                dueDate: Date | null;
-                paidAt: Date | null;
-                items: import("@prisma/client/runtime/library").JsonValue;
-            } | null;
             wallet: {
                 id: string;
-                createdAt: Date;
                 userId: string;
                 balance: import("@prisma/client/runtime/library").Decimal;
                 currency: string;
                 preferredCurrency: string;
                 cryptoAddress: string | null;
+                createdAt: Date;
                 updatedAt: Date;
                 autoWithdrawalEnabled: boolean;
                 autoWithdrawalSchedule: string | null;
@@ -120,21 +104,37 @@ export declare class PaymentsController {
                 paymentMethodId: string | null;
                 connectsBalance: number;
             };
+            invoice: {
+                id: string;
+                currency: string;
+                createdAt: Date;
+                updatedAt: Date;
+                taxAmount: import("@prisma/client/runtime/library").Decimal;
+                amount: import("@prisma/client/runtime/library").Decimal;
+                status: string;
+                feeAmount: import("@prisma/client/runtime/library").Decimal;
+                invoiceNumber: string;
+                senderId: string;
+                receiverId: string;
+                dueDate: Date | null;
+                paidAt: Date | null;
+                items: import("@prisma/client/runtime/library").JsonValue;
+            } | null;
         } & {
             id: string;
+            createdAt: Date;
+            type: string;
+            taxAmount: import("@prisma/client/runtime/library").Decimal;
             walletId: string;
             amount: import("@prisma/client/runtime/library").Decimal;
-            type: string;
             status: string;
             referenceId: string | null;
             departmentId: string | null;
             costCenter: string | null;
             description: string | null;
-            createdAt: Date;
             clearedAt: Date | null;
             feeAmount: import("@prisma/client/runtime/library").Decimal;
             invoiceId: string | null;
-            taxAmount: import("@prisma/client/runtime/library").Decimal;
         })[];
     }>;
     withdrawAgency(req: any, body: {
@@ -144,12 +144,12 @@ export declare class PaymentsController {
         instant?: boolean;
     }): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -177,10 +177,10 @@ export declare class PaymentsController {
     }>;
     getConnectsHistory(req: any): Promise<{
         id: string;
-        amount: number;
-        type: string;
-        createdAt: Date;
         userId: string;
+        createdAt: Date;
+        type: string;
+        amount: number;
         reason: string | null;
     }[]>;
     rewardConnects(body: {
@@ -189,12 +189,12 @@ export declare class PaymentsController {
         reason: string;
     }): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -213,12 +213,12 @@ export declare class PaymentsController {
         reason: string;
     }): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -237,12 +237,12 @@ export declare class PaymentsController {
         reason: string;
     }): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -261,12 +261,12 @@ export declare class PaymentsController {
         referenceId: string;
     }): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -285,12 +285,12 @@ export declare class PaymentsController {
         instant?: boolean;
     }): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -306,30 +306,14 @@ export declare class PaymentsController {
     getTransactions(query: ListTransactionsDto, req: any): Promise<{
         total: number;
         data: ({
-            invoice: {
-                id: string;
-                amount: import("@prisma/client/runtime/library").Decimal;
-                status: string;
-                createdAt: Date;
-                feeAmount: import("@prisma/client/runtime/library").Decimal;
-                taxAmount: import("@prisma/client/runtime/library").Decimal;
-                currency: string;
-                updatedAt: Date;
-                invoiceNumber: string;
-                senderId: string;
-                receiverId: string;
-                dueDate: Date | null;
-                paidAt: Date | null;
-                items: import("@prisma/client/runtime/library").JsonValue;
-            } | null;
             wallet: {
                 id: string;
-                createdAt: Date;
                 userId: string;
                 balance: import("@prisma/client/runtime/library").Decimal;
                 currency: string;
                 preferredCurrency: string;
                 cryptoAddress: string | null;
+                createdAt: Date;
                 updatedAt: Date;
                 autoWithdrawalEnabled: boolean;
                 autoWithdrawalSchedule: string | null;
@@ -342,64 +326,64 @@ export declare class PaymentsController {
                 paymentMethodId: string | null;
                 connectsBalance: number;
             };
+            invoice: {
+                id: string;
+                currency: string;
+                createdAt: Date;
+                updatedAt: Date;
+                taxAmount: import("@prisma/client/runtime/library").Decimal;
+                amount: import("@prisma/client/runtime/library").Decimal;
+                status: string;
+                feeAmount: import("@prisma/client/runtime/library").Decimal;
+                invoiceNumber: string;
+                senderId: string;
+                receiverId: string;
+                dueDate: Date | null;
+                paidAt: Date | null;
+                items: import("@prisma/client/runtime/library").JsonValue;
+            } | null;
         } & {
             id: string;
+            createdAt: Date;
+            type: string;
+            taxAmount: import("@prisma/client/runtime/library").Decimal;
             walletId: string;
             amount: import("@prisma/client/runtime/library").Decimal;
-            type: string;
             status: string;
             referenceId: string | null;
             departmentId: string | null;
             costCenter: string | null;
             description: string | null;
-            createdAt: Date;
             clearedAt: Date | null;
             feeAmount: import("@prisma/client/runtime/library").Decimal;
             invoiceId: string | null;
-            taxAmount: import("@prisma/client/runtime/library").Decimal;
         })[];
     }>;
     getTransactionsByReference(referenceId: string, req: any): Promise<{
         id: string;
+        createdAt: Date;
+        type: string;
+        taxAmount: import("@prisma/client/runtime/library").Decimal;
         walletId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
         costCenter: string | null;
         description: string | null;
-        createdAt: Date;
         clearedAt: Date | null;
         feeAmount: import("@prisma/client/runtime/library").Decimal;
         invoiceId: string | null;
-        taxAmount: import("@prisma/client/runtime/library").Decimal;
     }[]>;
     getTransaction(id: string, req: any): Promise<{
-        invoice: {
-            id: string;
-            amount: import("@prisma/client/runtime/library").Decimal;
-            status: string;
-            createdAt: Date;
-            feeAmount: import("@prisma/client/runtime/library").Decimal;
-            taxAmount: import("@prisma/client/runtime/library").Decimal;
-            currency: string;
-            updatedAt: Date;
-            invoiceNumber: string;
-            senderId: string;
-            receiverId: string;
-            dueDate: Date | null;
-            paidAt: Date | null;
-            items: import("@prisma/client/runtime/library").JsonValue;
-        } | null;
         wallet: {
             id: string;
-            createdAt: Date;
             userId: string;
             balance: import("@prisma/client/runtime/library").Decimal;
             currency: string;
             preferredCurrency: string;
             cryptoAddress: string | null;
+            createdAt: Date;
             updatedAt: Date;
             autoWithdrawalEnabled: boolean;
             autoWithdrawalSchedule: string | null;
@@ -412,21 +396,37 @@ export declare class PaymentsController {
             paymentMethodId: string | null;
             connectsBalance: number;
         };
+        invoice: {
+            id: string;
+            currency: string;
+            createdAt: Date;
+            updatedAt: Date;
+            taxAmount: import("@prisma/client/runtime/library").Decimal;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            status: string;
+            feeAmount: import("@prisma/client/runtime/library").Decimal;
+            invoiceNumber: string;
+            senderId: string;
+            receiverId: string;
+            dueDate: Date | null;
+            paidAt: Date | null;
+            items: import("@prisma/client/runtime/library").JsonValue;
+        } | null;
     } & {
         id: string;
+        createdAt: Date;
+        type: string;
+        taxAmount: import("@prisma/client/runtime/library").Decimal;
         walletId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
         costCenter: string | null;
         description: string | null;
-        createdAt: Date;
         clearedAt: Date | null;
         feeAmount: import("@prisma/client/runtime/library").Decimal;
         invoiceId: string | null;
-        taxAmount: import("@prisma/client/runtime/library").Decimal;
     }>;
     approveTransaction(id: string, req: any): Promise<{
         success: boolean;
@@ -441,47 +441,31 @@ export declare class PaymentsController {
     }>;
     updateTransactionStatus(id: string, body: UpdateTransactionStatusDto, req: any): Promise<{
         id: string;
+        createdAt: Date;
+        type: string;
+        taxAmount: import("@prisma/client/runtime/library").Decimal;
         walletId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
         costCenter: string | null;
         description: string | null;
-        createdAt: Date;
         clearedAt: Date | null;
         feeAmount: import("@prisma/client/runtime/library").Decimal;
         invoiceId: string | null;
-        taxAmount: import("@prisma/client/runtime/library").Decimal;
     }>;
     getAllTransactionsAdmin(query: ListTransactionsDto): Promise<{
         total: number;
         data: ({
-            invoice: {
-                id: string;
-                amount: import("@prisma/client/runtime/library").Decimal;
-                status: string;
-                createdAt: Date;
-                feeAmount: import("@prisma/client/runtime/library").Decimal;
-                taxAmount: import("@prisma/client/runtime/library").Decimal;
-                currency: string;
-                updatedAt: Date;
-                invoiceNumber: string;
-                senderId: string;
-                receiverId: string;
-                dueDate: Date | null;
-                paidAt: Date | null;
-                items: import("@prisma/client/runtime/library").JsonValue;
-            } | null;
             wallet: {
                 id: string;
-                createdAt: Date;
                 userId: string;
                 balance: import("@prisma/client/runtime/library").Decimal;
                 currency: string;
                 preferredCurrency: string;
                 cryptoAddress: string | null;
+                createdAt: Date;
                 updatedAt: Date;
                 autoWithdrawalEnabled: boolean;
                 autoWithdrawalSchedule: string | null;
@@ -494,21 +478,37 @@ export declare class PaymentsController {
                 paymentMethodId: string | null;
                 connectsBalance: number;
             };
+            invoice: {
+                id: string;
+                currency: string;
+                createdAt: Date;
+                updatedAt: Date;
+                taxAmount: import("@prisma/client/runtime/library").Decimal;
+                amount: import("@prisma/client/runtime/library").Decimal;
+                status: string;
+                feeAmount: import("@prisma/client/runtime/library").Decimal;
+                invoiceNumber: string;
+                senderId: string;
+                receiverId: string;
+                dueDate: Date | null;
+                paidAt: Date | null;
+                items: import("@prisma/client/runtime/library").JsonValue;
+            } | null;
         } & {
             id: string;
+            createdAt: Date;
+            type: string;
+            taxAmount: import("@prisma/client/runtime/library").Decimal;
             walletId: string;
             amount: import("@prisma/client/runtime/library").Decimal;
-            type: string;
             status: string;
             referenceId: string | null;
             departmentId: string | null;
             costCenter: string | null;
             description: string | null;
-            createdAt: Date;
             clearedAt: Date | null;
             feeAmount: import("@prisma/client/runtime/library").Decimal;
             invoiceId: string | null;
-            taxAmount: import("@prisma/client/runtime/library").Decimal;
         })[];
     }>;
     addWithdrawalMethod(req: any, body: {
@@ -520,10 +520,10 @@ export declare class PaymentsController {
         isInstantCapable?: boolean;
     }): Promise<{
         id: string;
-        type: string;
-        createdAt: Date;
         userId: string;
+        createdAt: Date;
         updatedAt: Date;
+        type: string;
         provider: string | null;
         accountNumber: string;
         accountName: string;
@@ -532,10 +532,10 @@ export declare class PaymentsController {
     }>;
     getWithdrawalMethods(req: any): Promise<{
         id: string;
-        type: string;
-        createdAt: Date;
         userId: string;
+        createdAt: Date;
         updatedAt: Date;
+        type: string;
         provider: string | null;
         accountNumber: string;
         accountName: string;
@@ -544,10 +544,10 @@ export declare class PaymentsController {
     }[]>;
     deleteWithdrawalMethod(req: any, id: string): Promise<{
         id: string;
-        type: string;
-        createdAt: Date;
         userId: string;
+        createdAt: Date;
         updatedAt: Date;
+        type: string;
         provider: string | null;
         accountNumber: string;
         accountName: string;
@@ -556,12 +556,12 @@ export declare class PaymentsController {
     }>;
     updateAutoWithdrawal(req: any, body: UpdateAutoWithdrawalDto): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;
@@ -581,8 +581,8 @@ export declare class PaymentsController {
     }): Promise<{
         id: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         countryCode: string;
         taxRate: import("@prisma/client/runtime/library").Decimal;
         brackets: import("@prisma/client/runtime/library").JsonValue | null;
@@ -591,8 +591,8 @@ export declare class PaymentsController {
     findAllTaxSettings(): Promise<{
         id: string;
         createdAt: Date;
-        name: string;
         updatedAt: Date;
+        name: string;
         countryCode: string;
         taxRate: import("@prisma/client/runtime/library").Decimal;
         brackets: import("@prisma/client/runtime/library").JsonValue | null;
@@ -603,10 +603,10 @@ export declare class PaymentsController {
         price: number;
     }): Promise<{
         id: string;
-        status: string;
-        createdAt: Date;
         userId: string;
+        createdAt: Date;
         updatedAt: Date;
+        status: string;
         planId: string;
         price: import("@prisma/client/runtime/library").Decimal;
         nextBillingDate: Date;
@@ -615,10 +615,10 @@ export declare class PaymentsController {
     }>;
     getSubscription(req: any): Promise<{
         id: string;
-        status: string;
-        createdAt: Date;
         userId: string;
+        createdAt: Date;
         updatedAt: Date;
+        status: string;
         planId: string;
         price: import("@prisma/client/runtime/library").Decimal;
         nextBillingDate: Date;
@@ -638,19 +638,19 @@ export declare class PaymentsController {
         agencyRevenueSplit?: any;
     }): Promise<{
         id: string;
+        createdAt: Date;
+        type: string;
+        taxAmount: import("@prisma/client/runtime/library").Decimal;
         walletId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
         costCenter: string | null;
         description: string | null;
-        createdAt: Date;
         clearedAt: Date | null;
         feeAmount: import("@prisma/client/runtime/library").Decimal;
         invoiceId: string | null;
-        taxAmount: import("@prisma/client/runtime/library").Decimal;
     }>;
     requestEscrowApproval(body: {
         contractId: string;
@@ -659,19 +659,19 @@ export declare class PaymentsController {
         amount: number;
     }): Promise<{
         id: string;
+        createdAt: Date;
+        type: string;
+        taxAmount: import("@prisma/client/runtime/library").Decimal;
         walletId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
         costCenter: string | null;
         description: string | null;
-        createdAt: Date;
         clearedAt: Date | null;
         feeAmount: import("@prisma/client/runtime/library").Decimal;
         invoiceId: string | null;
-        taxAmount: import("@prisma/client/runtime/library").Decimal;
     }>;
     splitEscrowRelease(body: {
         contractId: string;
@@ -687,19 +687,19 @@ export declare class PaymentsController {
         milestoneId: string;
     }): Promise<{
         id: string;
+        createdAt: Date;
+        type: string;
+        taxAmount: import("@prisma/client/runtime/library").Decimal;
         walletId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
         costCenter: string | null;
         description: string | null;
-        createdAt: Date;
         clearedAt: Date | null;
         feeAmount: import("@prisma/client/runtime/library").Decimal;
         invoiceId: string | null;
-        taxAmount: import("@prisma/client/runtime/library").Decimal;
     }>;
     processPayroll(body: {
         contractId: string;
@@ -745,12 +745,12 @@ export declare class PaymentsController {
         contractId: string;
     }): Promise<{
         id: string;
-        createdAt: Date;
         userId: string;
         balance: import("@prisma/client/runtime/library").Decimal;
         currency: string;
         preferredCurrency: string;
         cryptoAddress: string | null;
+        createdAt: Date;
         updatedAt: Date;
         autoWithdrawalEnabled: boolean;
         autoWithdrawalSchedule: string | null;

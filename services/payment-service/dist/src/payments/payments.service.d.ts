@@ -212,10 +212,10 @@ export declare class PaymentsService {
             currency: string;
             createdAt: Date;
             updatedAt: Date;
+            taxAmount: Prisma.Decimal;
             amount: Prisma.Decimal;
             status: string;
             feeAmount: Prisma.Decimal;
-            taxAmount: Prisma.Decimal;
             invoiceNumber: string;
             senderId: string;
             receiverId: string;
@@ -226,9 +226,10 @@ export declare class PaymentsService {
     } & {
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -237,7 +238,6 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     }>;
     listTransactions(userId?: string, opts?: {
         limit?: number;
@@ -272,10 +272,10 @@ export declare class PaymentsService {
                 currency: string;
                 createdAt: Date;
                 updatedAt: Date;
+                taxAmount: Prisma.Decimal;
                 amount: Prisma.Decimal;
                 status: string;
                 feeAmount: Prisma.Decimal;
-                taxAmount: Prisma.Decimal;
                 invoiceNumber: string;
                 senderId: string;
                 receiverId: string;
@@ -286,9 +286,10 @@ export declare class PaymentsService {
         } & {
             id: string;
             createdAt: Date;
+            type: string;
+            taxAmount: Prisma.Decimal;
             walletId: string;
             amount: Prisma.Decimal;
-            type: string;
             status: string;
             referenceId: string | null;
             departmentId: string | null;
@@ -297,15 +298,15 @@ export declare class PaymentsService {
             clearedAt: Date | null;
             feeAmount: Prisma.Decimal;
             invoiceId: string | null;
-            taxAmount: Prisma.Decimal;
         })[];
     }>;
     updateTransactionStatus(id: string, status: string, actorId: string): Promise<{
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -314,7 +315,6 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     }>;
     getAgencyRevenue(agencyId: string): Promise<{
         total: number;
@@ -322,9 +322,10 @@ export declare class PaymentsService {
     getTransactionsByReference(referenceId: string): Promise<{
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -333,7 +334,6 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     }[]>;
     getAllTransactions(limit?: number, offset?: number): Promise<({
         wallet: {
@@ -359,9 +359,10 @@ export declare class PaymentsService {
     } & {
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -370,7 +371,6 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     })[]>;
     getMetrics(): Promise<{
         totalVolume: number;
@@ -383,10 +383,10 @@ export declare class PaymentsService {
         currency: string;
         createdAt: Date;
         updatedAt: Date;
+        taxAmount: Prisma.Decimal;
         amount: Prisma.Decimal;
         status: string;
         feeAmount: Prisma.Decimal;
-        taxAmount: Prisma.Decimal;
         invoiceNumber: string;
         senderId: string;
         receiverId: string;
@@ -509,9 +509,10 @@ export declare class PaymentsService {
     requestEscrowReleaseApproval(contractId: string, milestoneId: string, freelancerId: string, amount: number): Promise<{
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -520,14 +521,14 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     }>;
     releaseEscrow(contractId: string, milestoneId: string, freelancerId: string, agencyId?: string, agencyRevenueSplit?: any): Promise<{
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -536,7 +537,6 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     }>;
     splitEscrowRelease(contractId: string, milestoneId: string, freelancerId: string, freelancerPercentage: number): Promise<{
         freelancerAmount: Prisma.Decimal;
@@ -545,9 +545,10 @@ export declare class PaymentsService {
     refundEscrow(contractId: string, milestoneId: string): Promise<{
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -556,7 +557,6 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     }>;
     calculatePayroll(contractId: string, grossAmount: number, employeeId: string): Promise<{
         contract: any;
@@ -669,9 +669,10 @@ export declare class PaymentsService {
     processChargeback(transactionId: string): Promise<{
         id: string;
         createdAt: Date;
+        type: string;
+        taxAmount: Prisma.Decimal;
         walletId: string;
         amount: Prisma.Decimal;
-        type: string;
         status: string;
         referenceId: string | null;
         departmentId: string | null;
@@ -680,7 +681,6 @@ export declare class PaymentsService {
         clearedAt: Date | null;
         feeAmount: Prisma.Decimal;
         invoiceId: string | null;
-        taxAmount: Prisma.Decimal;
     }>;
     private logFinancialEvent;
     createTaxSetting(data: {
@@ -692,8 +692,8 @@ export declare class PaymentsService {
         createdAt: Date;
         updatedAt: Date;
         name: string;
-        taxRate: Prisma.Decimal;
         countryCode: string;
+        taxRate: Prisma.Decimal;
         brackets: Prisma.JsonValue | null;
         isActive: boolean;
     }>;
@@ -702,8 +702,8 @@ export declare class PaymentsService {
         createdAt: Date;
         updatedAt: Date;
         name: string;
-        taxRate: Prisma.Decimal;
         countryCode: string;
+        taxRate: Prisma.Decimal;
         brackets: Prisma.JsonValue | null;
         isActive: boolean;
     }[]>;
@@ -715,8 +715,8 @@ export declare class PaymentsService {
         createdAt: Date;
         updatedAt: Date;
         name: string;
-        taxRate: Prisma.Decimal;
         countryCode: string;
+        taxRate: Prisma.Decimal;
         brackets: Prisma.JsonValue | null;
         isActive: boolean;
     }>;
@@ -831,8 +831,8 @@ export declare class PaymentsService {
         id: string;
         userId: string;
         createdAt: Date;
-        amount: number;
         type: string;
+        amount: number;
         reason: string | null;
     }[]>;
 }

@@ -41,12 +41,12 @@ export declare class CloudsService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.InvitationStatus;
+        cloudId: string;
         inviteeId: string;
         inviterId: string;
         email: string | null;
-        status: import(".prisma/client").$Enums.InvitationStatus;
         expiresAt: Date | null;
-        cloudId: string;
     }>;
     respondToInvitation(invitationId: string, userId: string, accept: boolean): Promise<{
         success: boolean;
@@ -67,21 +67,21 @@ export declare class CloudsService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.InvitationStatus;
+        cloudId: string;
         inviteeId: string;
         inviterId: string;
         email: string | null;
-        status: import(".prisma/client").$Enums.InvitationStatus;
         expiresAt: Date | null;
-        cloudId: string;
     })[]>;
     addMember(cloudId: string, userId: string, role?: 'ADMIN' | 'MEMBER'): Promise<{
         id: string;
-        status: import(".prisma/client").$Enums.MembershipStatus;
-        cloudId: string;
         userId: string;
         joinedAt: Date;
         role: import(".prisma/client").$Enums.CloudRole;
+        status: import(".prisma/client").$Enums.MembershipStatus;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
+        cloudId: string;
     }>;
     addMembersBulk(cloudId: string, userIds: string[], role?: 'ADMIN' | 'MEMBER'): Promise<{
         successfulCount: number;
@@ -104,23 +104,23 @@ export declare class CloudsService {
         };
     } & {
         id: string;
-        status: import(".prisma/client").$Enums.MembershipStatus;
-        cloudId: string;
         userId: string;
         joinedAt: Date;
         role: import(".prisma/client").$Enums.CloudRole;
+        status: import(".prisma/client").$Enums.MembershipStatus;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
+        cloudId: string;
     })[]>;
     getCloud(cloudId: string): Promise<{
         members: {
             userProfile: any;
             id: string;
-            status: import(".prisma/client").$Enums.MembershipStatus;
-            cloudId: string;
             userId: string;
             joinedAt: Date;
             role: import(".prisma/client").$Enums.CloudRole;
+            status: import(".prisma/client").$Enums.MembershipStatus;
             metadata: import("@prisma/client/runtime/library").JsonValue | null;
+            cloudId: string;
         }[];
         id: string;
         name: string;

@@ -78,7 +78,9 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
             const currentPath = window.location.pathname;
             let targetPath: string | null = null;
 
-            if (user.requiresOnboarding && currentPath !== '/onboarding') {
+            if (user.requiresRegistration && currentPath !== '/register') {
+                targetPath = '/register';
+            } else if (user.requiresOnboarding && currentPath !== '/onboarding') {
                 targetPath = '/onboarding';
             } else if (!user.requiresOnboarding && currentPath === '/onboarding') {
                 targetPath = '/dashboard';

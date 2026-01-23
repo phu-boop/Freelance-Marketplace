@@ -19,7 +19,7 @@ export class AiService {
     async generateProposalContent(jobDescription: string, freelancerBio: string, tone: string = 'professional') {
         if (!this.genAI) throw new Error('AI Service not initialized');
 
-        const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
       You are an expert freelance proposal writer.
@@ -44,7 +44,7 @@ export class AiService {
     async analyzeJobScoping(jobDescription: string) {
         if (!this.genAI) throw new Error('AI Service not initialized');
 
-        const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
       Analyze the following job description and break it down into clear, measurable milestones with estimated efforts.
@@ -76,7 +76,7 @@ export class AiService {
     async generateSkillAssessment(skill: string) {
         if (!this.genAI) throw new Error('AI Service not initialized');
 
-        const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const prompt = `
             Generate 5 sophisticated multiple-choice questions to test professional proficiency in "${skill}".

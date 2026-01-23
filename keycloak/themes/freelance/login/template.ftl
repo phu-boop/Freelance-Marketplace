@@ -1,7 +1,6 @@
-<#-- template.ftl – macro registrationLayout used by keycloak templates -->
-<#macro registrationLayout displayMessage=displayMessage!false displayInfo=displayInfo!false locale=(locale!"en")>
+<#macro registrationLayout displayMessage=true displayInfo=false displayRequiredFields=false showAnotherWayIfPresent=true bodyClass="" displayWide=false>
 <!DOCTYPE html>
-<html lang="${locale?replace('_','-')}">
+<html lang="${(locale.currentLanguageTag)!'en'}">
 <head>
   <meta charset="UTF-8" />
   <title>${msg("loginTitle", (realm.displayName!"Freelance Marketplace"))}</title>

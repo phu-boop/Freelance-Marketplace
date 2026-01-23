@@ -172,7 +172,6 @@ export class JobsService {
     const skip = (page - 1) * limit;
     const where = {
       talentCloudId: null, // Only public jobs
-      status: 'OPEN'
     };
 
     const [total, results] = await Promise.all([
