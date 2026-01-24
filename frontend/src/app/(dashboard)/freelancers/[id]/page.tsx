@@ -5,7 +5,7 @@ import ProfileView from './ProfileView';
 async function getFreelancer(id: string) {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
     try {
-        const res = await fetch(`${apiUrl}/users/${id}`, { next: { revalidate: 60 } });
+        const res = await fetch(`${apiUrl}/users/${id}`, { cache: 'no-store' });
         if (!res.ok) return null;
         return res.json();
     } catch (e) {
@@ -30,7 +30,8 @@ type Props = {
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const user = await getFreelancer(params.id);
+    const { id } = await params;
+    const user = await getFreelancer(id);
     if (!user) return { title: 'Freelancer Not Found' };
 
     return {
@@ -44,9 +45,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function FreelancerProfilePage({ params }: Props) {
+    const { id } = await params;
     const [user, reviews] = await Promise.all([
-        getFreelancer(params.id),
-        getReviews(params.id)
+        getFreelancer(id),
+        getReviews(id)
     ]);
 
     if (!user) {

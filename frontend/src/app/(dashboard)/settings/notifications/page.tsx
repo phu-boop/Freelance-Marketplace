@@ -157,39 +157,6 @@ export default function NotificationSettingsPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold text-white tracking-tight">Notification Preferences</h1>
-                <p className="text-slate-400">Choose how and when you want to be notified.</p>
-            </div>
-
-            {/* Navigation Tabs */}
-            <div className="flex border-b border-slate-800">
-                <Link
-                    href="/settings/profile"
-                    className="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    Profile
-                </Link>
-                <Link
-                    href="/settings/security"
-                    className="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    Security
-                </Link>
-                <Link
-                    href="/settings/verification"
-                    className="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                >
-                    Verification
-                </Link>
-                <Link
-                    href="/settings/notifications"
-                    className="px-6 py-3 text-sm font-medium text-blue-500 border-b-2 border-blue-500"
-                >
-                    Notifications
-                </Link>
-            </div>
-
             {status && (
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}

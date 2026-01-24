@@ -142,7 +142,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres:5432/freelance_db?schema=users
       - PORT=3000
-      - KEYCLOAK_URL=http://localhost:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_ADMIN_USER=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
@@ -150,6 +150,8 @@ services:
       - ANALYTICS_SERVICE_URL=http://analytics-service:3014
       - KEYCLOAK_CLIENT_ID=freelance-client
       - SEARCH_SERVICE_URL=http://search-service:3010
+      - KEYCLOAK_WEBHOOK_SECRET=super-secret-sync-key
+      - AUDIT_SECRET=super-secret-integrity-key
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
@@ -322,11 +324,14 @@ services:
       - KEYCLOAK_REALM=freelance-marketplace
       - KEYCLOAK_CLIENT_ID=freelance-client
       - KEYCLOAK_SECRET=xwI5XqQWUNSJLtQ6g9IbSbJsjgK0U6M3
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - NODE_OPTIONS=--max-old-space-size=1536
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
       - mongo
+      - redis
     volumes:
       - ./services/notification-service:/app
       - /app/node_modules

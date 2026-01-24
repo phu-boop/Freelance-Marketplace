@@ -36,6 +36,33 @@ export default function PrivacySettingsPage() {
         }
     };
 
+    const [deleting, setDeleting] = useState(false);
+
+    const handleDeleteAccount = async () => {
+        const confirmed = confirm('CRITICAL: Are you sure you want to permanently delete your account? All your data, contracts, and history will be erased. This action CANNOT be undone.');
+        if (!confirmed) return;
+
+        const typedName = prompt('To confirm deletion, please type "DELETE" below:');
+        if (typedName !== 'DELETE') {
+            alert('Confirmation failed. Please type "DELETE" exactly.');
+            return;
+        }
+
+        setDeleting(true);
+        try {
+            await api.delete('/users/me/delete-account');
+            alert('Your account has been successfully deleted. You will now be logged out.');
+
+            // Log out from Keycloak
+            window.location.href = '/api/auth/logout'; // Or your specific logout flow
+        } catch (err) {
+            console.error('Failed to delete account', err);
+            alert('An error occurred during account deletion. Please contact support.');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div className="flex flex-col gap-2">
@@ -197,14 +224,24 @@ export default function PrivacySettingsPage() {
                             </div>
                             <Button
                                 variant="outline"
+                                onClick={handleDeleteAccount}
+                                disabled={deleting}
                                 className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/50"
                             >
-                                Delete Account
+                                {deleting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                        Deleting Your Data...
+                                    </>
+                                ) : (
+                                    'Delete Account'
+                                )}
                             </Button>
                         </div>
                     </div>
                 </Card>
             </div>
         </div>
+
     );
 }

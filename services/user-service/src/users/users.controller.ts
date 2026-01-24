@@ -73,6 +73,12 @@ export class UsersController {
     throw new UnauthorizedException('User not authenticated');
   }
 
+  @Post('me/onboarding')
+  completeOnboarding(@AuthenticatedUser() user: any, @Body() data: any) {
+    return this.usersService.completeOnboarding(user.sub, data);
+  }
+
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req) {
     const viewerId = req.user?.sub;
@@ -102,6 +108,7 @@ export class UsersController {
     return this.usersService.exportData(id);
   }
 
+  @Public()
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
@@ -236,6 +243,11 @@ export class UsersController {
   @Post(':id/2fa/verify')
   verifyTwoFactor(@Param('id') id: string, @Body() body: { token: string }) {
     return this.usersService.verifyTwoFactor(id, body.token);
+  }
+
+  @Get(':id/2fa/recovery-codes')
+  getRecoveryCodes(@Param('id') id: string) {
+    return this.usersService.getRecoveryCodes(id);
   }
 
   @Post(':id/verify-payment')
@@ -509,6 +521,12 @@ export class UsersController {
   async deleteAccount(@Req() req) {
     // GDPR: Right to be Forgotten
     return this.usersService.remove(req.user.sub);
+  }
+
+  @Post('me/deactivate')
+  @Roles({ roles: ['realm:CLIENT', 'realm:FREELANCER'] })
+  async deactivateAccount(@Req() req) {
+    return this.usersService.deactivateUser(req.user.sub);
   }
 
   @Public() // Should be secured via internal VPC or secret in production

@@ -78,12 +78,21 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
             const currentPath = window.location.pathname;
             let targetPath: string | null = null;
 
-            if (user.requiresRegistration && currentPath !== '/register') {
+            if (currentPath === '/auth/verify-email') {
+                targetPath = null;
+            } else if (user.requiresRegistration && currentPath !== '/register') {
                 targetPath = '/register';
             } else if (user.requiresOnboarding && currentPath !== '/onboarding') {
                 targetPath = '/onboarding';
             } else if (!user.requiresOnboarding && currentPath === '/onboarding') {
-                targetPath = '/dashboard';
+                const latestRole = user.roles?.find((r: string) => r === 'ADMIN' || r === 'CLIENT' || r === 'FREELANCER') || 'FREELANCER';
+                if (latestRole === 'ADMIN') {
+                    targetPath = '/admin';
+                } else if (latestRole === 'CLIENT') {
+                    targetPath = '/client/dashboard';
+                } else {
+                    targetPath = '/dashboard';
+                }
             } else if (currentPath === '/register') {
                 const latestRole = user.roles?.find((r: string) => r === 'ADMIN' || r === 'CLIENT' || r === 'FREELANCER') || 'FREELANCER';
                 if (latestRole === 'ADMIN') {

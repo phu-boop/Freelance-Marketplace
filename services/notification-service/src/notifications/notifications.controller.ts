@@ -13,9 +13,21 @@ import { CreateNotificationDto } from './dto/create-notification.dto';
 
 import { AuthenticatedUser, Public, Roles } from 'nest-keycloak-connect';
 
+import { RedisService } from './redis.service';
+
 @Controller('api/notifications')
 export class NotificationsController {
-    constructor(private readonly notificationsService: NotificationsService) { }
+    constructor(
+        private readonly notificationsService: NotificationsService,
+        private readonly redisService: RedisService
+    ) { }
+
+    @Public()
+    @Get(':userId/status')
+    async getStatus(@Param('userId') userId: string) {
+        const isOnline = await this.redisService.isUserOnline(userId);
+        return { userId, status: isOnline ? 'online' : 'offline' };
+    }
 
     @Public()
     @Post()

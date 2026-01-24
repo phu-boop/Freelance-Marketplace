@@ -26,48 +26,83 @@
   </#if>
 </head>
 <body>
-  <div class="kc-login-wrapper">
-    <#-- App Header -->
-    <div class="kc-header">
-       <#nested "header">
-    </div>
-
-    <#-- Card Container -->
-    <div class="kc-card">
-        <#-- Message area (errors, info) -->
-        <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
-            <div class="kc-message-wrapper">
-                <div class="kc-feedback alert-${message.type}">
-                    <#if message.type = 'error'>
-                        <span class="kc-feedback-icon">⚠️</span>
-                    <#elseif message.type = 'warning'>
-                        <span class="kc-feedback-icon">⚠️</span>
-                    <#elseif message.type = 'success'>
-                        <span class="kc-feedback-icon">✅</span>
-                    <#else>
-                        <span class="kc-feedback-icon">ℹ️</span>
-                    </#if>
-                    <span class="kc-feedback-text">${kcSanitize(message.summary)?no_esc}</span>
+  <div class="split-screen-container">
+    <#-- Left Column: Branding -->
+    <div class="branding-column">
+        <div class="branding-content">
+            <h1 class="branding-title">Thuê qua <span class="brand-highlight">Fastlance</span></h1>
+            <h2 class="branding-subtitle">Bảo vệ thanh toán, bảo đảm công việc</h2>
+            
+            <div class="branding-illustration">
+                <div class="illustration-flow">
+                    <div class="flow-step">
+                        <div class="step-circle user-circle">
+                            <span class="user-icon">👤</span>
+                        </div>
+                        <span class="step-label">Người thuê</span>
+                    </div>
+                    <div class="flow-arrow">
+                        <span class="arrow-text-top">Đã chọn freelancer</span>
+                        <div class="arrow-line">----------------></div>
+                    </div>
+                    <div class="flow-center">
+                        <div class="center-circle">
+                            <span class="brand-logo">Fastlance</span>
+                        </div>
+                    </div>
+                    <div class="flow-arrow">
+                        <span class="arrow-text-top">Tăng thu nhập</span>
+                        <div class="arrow-line">----------------></div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-circle freelancer-circle">
+                            <span class="freelancer-icon">👨‍💻</span>
+                        </div>
+                        <span class="step-label">Freelancer</span>
+                    </div>
                 </div>
             </div>
-        </#if>
 
-        <#-- Main content injected by login.ftl, etc. -->
-        <div class="kc-content">
-            <#nested "form">
-        </div>
-
-        <#-- Extra info area -->
-        <#if displayInfo>
-            <div class="kc-info-wrapper">
-                <#nested "info">
+            <div class="branding-features">
+                <div class="feature-item">
+                    <span class="feature-icon">🛡️</span>
+                    <span class="feature-text">Bảo đảm thanh toán</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">📜</span>
+                    <span class="feature-text">Có chứng chỉ hành nghề</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">🤝</span>
+                    <span class="feature-text">Cam kết hoàn tiền nếu vi phạm thỏa thuận</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">🎧</span>
+                    <span class="feature-text">Hỗ trợ trong suốt quá trình tuyển dụng</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">✅</span>
+                    <span class="feature-text">Freelancer đã xác minh</span>
+                </div>
             </div>
-        </#if>
+        </div>
     </div>
 
-    <#-- Footer area -->
-    <div class="kc-footer">
-       <#nested "footer">
+    <#-- Right Column: Login Form -->
+    <div class="login-column">
+        <div class="kc-login-card">
+            <h2 class="login-title">Đăng nhập / Tạo tài khoản</h2>
+            
+            <div class="kc-content">
+                <#nested "form">
+            </div>
+
+            <#if displayInfo>
+                <div class="kc-info-wrapper">
+                    <#nested "info">
+                </div>
+            </#if>
+        </div>
     </div>
   </div>
   

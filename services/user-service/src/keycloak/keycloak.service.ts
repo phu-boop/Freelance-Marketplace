@@ -48,17 +48,25 @@ export class KeycloakService {
 
   async login(credentials: { email: string; password: string }): Promise<any> {
     const url = `${this.keycloakUrl}/realms/${this.realm}/protocol/openid-connect/token`;
-    const data = qs.stringify({
+    const clientId = this.configService.get<string>(
+      'KEYCLOAK_CLIENT_ID',
+      'freelance-frontend',
+    );
+    const clientSecret = this.configService.get<string>('KEYCLOAK_SECRET');
+
+    const payload: any = {
       grant_type: 'password',
-      client_id: this.configService.get<string>(
-        'KEYCLOAK_CLIENT_ID',
-        'freelance-frontend',
-      ), // Use public client for login
+      client_id: clientId,
       username: credentials.email,
       password: credentials.password,
-      // client_secret not required for public client
       scope: 'openid profile email',
-    });
+    };
+
+    if (clientSecret) {
+      payload.client_secret = clientSecret;
+    }
+
+    const data = qs.stringify(payload);
 
     try {
       const response = await firstValueFrom(
@@ -193,7 +201,9 @@ export class KeycloakService {
 
   async sendVerificationEmail(userId: string): Promise<void> {
     const token = await this.getAdminToken();
-    const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/execute-actions-email`;
+    const redirectUri = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000') + '/auth/verify-email';
+    const clientId = this.configService.get<string>('KEYCLOAK_FRONTEND_CLIENT_ID', 'freelance-frontend');
+    const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/execute-actions-email?redirect_uri=${encodeURIComponent(redirectUri)}&client_id=${clientId}`;
 
     try {
       await firstValueFrom(
@@ -282,6 +292,107 @@ export class KeycloakService {
         errorMsg || 'Failed to update password',
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  async enableTotp(userId: string, secret: string): Promise<void> {
+    const token = await this.getAdminToken();
+    const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/credentials`;
+
+    const payload = {
+      type: 'otp',
+      userLabel: 'Freelance Marketplace Authenticator',
+      secretData: JSON.stringify({ value: secret }),
+      credentialData: JSON.stringify({
+        algorithm: 'HmacSHA1',
+        digits: 6,
+        counter: 0,
+        period: 30,
+      }),
+    };
+
+    // 1. Create OTP Credential
+    try {
+      this.logger.debug(`Attempting to enable TOTP for user ${userId} at ${url}`);
+      await firstValueFrom(
+        this.httpService.post(url, payload, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      );
+    } catch (error) {
+      this.logger.error(`Failed to create OTP credential: ${error.message}`);
+      if (error.response?.status === 404) {
+        this.logger.warn(`OTP credentials endpoint not found (404). This Keycloak version might not support manual OTP setting via this endpoint.`);
+        // Don't throw 500 if it's just a 404, we have local 2FA as backup
+        return;
+      }
+      throw new HttpException(
+        'Failed to enable 2FA in Keycloak',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    // 2. Mark OTP as required (update requiredActions or configure authentication execution)
+    // For simplicity, we just leave it as handled by the credential presence.
+    // Keycloak usually auto-enforces if OTP credential exists and flow requires it.
+    // To be explicit, we can add 'CONFIGURE_TOTP' to required actions if not set up,
+    // but here we are setting it up manually.
+  }
+
+  async disableTotp(userId: string): Promise<void> {
+    const token = await this.getAdminToken();
+    // 1. Get existing credentials
+    const getUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/credentials`;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(getUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      );
+      const credentials = response.data;
+      const otpCred = credentials.find((c: any) => c.type === 'otp');
+
+      if (otpCred) {
+        // 2. Delete OTP Credential
+        const deleteUrl = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}/credentials/${otpCred.id}`;
+        await firstValueFrom(
+          this.httpService.delete(deleteUrl, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Failed to disable TOTP: ${error.message}`);
+      throw new HttpException(
+        'Failed to disable 2FA',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    const token = await this.getAdminToken();
+    const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}`;
+
+    try {
+      await firstValueFrom(
+        this.httpService.delete(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      );
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        this.logger.error(
+          `Failed to delete Keycloak user ${userId}: ${error.message}`,
+        );
+        throw new HttpException(
+          'Failed to delete user identity',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
     }
   }
 
@@ -381,6 +492,31 @@ export class KeycloakService {
     } catch (error) {
       this.logger.error(
         `Failed to remove roles for user ${userId}: ${error.message}`,
+      );
+    }
+  }
+
+  async setUserEnabled(userId: string, enabled: boolean): Promise<void> {
+    const token = await this.getAdminToken();
+    const url = `${this.keycloakUrl}/admin/realms/${this.realm}/users/${userId}`;
+
+    try {
+      await firstValueFrom(
+        this.httpService.put(
+          url,
+          { enabled },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to update Keycloak user status for ${userId}: ${error.message}`,
+      );
+      throw new HttpException(
+        'Failed to update user status in Keycloak',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

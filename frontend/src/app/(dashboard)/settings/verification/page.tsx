@@ -49,14 +49,7 @@ export default function VerificationSettingsPage() {
     if (loading) return <div className="h-96 animate-pulse bg-slate-900/50 rounded-xl max-w-4xl mx-auto" />;
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold text-white tracking-tight">Identity Verification</h1>
-                <p className="text-slate-400">Verify your identity to unlock all platform features.</p>
-            </div>
-
-            <SettingsTabs />
-
+        <div className="space-y-8 max-w-4xl mx-auto">
             <Card className="p-8 border-slate-800/50 bg-slate-900/50 backdrop-blur-xl">
                 <div className="flex items-start gap-6">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 

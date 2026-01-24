@@ -384,12 +384,27 @@ export class AdminsService {
         return warning;
     }
 
-    async getAuditLogs(limit = 50, offset = 0) {
-        return this.prisma.auditLog.findMany({
-            take: Number(limit),
-            skip: Number(offset),
-            orderBy: { createdAt: 'desc' }
-        });
+    async getAuditLogs(limit = 50, offset = 0, token?: string) {
+        const auditServiceUrl = this.configService.get<string>('AUDIT_SERVICE_URL', 'http://audit-service:3011');
+        const config = token ? { headers: { Authorization: token } } : {};
+
+        try {
+            const { data } = await firstValueFrom(
+                this.httpService.get(`${auditServiceUrl}/api/audit/logs`, {
+                    ...config,
+                    params: { limit, offset },
+                })
+            );
+            return data;
+        } catch (err) {
+            console.error('Failed to fetch from audit-service:', err.message);
+            // Fallback to local logs if any
+            return this.prisma.auditLog.findMany({
+                take: Number(limit),
+                skip: Number(offset),
+                orderBy: { createdAt: 'desc' }
+            });
+        }
     }
 
     // Bulk Actions
