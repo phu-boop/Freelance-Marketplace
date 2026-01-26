@@ -5,7 +5,6 @@ import { Award, CheckCircle2, Plus, ArrowRight, Brain, Globe, ShieldCheck } from
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 import { Card } from '@/components/ui/card';
-import SettingsTabs from '@/components/settings/SettingsTabs';
 import { useRouter } from 'next/navigation';
 
 export default function ExpertiseSettingsPage() {

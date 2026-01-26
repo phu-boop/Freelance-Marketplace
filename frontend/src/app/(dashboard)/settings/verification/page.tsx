@@ -1,13 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { Shield, CheckCircle2, AlertCircle, Clock, FileText } from 'lucide-react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { DocumentUpload } from '@/components/DocumentUpload';
-import SettingsTabs from '@/components/settings/SettingsTabs';
 
 export default function VerificationSettingsPage() {
     const { userId } = useKeycloak();
