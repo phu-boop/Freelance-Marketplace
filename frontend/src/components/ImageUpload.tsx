@@ -11,9 +11,10 @@ interface ImageUploadProps {
     onUploadSuccess: (url: string) => void;
     className?: string;
     children?: React.ReactNode;
+    type?: "avatar" | "coverImage";
 }
 
-export default function ImageUpload({ currentImage, onUploadSuccess, className, children }: ImageUploadProps) {
+export default function ImageUpload({ currentImage, onUploadSuccess, className, children, type }: ImageUploadProps) {
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -75,31 +76,54 @@ export default function ImageUpload({ currentImage, onUploadSuccess, className, 
     return (
         <div className={`relative ${className}`}>
             {children ? (
-                <div onClick={triggerFileSelect}>{children}</div>
+                <div onClick={triggerFileSelect} className="w-full h-full cursor-pointer">{children}</div>
             ) : (
-                <div className="group relative w-32 h-32 rounded-3xl overflow-hidden bg-slate-800 border-4 border-slate-950 shadow-xl">
-                    <img
-                        src={preview || currentImage || '/default-avatar.png'}
-                        className="w-full h-full object-cover"
-                        alt="Avatar"
-                    />
+                type === 'avatar' ? (
+                    <div className="group relative w-32 h-32 rounded-3xl overflow-hidden bg-slate-800 border-4 border-slate-950 shadow-xl">
+                        <img
+                            src={preview || currentImage || '/default-avatar.png'}
+                            className="w-full h-full object-cover"
+                            alt="Avatar"
+                        />
 
-                    <button
-                        onClick={triggerFileSelect}
-                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium"
-                    >
-                        <Camera className="w-6 h-6 mb-1" />
-                        Change
-                    </button>
+                        <button
+                            onClick={triggerFileSelect}
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium"
+                        >
+                            <Camera className="w-6 h-6 mb-1" />
+                            Change avatar
+                        </button>
 
-                    {uploading && (
-                        <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center">
-                            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                        </div>
-                    )}
-                </div>
+                        {uploading && (
+                            <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center">
+                                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="group relative w-full h-full rounded-3xl overflow-hidden bg-slate-800 border-4 border-slate-950 shadow-xl">
+                        <img
+                            src={preview || currentImage || '/default-avatar.png'}
+                            className="w-full h-full object-cover"
+                            alt="Avatar"
+                        />
+
+                        <button
+                            onClick={triggerFileSelect}
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-medium"
+                        >
+                            <Camera className="w-6 h-6 mb-1" />
+                            Change
+                        </button>
+
+                        {uploading && (
+                            <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center">
+                                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                            </div>
+                        )}
+                    </div>
+                )
             )}
-
             <input
                 type="file"
                 hidden
@@ -109,7 +133,7 @@ export default function ImageUpload({ currentImage, onUploadSuccess, className, 
             />
 
             {preview && !uploading && (
-                <div className={`absolute z-20 flex gap-2 ${children ? 'top-full mt-2 left-0' : '-bottom-4 left-1/2 -translate-x-1/2'}`}>
+                <div className={`absolute z-20 flex gap-2 ${children ? 'top-full mt-2 left-0' : '-bottom-4 left-1/2 -translate-x-1/2'} ${type === "coverImage" ? 'bottom-5' : ''}`}>
                     <Button size="sm" variant="destructive" className="h-8 w-8 p-0 rounded-full" onClick={cancelPreview}>
                         <X className="w-4 h-4" />
                     </Button>

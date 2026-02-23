@@ -94,6 +94,12 @@
             <h2 class="login-title">Đăng nhập / Tạo tài khoản</h2>
             
             <div class="kc-content">
+                <#-- Added Message Rendering Block -->
+                <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
+                    <div class="alert-${message.type} kc-feedback">
+                        <span class="kc-feedback-text">${kcSanitize(message.summary)?no_esc}</span>
+                    </div>
+                </#if>
                 <#nested "form">
             </div>
 

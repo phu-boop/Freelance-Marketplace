@@ -606,10 +606,16 @@ export class UsersService {
       sensitiveData.billingAddress = data.billingAddress.slice(0, 5) + '...';
     }
 
-    const user = await this.prisma.user.update({
-      where: { id },
-      data: sensitiveData as any,
-    });
+    let user;
+    try {
+      user = await this.prisma.user.update({
+        where: { id },
+        data: sensitiveData as any,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to update user ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
     console.log('UPDATE RESULT:', JSON.stringify(user));
 
     // Sync to search service

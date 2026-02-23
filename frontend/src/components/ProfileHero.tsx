@@ -54,6 +54,7 @@ export default function ProfileHero({ user, isOwnProfile }: ProfileHeroProps) {
                 {isOwnProfile && (
                     <div className="absolute top-4 right-4 z-10 transition-all">
                         <ImageUpload
+                            type="coverImage"
                             onUploadSuccess={handleCoverUpdate}
                             className="opacity-0 group-hover/cover:opacity-100 transition-opacity"
                         >
@@ -79,6 +80,7 @@ export default function ProfileHero({ user, isOwnProfile }: ProfileHeroProps) {
                     >
                         {isOwnProfile ? (
                             <ImageUpload
+                                type="avatar"
                                 currentImage={getPublicUrl(user.avatarUrl)}
                                 onUploadSuccess={handleAvatarUpdate}
                             />

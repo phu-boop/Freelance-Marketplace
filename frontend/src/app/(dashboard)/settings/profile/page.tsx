@@ -78,10 +78,17 @@ export default function ProfileSettingsPage() {
         e.preventDefault();
         setLoading(true);
         try {
+            // Sanitize payload
             const payload = {
                 ...formData,
-                hourlyRate: isNaN(formData.hourlyRate) ? 0 : formData.hourlyRate
+                hourlyRate: isNaN(formData.hourlyRate) ? 0 : formData.hourlyRate,
+                // Remove primaryCategoryId if it's empty (it's not editable here usually)
+                primaryCategoryId: formData.primaryCategoryId || undefined,
+                // Convert empty strings to null for optional fields if needed, or keep as is if backend handles ""
             };
+
+            // Remove undefined keys
+            (Object.keys(payload) as Array<keyof typeof payload>).forEach(key => payload[key] === undefined && delete payload[key]);
             await api.patch(`/users/${userId}`, payload);
             toast({
                 title: "Settings Updated",
@@ -128,22 +135,11 @@ export default function ProfileSettingsPage() {
                         <div className="space-y-3">
                             <label className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">Cover Image</label>
                             <div className="relative group/cover h-48 w-full rounded-2xl overflow-hidden bg-slate-800 border-2 border-dashed border-slate-700 hover:border-blue-500 transition-all">
-                                {formData.coverImageUrl ? (
-                                    <img src={getPublicUrl(formData.coverImageUrl)} className="w-full h-full object-cover" alt="Cover" />
-                                ) : (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-2">
-                                        <Camera className="w-8 h-8 opacity-20" />
-                                        <span className="text-sm">Upload a professional cover image</span>
-                                    </div>
-                                )}
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/cover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                    <span className="bg-white/10 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 text-sm font-bold flex items-center gap-2">
-                                        <Camera className="w-4 h-4" /> Change Image
-                                    </span>
-                                </div>
                                 <ImageUpload
+                                    currentImage={getPublicUrl(formData.coverImageUrl)}
                                     onUploadSuccess={handleUploadSuccess('coverImageUrl')}
-                                    className="absolute inset-0 w-full h-full opacity-0"
+                                    className="w-full h-full"
+                                    type="coverImage"
                                 />
                             </div>
                         </div>
@@ -153,14 +149,11 @@ export default function ProfileSettingsPage() {
                                 <ImageUpload
                                     currentImage={getPublicUrl(formData.avatarUrl)}
                                     onUploadSuccess={handleUploadSuccess('avatarUrl')}
+                                    type="avatar"
                                 />
                                 <div className="absolute -top-2 -right-2 bg-blue-600 rounded-full p-1 border-4 border-slate-900 shadow-xl">
                                     <ShieldCheck className="w-4 h-4 text-white" />
                                 </div>
-                            </div>
-                            <div className="text-center md:text-left space-y-1">
-                                <h3 className="text-lg font-bold text-white">Profile Photo</h3>
-                                <p className="text-sm text-slate-400">Click the photo to upload a new one. Recommended size is 400x400px.</p>
                             </div>
                         </div>
                     </div>
