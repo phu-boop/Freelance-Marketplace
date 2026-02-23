@@ -67,6 +67,7 @@ linkedinUsername        String?
   languages              Json?                  // e.g. [{ "lang": "English", "level": "NATIVE" }]
   twoFactorEnabled       Boolean                @default(false)
   twoFactorSecret        String?
+  twoFactorRecoveryCodes String[]               @default([])
   updatedAt              DateTime               @updatedAt
   website                String?
   referralCode           String?                @unique
@@ -87,6 +88,9 @@ linkedinUsername        String?
   totalSpend             Decimal                @default(0.0)
   jobsPostedCount       Int                    @default(0)
   jobsHiredCount        Int                    @default(0)
+  totalEarned            Decimal                @default(0.0)
+  totalHours             Decimal                @default(0.0)
+  jobsCompletedCount     Int                    @default(0)
 
   // Advanced KYC
   kycMethod              String?                // DOCUMENT, VIDEO

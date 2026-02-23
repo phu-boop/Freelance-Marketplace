@@ -58,6 +58,17 @@ export class MinioService implements OnModuleInit {
     async getFileUrl(fileName: string): Promise<string> {
         // Phase 14: Enforce short-lived signed URLs (Zero-Trust)
         // Expire in 1 hour (3600 seconds)
-        return await this.minioClient.presignedGetObject(this.bucketName, fileName, 3600);
+        const url = await this.minioClient.presignedGetObject(this.bucketName, fileName, 3600);
+
+        // Fix for local development: Replace internal Docker endpoint with external URL if configured
+        const externalUrl = this.configService.get('MINIO_EXTERNAL_URL');
+        const internalEndpoint = `${this.configService.get('MINIO_ENDPOINT', 'minio')}:${this.configService.get('MINIO_PORT', '9000')}`;
+
+        if (externalUrl && url.includes(internalEndpoint)) {
+            const fixedUrl = url.replace(`http://${internalEndpoint}`, externalUrl);
+            return fixedUrl;
+        }
+
+        return url;
     }
 }

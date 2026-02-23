@@ -45,4 +45,19 @@ export class AuthController {
   forgotPassword(@Body() data: { email: string }) {
     return this.usersService.forgotPassword(data.email);
   }
+
+  @Public()
+  @Post('keycloak-event')
+  async handleKeycloakEvent(@Request() req, @Body() body: any) {
+    // Basic security: verify a secret header
+    const secret = req.headers['x-keycloak-secret'];
+    const expectedSecret = process.env.KEYCLOAK_WEBHOOK_SECRET || 'super-secret-sync-key';
+
+    if (secret !== expectedSecret) {
+      this.logger.warn(`Unauthorized Keycloak event attempt from IP: ${req.ip}`);
+      throw new UnauthorizedException('Invalid webhook secret');
+    }
+
+    return this.usersService.handleKeycloakEvent(body);
+  }
 }

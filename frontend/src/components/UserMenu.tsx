@@ -16,9 +16,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCurrency } from './CurrencyProvider';
 import { useLanguage } from './LanguageProvider';
+import { useUser } from './UserContext';
+import { getPublicUrl } from '@/lib/utils';
 
 export const UserMenu = () => {
     const { username, logout, roles } = useKeycloak();
+    const { user } = useUser();
     const { setCurrency, currency } = useCurrency();
     const { setLanguage, language } = useLanguage();
 
@@ -53,9 +56,15 @@ export const UserMenu = () => {
                         {isAdminMode ? 'System Admin' : isClientMode ? 'Client' : 'Freelancer'}
                     </p>
                 </div>
-                <div className={`w-8 h-8 rounded-lg bg-gradient-to-tr ${isAdminMode ? 'from-red-600 to-orange-500' : isClientMode ? 'from-indigo-600 to-purple-500' : 'from-blue-600 to-cyan-500'} flex items-center justify-center text-xs font-bold text-white shadow-lg`}>
-                    {(username || 'U').slice(0, 2).toUpperCase()}
-                </div>
+                {user?.avatarUrl ? (
+                    <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-700 shadow-lg">
+                        <img src={getPublicUrl(user.avatarUrl)} alt="Avatar" className="w-full h-full object-cover" />
+                    </div>
+                ) : (
+                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-tr ${isAdminMode ? 'from-red-600 to-orange-500' : isClientMode ? 'from-indigo-600 to-purple-500' : 'from-blue-600 to-cyan-500'} flex items-center justify-center text-xs font-bold text-white shadow-lg`}>
+                        {(username || 'U').slice(0, 2).toUpperCase()}
+                    </div>
+                )}
                 <ChevronDown className={`w-4 h-4 text-slate-500 group-hover:text-white transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 

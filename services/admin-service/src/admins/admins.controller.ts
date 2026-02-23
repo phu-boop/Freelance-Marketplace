@@ -170,8 +170,9 @@ export class AdminsController {
 
     @Get('audit-logs')
     @Roles({ roles: ['realm:ADMIN', 'ADMIN'] })
-    getAuditLogs(@Query('limit') limit: number, @Query('offset') offset: number) {
-        return this.adminsService.getAuditLogs(limit, offset);
+    getAuditLogs(@Query('limit') limit: number, @Query('offset') offset: number, @Request() req: any) {
+        const token = req.headers.authorization;
+        return this.adminsService.getAuditLogs(limit, offset, token);
     }
 
     @Post('users/bulk-action')

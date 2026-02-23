@@ -9,6 +9,7 @@ import { PushSubscription, PushSubscriptionSchema } from './schemas/push-subscri
 import { Integration, IntegrationSchema } from './schemas/integration.schema';
 import { NotificationGateway } from './notifications.gateway';
 import { IntegrationService } from './integration.service';
+import { RedisService } from './redis.service';
 
 @Module({
     imports: [
@@ -20,7 +21,7 @@ import { IntegrationService } from './integration.service';
         ]),
     ],
     controllers: [NotificationsController],
-    providers: [NotificationsService, PushService, IntegrationService, NotificationGateway],
-    exports: [NotificationsService, PushService, IntegrationService],
+    providers: [NotificationsService, PushService, IntegrationService, NotificationGateway, RedisService],
+    exports: [NotificationsService, PushService, IntegrationService, RedisService],
 })
 export class NotificationsModule { }

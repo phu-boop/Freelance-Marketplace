@@ -5,7 +5,6 @@ import { Award, CheckCircle2, Plus, ArrowRight, Brain, Globe, ShieldCheck } from
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
 import { Card } from '@/components/ui/card';
-import SettingsTabs from '@/components/settings/SettingsTabs';
 import { useRouter } from 'next/navigation';
 
 export default function ExpertiseSettingsPage() {
@@ -50,14 +49,7 @@ export default function ExpertiseSettingsPage() {
     if (loading) return <div className="h-96 animate-pulse bg-slate-900/50 rounded-xl max-w-4xl mx-auto" />;
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold text-white tracking-tight">Talent Trust & Expertise</h1>
-                <p className="text-slate-400">Verify your skills and showcase certifications to stand out to premium clients.</p>
-            </div>
-
-            <SettingsTabs />
-
+        <div className="space-y-8 max-w-4xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Skill Assessments */}
                 <div className="space-y-6">

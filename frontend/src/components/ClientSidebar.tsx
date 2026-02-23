@@ -45,7 +45,10 @@ export function ClientSidebar() {
 
             <nav className="flex-1 px-4 space-y-1">
                 {menuItems.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                    const isActive = pathname === item.href ||
+                        (item.href !== '/dashboard' && pathname.startsWith(item.href)) ||
+                        (item.href === '/settings/profile' && pathname.startsWith('/settings'));
+
                     return (
                         <Link
                             key={item.href}
@@ -53,8 +56,8 @@ export function ClientSidebar() {
                             className={cn(
                                 "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-nowrap whitespace-nowrap overflow-hidden",
                                 isActive
-                                    ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
-                                    : "text-slate-400 hover:text-white hover:bg-slate-900"
+                                    ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-[inset_0_0_10px_rgba(79,70,229,0.05)]"
+                                    : "text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent"
                             )}
                         >
                             <item.icon className="w-5 h-5 shrink-0" />

@@ -1,267 +1,367 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Shield,
-    Lock,
     Smartphone,
-    Monitor,
-    Clock,
-    MapPin,
-    AlertTriangle,
-    CheckCircle2,
-    XCircle,
+    Lock,
     Trash2,
-    ShieldCheck,
-    Globe,
-    LogOut
+    AlertTriangle,
+    CheckCircle,
+    Eye,
+    EyeOff,
+    Loader2
 } from 'lucide-react';
-import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import { useKeycloak } from '@/components/KeycloakProvider';
+import TwoFactorModal from '@/components/TwoFactorModal';
+import api from '@/lib/api';
+import { useToast } from '@/components/ui/use-toast';
 
-interface SecurityDevice {
-    id: string;
-    deviceId: string;
-    deviceName: string;
-    browser: string;
-    os: string;
-    lastIp: string;
-    lastUsedAt: string;
-    isTrusted: boolean;
-}
+export default function SecuritySettingsPage() {
+    const { userId, authenticated } = useKeycloak();
+    const { toast } = useToast();
 
-interface LoginHistory {
-    id: string;
-    ipAddress: string;
-    userAgent: string;
-    location: string;
-    status: 'SUCCESS' | 'FAILED';
-    device: string;
-    createdAt: string;
-}
+    // 2FA State
+    const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+    const [show2FAModal, setShow2FAModal] = useState(false);
+    const [loadingStatus, setLoadingStatus] = useState(true);
 
-export default function SecurityDashboard() {
-    const { userId } = useKeycloak();
-    const [devices, setDevices] = useState<SecurityDevice[]>([]);
-    const [history, setHistory] = useState<LoginHistory[]>([]);
-    const [loading, setLoading] = useState(true);
+    // Password Form State
+    const [showPasswordForm, setShowPasswordForm] = useState(false);
+    const [passwordData, setPasswordData] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [submittingPassword, setSubmittingPassword] = useState(false);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
 
-    const fetchSecurityContext = async () => {
+    const fetchStatus = async () => {
         try {
-            const res = await api.get('/api/users/me/security-context');
-            setDevices(res.data.devices);
-            setHistory(res.data.history);
+            const res = await api.get(`/users/${userId}`);
+            setIs2FAEnabled(res.data.twoFactorEnabled);
         } catch (error) {
-            console.error('Failed to fetch security context', error);
+            console.error('Failed to fetch user security status');
         } finally {
-            setLoading(false);
+            setLoadingStatus(false);
         }
     };
 
     useEffect(() => {
-        fetchSecurityContext();
-    }, []);
+        if (authenticated && userId) {
+            fetchStatus();
+        }
+    }, [userId, authenticated]);
 
-    const handleRevokeDevice = async (deviceId: string) => {
-        if (!confirm('Are you sure you want to revoke access for this device?')) return;
+    const [passwordErrors, setPasswordErrors] = useState<{
+        newPassword?: string;
+        confirmPassword?: string;
+        currentPassword?: string;
+    }>({});
+
+    const handlePasswordChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPasswordErrors({});
+
+        let hasError = false;
+        const newErrors: any = {};
+
+        // Frontend Validations
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            newErrors.confirmPassword = 'New passwords do not match.';
+            hasError = true;
+        }
+
+        if (passwordData.newPassword.length < 8) {
+            newErrors.newPassword = 'Password must be at least 8 characters long.';
+            hasError = true;
+        }
+
+        if (passwordData.newPassword === passwordData.currentPassword) {
+            newErrors.newPassword = 'New password must be different from current password.';
+            hasError = true;
+        }
+
+        if (hasError) {
+            setPasswordErrors(newErrors);
+            toast({
+                title: 'Validation Error',
+                description: Object.values(newErrors)[0] as string,
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        setSubmittingPassword(true);
         try {
-            await api.delete(`/api/users/me/devices/${deviceId}`);
-            setDevices(devices.filter(d => d.deviceId !== deviceId));
-        } catch (error) {
-            console.error('Failed to revoke device', error);
+            await api.post(`/users/${userId}/change-password`, {
+                currentPassword: passwordData.currentPassword,
+                newPassword: passwordData.newPassword
+            });
+
+            toast({
+                title: 'Success!',
+                description: 'Your password has been changed successfully.',
+            });
+
+            // Reset form
+            setPasswordData({
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: ''
+            });
+            setShowPasswordForm(false);
+        } catch (error: any) {
+            const status = error.response?.status;
+            let description = 'Could not update password. Please try again.';
+
+            if (status === 401) {
+                description = 'The current password you entered is incorrect.';
+                setPasswordErrors({ currentPassword: 'Incorrect password' });
+            } else if (status === 400) {
+                description = error.response?.data?.message || 'Invalid request.';
+            }
+
+            toast({
+                title: 'Error',
+                description,
+                variant: 'destructive',
+            });
+        } finally {
+            setSubmittingPassword(false);
         }
     };
 
-    const handleRevokeAll = async () => {
-        if (!confirm('This will log you out of all other devices. Continue?')) return;
-        try {
-            const currentDeviceId = localStorage.getItem('deviceId') || 'current';
-            await api.delete('/api/users/me/devices', { data: { currentDeviceId } });
-            fetchSecurityContext();
-        } catch (error) {
-            console.error('Failed to revoke all devices', error);
+    const handleDisable2FA = async () => {
+        if (confirm('Are you sure you want to disable 2FA? Your account will be less secure.')) {
+            try {
+                await api.post(`/users/${userId}/toggle-2fa`);
+                setIs2FAEnabled(false);
+                toast({
+                    title: '2FA Disabled',
+                    description: 'Two-factor authentication has been turned off.',
+                });
+            } catch (error) {
+                toast({ title: 'Error', description: 'Failed to disable 2FA', variant: 'destructive' });
+            }
         }
     };
 
     return (
-        <div className="max-w-6xl mx-auto space-y-12">
-            {/* Hero Section */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
-                        <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/20">
-                            <Shield className="w-8 h-8 text-white" />
+        <div className="space-y-8 p-6 max-w-4xl mx-auto min-h-screen pb-20">
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8"
+            >
+                <h1 className="text-3xl font-bold text-white mb-2">Security Settings</h1>
+                <p className="text-slate-400">Protect your account with robust authentication methods.</p>
+            </motion.div>
+
+            {/* Password Management Card */}
+            <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-sm overflow-hidden">
+                <div className="flex items-start justify-between">
+                    <div className="flex gap-4 flex-1">
+                        <div className="p-3 rounded-xl bg-blue-500/10 h-fit border border-blue-500/20">
+                            <Lock className="w-6 h-6 text-blue-400" />
                         </div>
-                        Security & Privacy
-                    </h1>
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Manage your account security and data portability</p>
-                </div>
-                <button
-                    onClick={handleRevokeAll}
-                    className="px-6 py-3 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
-                >
-                    <LogOut className="w-4 h-4" />
-                    Revoke All Sessions
-                </button>
-            </div>
+                        <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-white mb-1">Account Password</h3>
+                            <p className="text-sm text-slate-400 mb-6">
+                                Update your password to keep your account secure. We recommend a mix of letters, numbers, and symbols.
+                            </p>
 
-            <div className="grid lg:grid-cols-2 gap-8">
-                {/* Recognized Devices */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3 px-2">
-                        <Lock className="w-5 h-5 text-blue-500" />
-                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Active Devices</h2>
-                    </div>
-
-                    <div className="space-y-4">
-                        {devices.map((device) => (
-                            <motion.div
-                                key={device.id}
-                                layout
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="p-6 bg-slate-900 border border-slate-800 rounded-[2rem] flex items-center justify-between group hover:border-blue-500/30 transition-all"
-                            >
-                                <div className="flex items-center gap-5">
-                                    <div className="p-4 bg-slate-950 rounded-2xl text-slate-500 group-hover:text-blue-500 transition-colors">
-                                        {device.os?.toLowerCase().includes('ios') || device.os?.toLowerCase().includes('android')
-                                            ? <Smartphone className="w-6 h-6" />
-                                            : <Monitor className="w-6 h-6" />
-                                        }
-                                    </div>
-                                    <div>
-                                        <h3 className="text-white font-black uppercase tracking-tight text-lg">
-                                            {device.browser} on {device.os}
-                                        </h3>
-                                        <div className="flex items-center gap-4 mt-1 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                                            <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {device.lastIp}</span>
-                                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(device.lastUsedAt).toLocaleDateString()}</span>
+                            {!showPasswordForm ? (
+                                <Button
+                                    variant="outline"
+                                    className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                                    onClick={() => setShowPasswordForm(true)}
+                                >
+                                    Update Password
+                                </Button>
+                            ) : (
+                                <motion.form
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    onSubmit={handlePasswordChange}
+                                    className="space-y-4 max-w-md pt-4 border-t border-slate-800 mt-2"
+                                >
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <Label className="text-slate-300">Current Password</Label>
+                                            {passwordErrors.currentPassword && (
+                                                <span className="text-xs text-red-400 font-medium">Wrong password</span>
+                                            )}
+                                        </div>
+                                        <div className="relative">
+                                            <Input
+                                                type={showCurrentPassword ? "text" : "password"}
+                                                required
+                                                value={passwordData.currentPassword}
+                                                onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                                                className={`bg-slate-950 border-slate-800 text-white pr-10 ${passwordErrors.currentPassword ? 'border-red-500 ring-1 ring-red-500' : ''
+                                                    }`}
+                                                placeholder="••••••••"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                                            >
+                                                {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
                                         </div>
                                     </div>
-                                </div>
-                                <button
-                                    onClick={() => handleRevokeDevice(device.deviceId)}
-                                    className="p-3 hover:bg-red-500/10 text-slate-600 hover:text-red-500 rounded-xl transition-all"
-                                    title="Revoke Access"
-                                >
-                                    <Trash2 className="w-5 h-5" />
-                                </button>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
 
-                {/* Login History */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3 px-2">
-                        <Clock className="w-5 h-5 text-amber-500" />
-                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Login History</h2>
-                    </div>
-
-                    <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="border-b border-slate-800 bg-slate-950/50">
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Device / IP</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Time</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800">
-                                {history.map((item) => (
-                                    <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {item.status === 'SUCCESS' ? (
-                                                <div className="flex items-center gap-2 text-green-500 font-black text-[10px] uppercase tracking-widest">
-                                                    <CheckCircle2 className="w-3 h-3" /> Success
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-widest">
-                                                    <AlertTriangle className="w-3 h-3" /> Failed
-                                                </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <Label className="text-slate-300">New Password</Label>
+                                            {passwordErrors.newPassword && (
+                                                <span className="text-xs text-red-400 font-medium">{passwordErrors.newPassword.includes('long') ? 'Too short' : 'Invalid'}</span>
                                             )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <p className="text-white font-bold text-sm">{item.device}</p>
-                                            <p className="text-slate-500 text-[10px] font-medium">{item.ipAddress}</p>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <p className="text-white font-bold text-sm">{new Date(item.createdAt).toLocaleTimeString()}</p>
-                                            <p className="text-slate-500 text-[10px] font-medium uppercase">{new Date(item.createdAt).toLocaleDateString()}</p>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+                                        </div>
+                                        <div className="relative">
+                                            <Input
+                                                type={showNewPassword ? "text" : "password"}
+                                                required
+                                                value={passwordData.newPassword}
+                                                onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                                                className={`bg-slate-950 border-slate-800 text-white pr-10 ${passwordErrors.newPassword ? 'border-red-500 ring-1 ring-red-500' : ''
+                                                    }`}
+                                                placeholder="Min. 8 characters"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                                            >
+                                                {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
 
-            {/* Privacy Tools */}
-            <div className="pt-12 border-t border-slate-800">
-                <div className="flex items-center gap-3 px-2 mb-8">
-                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                    <h2 className="text-xl font-black text-white uppercase tracking-tight">Data & Privacy Tools</h2>
-                </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <Label className="text-slate-300">Confirm New Password</Label>
+                                            {passwordErrors.confirmPassword && (
+                                                <span className="text-xs text-red-400 font-medium">Not matching</span>
+                                            )}
+                                        </div>
+                                        <Input
+                                            type="password"
+                                            required
+                                            value={passwordData.confirmPassword}
+                                            onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                                            className={`bg-slate-950 border-slate-800 text-white ${passwordErrors.confirmPassword ? 'border-red-500 ring-1 ring-red-500' : ''
+                                                }`}
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                    <div className="p-8 bg-blue-600/5 border border-blue-500/20 rounded-[2.5rem] flex items-start gap-6">
-                        <div className="p-4 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/20 text-white">
-                            <Monitor className="w-6 h-6" />
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Export Your Data</h3>
-                                <p className="text-slate-400 font-medium text-sm mt-1 leading-relaxed">
-                                    Download a copy of all your profile information, activity, and settings in human-readable JSON format.
-                                </p>
-                            </div>
-                            <button
-                                onClick={async () => {
-                                    const res = await api.post('/api/users/me/export-data');
-                                    const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `my-data-${new Date().toISOString().split('T')[0]}.json`;
-                                    a.click();
-                                }}
-                                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
-                            >
-                                <LogOut className="w-4 h-4 rotate-90" />
-                                Start Export
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="p-8 bg-red-600/5 border border-red-500/20 rounded-[2.5rem] flex items-start gap-6">
-                        <div className="p-4 bg-red-600 rounded-2xl shadow-lg shadow-red-600/20 text-white">
-                            <Trash2 className="w-6 h-6" />
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Delete Account</h3>
-                                <p className="text-slate-400 font-medium text-sm mt-1 leading-relaxed">
-                                    Permanently delete your account and all associated data. This action is irreversible.
-                                </p>
-                            </div>
-                            <button
-                                onClick={async () => {
-                                    if (confirm('CRITICAL: This will permanently delete your entire profile and all history. Are you absolutely certain?')) {
-                                        await api.delete('/api/users/me/delete-account');
-                                        window.location.href = '/';
-                                    }
-                                }}
-                                className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
-                            >
-                                <XCircle className="w-4 h-4" />
-                                Delete Forever
-                            </button>
+                                    <div className="flex gap-3 pt-4">
+                                        <Button
+                                            type="submit"
+                                            disabled={submittingPassword}
+                                            className="bg-blue-600 hover:bg-blue-700"
+                                        >
+                                            {submittingPassword && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                            Save Changes
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            className="text-slate-400 hover:text-white"
+                                            onClick={() => setShowPasswordForm(false)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </div>
+                                </motion.form>
+                            )}
                         </div>
                     </div>
                 </div>
-            </div>
+            </Card>
+
+            {/* 2FA Section */}
+            <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-sm relative overflow-hidden group">
+                {is2FAEnabled && (
+                    <div className="absolute top-0 right-0 p-3 bg-green-500/10 rounded-bl-xl border-b border-l border-green-500/20">
+                        <div className="flex items-center gap-2 text-green-400 text-xs font-bold uppercase tracking-wider">
+                            <CheckCircle className="w-4 h-4" /> Enabled
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex items-start justify-between">
+                    <div className="flex gap-4">
+                        <div className={`p-3 rounded-xl h-fit border transition-colors ${is2FAEnabled ? 'bg-green-500/10 border-green-500/20' : 'bg-slate-800 border-slate-700'
+                            }`}>
+                            <Smartphone className={`w-6 h-6 ${is2FAEnabled ? 'text-green-400' : 'text-slate-400'}`} />
+                        </div>
+                        <div className="max-w-xl">
+                            <h3 className="text-lg font-semibold text-white mb-1">Two-Factor Authentication (2FA)</h3>
+                            <p className="text-sm text-slate-400 mb-6">
+                                Add an extra layer of security to your account by requiring a verification code from an authenticator app every time you log in.
+                            </p>
+
+                            {!loadingStatus ? (
+                                <div className="flex gap-3">
+                                    {!is2FAEnabled ? (
+                                        <Button
+                                            onClick={() => setShow2FAModal(true)}
+                                            className="bg-indigo-600 hover:bg-indigo-700"
+                                        >
+                                            Enable 2FA Protection
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            variant="outline"
+                                            onClick={handleDisable2FA}
+                                            className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
+                                        >
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            Disable 2FA
+                                        </Button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="h-10 w-32 bg-slate-800 animate-pulse rounded-md" />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Account Recovery / Activity - Optional Future Additions */}
+            <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-sm opacity-60">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-slate-800 h-fit border border-slate-700">
+                        <Shield className="w-6 h-6 text-slate-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-semibold text-white mb-1">Account Activity</h3>
+                        <p className="text-sm text-slate-400">
+                            Monitor and manage your active sessions and login history. (Coming Soon)
+                        </p>
+                    </div>
+                </div>
+            </Card>
+
+            <TwoFactorModal
+                isOpen={show2FAModal}
+                onClose={() => setShow2FAModal(false)}
+                onSuccess={() => {
+                    setIs2FAEnabled(true);
+                    fetchStatus(); // Refresh to be safe
+                }}
+            />
         </div>
     );
 }

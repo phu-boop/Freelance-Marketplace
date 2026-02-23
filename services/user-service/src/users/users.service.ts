@@ -81,7 +81,7 @@ export class UsersService {
   private async logAudit(eventType: string, actorId: string, metadata: any = {}) {
     const auditServiceUrl = this.configService.get<string>(
       'AUDIT_SERVICE_URL',
-      'http://audit-service:3005/api/audit',
+      'http://audit-service:3011/api/audit/logs',
     );
     try {
       await firstValueFrom(
@@ -91,6 +91,10 @@ export class UsersService {
           actorId,
           metadata,
           timestamp: new Date().toISOString(),
+        }, {
+          headers: {
+            'x-audit-secret': this.configService.get<string>('AUDIT_SECRET', 'super-secret-integrity-key')
+          }
         }),
       );
     } catch (err) {
@@ -228,7 +232,21 @@ export class UsersService {
     });
 
     if (!isValid) {
-      throw new UnauthorizedException('Invalid authentication code');
+      // Check recovery codes
+      const isRecoveryCode = user.twoFactorRecoveryCodes.includes(code.toUpperCase());
+      if (isRecoveryCode) {
+        // Remove the used recovery code
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            twoFactorRecoveryCodes: user.twoFactorRecoveryCodes.filter(
+              (c) => c !== code.toUpperCase(),
+            ),
+          },
+        });
+      } else {
+        throw new UnauthorizedException('Invalid authentication code');
+      }
     }
 
     const tokensFn = this.decrypt(payload.temp_tokens);
@@ -321,8 +339,16 @@ export class UsersService {
   }
 
   async verifyTwoFactor(userId: string, token: string) {
+    this.logger.debug(`Verifying 2FA for user ${userId} with token ${token}`);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.twoFactorSecret) {
+
+    if (!user) {
+      this.logger.error(`User ${userId} not found in database during 2FA verify`);
+      throw new BadRequestException('User not found');
+    }
+
+    if (!user.twoFactorSecret) {
+      this.logger.error(`2FA secret not found for user ${userId}`);
       throw new BadRequestException('2FA initialization not found');
     }
 
@@ -332,15 +358,46 @@ export class UsersService {
     });
 
     if (!isValid) {
+      this.logger.error(`Invalid 2FA token provided for user ${userId}`);
       throw new BadRequestException('Invalid authentication code');
     }
 
+    // Generate recovery codes
+    const recoveryCodes = Array.from({ length: 10 }, () =>
+      crypto.randomBytes(4).toString('hex').toUpperCase(),
+    );
+
+    // Push to Keycloak
+    await this.keycloakService.enableTotp(userId, user.twoFactorSecret);
+
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorEnabled: true },
+      data: {
+        twoFactorEnabled: true,
+        twoFactorRecoveryCodes: recoveryCodes,
+        twoFactorSecret: user.twoFactorSecret, // Keep it to facilitate local verification if needed
+      },
     });
 
-    return { message: '2FA enabled successfully' };
+    await this.logAudit('2FA_ENABLED', userId, { method: 'TOTP' });
+
+    return {
+      message: '2FA enabled successfully',
+      recoveryCodes,
+    };
+  }
+
+  async getRecoveryCodes(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { twoFactorRecoveryCodes: true, twoFactorEnabled: true },
+    });
+
+    if (!user || !user.twoFactorEnabled) {
+      throw new BadRequestException('2FA is not enabled');
+    }
+
+    return user.twoFactorRecoveryCodes;
   }
 
   async findOne(id: string, viewerId?: string) {
@@ -494,7 +551,38 @@ export class UsersService {
       }
     }
 
-    return user;
+    // --- Stats Aggregation ---
+    const stats = {
+      earnings: user.totalEarned || 0,
+      jobsCompleted: user.jobsCompletedCount || 0,
+      hoursWorked: user.totalHours || 0,
+      jss: user.jobSuccessScore || 100, // New users start at 100% or 0? Let's say 100 for optimism.
+      totalSpent: user.totalSpend || 0,
+      totalHires: user.jobsHiredCount || 0,
+      rating: Number(user.rating) || 0,
+      reviewCount: user.reviewCount || 0,
+    };
+
+    return {
+      ...user,
+      avatarUrl: this.normalizeUrl(user.avatarUrl),
+      coverImageUrl: this.normalizeUrl(user.coverImageUrl),
+      stats
+    };
+  }
+
+  private normalizeUrl(url: string | null): string | null {
+    if (!url) return null;
+
+    // Fix internal Docker hostnames for browser access in local dev
+    const internalHost = 'minio:9000';
+    const externalHost = 'localhost:9000';
+
+    if (url.includes(internalHost)) {
+      return url.replace(internalHost, externalHost);
+    }
+
+    return url;
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
@@ -518,10 +606,16 @@ export class UsersService {
       sensitiveData.billingAddress = data.billingAddress.slice(0, 5) + '...';
     }
 
-    const user = await this.prisma.user.update({
-      where: { id },
-      data: sensitiveData as any,
-    });
+    let user;
+    try {
+      user = await this.prisma.user.update({
+        where: { id },
+        data: sensitiveData as any,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to update user ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
     console.log('UPDATE RESULT:', JSON.stringify(user));
 
     // Sync to search service
@@ -554,9 +648,54 @@ export class UsersService {
   }
 
   async remove(id: string) {
+    // 1. Find user to get Keycloak ID
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     await this.logAudit('USER_DELETION', id, { reason: 'GDPR_RIGHT_TO_BE_FORGOTTEN' });
-    const result = await this.prisma.user.delete({
-      where: { id },
+
+    // 2. Delete from Keycloak if linked
+    if (user.keycloakId) {
+      try {
+        await this.keycloakService.deleteUser(user.keycloakId);
+      } catch (error) {
+        this.logger.error(`Failed to cleanup Keycloak user ${user.keycloakId}: ${error.message}`);
+        // Continue to delete from DB even if Keycloak fails (orphaned IDP user is better than orphaned app data)
+      }
+    }
+
+    // 3. Delete all associated data in a transaction to satisfy foreign key constraints
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Delete child records first
+      await tx.certification.deleteMany({ where: { userId: id } });
+      await tx.education.deleteMany({ where: { userId: id } });
+      await tx.experience.deleteMany({ where: { userId: id } });
+      await tx.portfolioItem.deleteMany({ where: { userId: id } });
+      await tx.availabilityCalendar.deleteMany({ where: { userId: id } });
+      await tx.badge.deleteMany({ where: { userId: id } });
+      await tx.identityVerification.deleteMany({ where: { userId: id } });
+      await tx.skillAssessment.deleteMany({ where: { userId: id } });
+      await tx.specializedProfile.deleteMany({ where: { userId: id } });
+      await tx.teamMember.deleteMany({ where: { userId: id } });
+      await tx.savedFreelancer.deleteMany({ where: { OR: [{ clientId: id }, { freelancerId: id }] } });
+      await tx.userLoginHistory.deleteMany({ where: { userId: id } });
+      await tx.trustedDevice.deleteMany({ where: { userId: id } });
+      await tx.securityDevice.deleteMany({ where: { userId: id } });
+      await tx.freelancerMetric.deleteMany({ where: { userId: id } });
+      await tx.clientMetric.deleteMany({ where: { userId: id } });
+      await tx.safetyReport.deleteMany({ where: { OR: [{ userId: id }, { reporterId: id }] } });
+      await tx.appeal.deleteMany({ where: { userId: id } });
+      await tx.reputationScore.deleteMany({ where: { userId: id } });
+      await tx.referral.deleteMany({ where: { OR: [{ referrerId: id }, { referredId: id }] } });
+
+      if (tx.profile) {
+        await (tx as any).profile.deleteMany({ where: { userId: id } });
+      }
+
+      // Finally delete the user
+      return tx.user.delete({ where: { id } });
     });
     await this.recordTombstone('User', id, id);
     return result;
@@ -735,10 +874,19 @@ export class UsersService {
   async toggleTwoFactor(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('User not found');
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { twoFactorEnabled: !user.twoFactorEnabled },
-    });
+
+    if (user.twoFactorEnabled) {
+      // Disable
+      await this.keycloakService.disableTotp(userId);
+      await this.logAudit('2FA_DISABLED', userId);
+      return this.prisma.user.update({
+        where: { id: userId },
+        data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorRecoveryCodes: [] },
+      });
+    } else {
+      // Enable requires setup flow
+      throw new BadRequestException('To enable 2FA, please use the setup flow');
+    }
   }
 
   async verifyPayment(userId: string) {
@@ -1118,21 +1266,33 @@ export class UsersService {
     return updated;
   }
 
-  suspendUser(id: string) {
+  async suspendUser(id: string) {
+    await this.keycloakService.setUserEnabled(id, false);
     return this.prisma.user.update({
       where: { id },
       data: { status: 'SUSPENDED' },
     });
   }
 
-  banUser(id: string) {
+  async deactivateUser(id: string) {
+    await this.keycloakService.setUserEnabled(id, false);
+    await this.logAudit('USER_DEACTIVATION', id);
+    return this.prisma.user.update({
+      where: { id },
+      data: { status: 'DEACTIVATED' },
+    });
+  }
+
+  async banUser(id: string) {
+    await this.keycloakService.setUserEnabled(id, false);
     return this.prisma.user.update({
       where: { id },
       data: { status: 'BANNED' },
     });
   }
 
-  activateUser(id: string) {
+  async activateUser(id: string) {
+    await this.keycloakService.setUserEnabled(id, true);
     return this.prisma.user.update({
       where: { id },
       data: { status: 'ACTIVE' },
@@ -1243,14 +1403,53 @@ export class UsersService {
       return { ...user, requiresRegistration: true };
     }
 
-    if (!(user as any).keycloakId && user.id !== userId) {
-      await (this.prisma.user.update as any)({
+    const isEmailVerified = kcUser.email_verified || false;
+    const email = kcUser.email;
+    const firstName = kcUser.given_name || kcUser.firstName;
+    const lastName = kcUser.family_name || kcUser.lastName;
+
+    // Update basic info and email verification status if changed
+    if (
+      user.isEmailVerified !== isEmailVerified ||
+      user.email !== email ||
+      user.firstName !== firstName ||
+      user.lastName !== lastName ||
+      !user.keycloakId
+    ) {
+      const updateData: any = {
+        isEmailVerified,
+        keycloakId: userId,
+      };
+
+      if (email && user.email !== email) updateData.email = email;
+      if (firstName && user.firstName !== firstName) updateData.firstName = firstName;
+      if (lastName && user.lastName !== lastName) updateData.lastName = lastName;
+
+      await this.prisma.user.update({
         where: { id: user.id },
-        data: { keycloakId: userId },
+        data: updateData,
       });
+
+      user.isEmailVerified = isEmailVerified;
+      if (updateData.email) user.email = updateData.email;
+      if (updateData.firstName) user.firstName = updateData.firstName;
+      if (updateData.lastName) user.lastName = updateData.lastName;
+      (user as any).keycloakId = userId;
     }
 
-    return { ...user, requiresOnboarding: false };
+    const isFreelancer = user.roles.includes('FREELANCER');
+    const isClient = user.roles.includes('CLIENT');
+
+    let requiresOnboarding = false;
+    if (isFreelancer) {
+      // Freelancers must have a Title, Overview, and at least one Skill
+      requiresOnboarding = !user.title || !user.overview || !user.skills || user.skills.length === 0 || !user.hourlyRate;
+    } else if (isClient) {
+      // Clients must have a Company Name and Industry
+      requiresOnboarding = !user.companyName || !user.industry;
+    }
+
+    return { ...user, requiresOnboarding };
   }
 
   async socialOnboarding(userId: string, role: string) {
@@ -1800,5 +1999,42 @@ export class UsersService {
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
       orderBy: { createdAt: 'desc' }
     });
+  }
+
+  async handleKeycloakEvent(event: any) {
+    this.logger.log(`Received Keycloak Event: ${event.type} for user: ${event.userId}`);
+
+    const userId = event.userId;
+    if (!userId) return;
+
+    if (event.type === 'UPDATE_PROFILE' || event.type === 'UPDATE_EMAIL' || event.type === 'VERIFY_EMAIL') {
+      // Fetch fresh data from Keycloak to be sure
+      try {
+        const kcUser = await this.keycloakService.getUserById(userId);
+        if (kcUser) {
+          await this.prisma.user.update({
+            where: { id: userId }, // Most often keycloakId IS the user id in our system
+            data: {
+              firstName: kcUser.firstName,
+              lastName: kcUser.lastName,
+              email: kcUser.email,
+              isEmailVerified: kcUser.emailVerified || false,
+            },
+          });
+          this.logger.log(`Synced user ${userId} data from Keycloak event`);
+        }
+      } catch (err) {
+        this.logger.error(`Failed to sync user ${userId} after Keycloak event: ${err.message}`);
+      }
+    }
+
+    if (event.type === 'DELETE_ACCOUNT') {
+      try {
+        await this.prisma.user.delete({ where: { id: userId } });
+        this.logger.log(`Deleted user ${userId} per Keycloak event`);
+      } catch (err) {
+        this.logger.error(`Failed to delete user ${userId} after Keycloak event: ${err.message}`);
+      }
+    }
   }
 }

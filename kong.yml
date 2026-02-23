@@ -13,6 +13,9 @@ services:
         paths:
           - /api/auth
         strip_path: false
+        plugins:
+          - name: jwt
+            enabled: false
 
       # =====================
       # User Read Routes (PUBLIC)
@@ -25,12 +28,16 @@ services:
           - GET
           - OPTIONS
         strip_path: false
+        plugins:
+          - name: jwt
+            enabled: false
 
       # =====================
       # User Protected Routes (JWT)
       # =====================
       - name: user-protected
         paths:
+          - /api/vetting
           - /api/users
           - /api/user/teams
           - /api/profiles
@@ -58,7 +65,6 @@ services:
           - /api/service-packages
         strip_path: false
 
-
   - name: proposal-service
     url: http://freelance_proposal_service:3003
     routes:
@@ -66,7 +72,6 @@ services:
         paths:
           - /api/proposals
         strip_path: false
-
 
   - name: contract-service
     url: http://freelance_contract_service:3004
@@ -110,6 +115,9 @@ services:
           - GET
           - OPTIONS
         strip_path: false
+        plugins:
+          - name: jwt
+            enabled: false
       - name: review-write
         paths:
           - /api/reviews
@@ -202,7 +210,13 @@ consumers:
         secret: "dummy-secret-for-rs256"
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyjLQxxPmDkuU/I5CySrogRuST6SeVJMc530Pabjv6EPEUx4z+SUfHGaVQCxYYWGQ2e/LyCg1CIv7/JGtn/iCsdAH4iXoAJDgOWZEi/nUX4k9/U8xtTXrIz+KqCYRzYr1U5Us1er+NyCSLVTyYQQHa1rotQIbJ9gGFIRrN9wMMljsoyWRNuqPrmBvWcc/Cc5Xf1PGeIpp/X6Izi1FnYzJTsbAgdUFzA8rmEJtQwW2hYbVWfRe3IsrYy944l2vVYoFDeimuD7mrslr5LEauocWoIRvlKBxSWgbfdWTH1qsLQxy5YCXdRJWhbLHOJk6rpjXjb5S5UFWoCblV0pShM13+wIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7EGY+9HOvPlHmvCDurik
+          gq+8SbsZYmwLLaxcHMLN12efAZM9jJWctM3kzMlRXVSwjAns1qpJbfDwduqfXILI
+          PfNhgqBxnnQrjC3ZnmzBEw3ob3AMrPwiycPcimasqIaEz+TJwsW8xqtOCnYWd7sc
+          rFs14sD69JcM9Accy5E8XieXDvqQ02Pw2X6i1yB4uE1hxgdALrisNGhZ6gG9lyyD
+          eO9kjF1kADPgLPea+bkZUeTuE+7YJJa15+lUvbGQhAejEYOX/9jDZ9+3tNFppaxF
+          Q8u41Zz5jKktUS8HX7KekpUsrISOAKKzjN4H7A4OiJ8K7MrQy0MQ2qZ4DanmW19K
+          gQIDAQAB
           -----END PUBLIC KEY-----
 
 plugins:
@@ -233,6 +247,9 @@ plugins:
     config:
       minute: 1000
       policy: local
+  - name: jwt
+    config:
+      key_claim_name: iss
 # ## Cập nhật lại các biến môi trường và cấu hình Container
 # docker compose up -d
 # # Reload cấu hình Kong (nếu bạn đang dùng deck hoặc dbless mode)

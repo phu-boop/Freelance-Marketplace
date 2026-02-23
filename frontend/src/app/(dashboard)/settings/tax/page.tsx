@@ -5,9 +5,7 @@ import { ShieldCheck, Info, CreditCard, ChevronRight, CheckCircle2, AlertCircle,
 import api from '@/lib/api';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import { Card } from '@/components/ui/card';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import SettingsTabs from '@/components/settings/SettingsTabs';
 
 type TaxStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 type FormType = 'W-9' | 'W-8BEN' | 'W-8BEN-E' | 'NONE';
@@ -65,13 +63,6 @@ export default function TaxCompliancePage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold text-white tracking-tight">Tax & Compliance</h1>
-                <p className="text-slate-400">Securely manage your tax identifiers and legal documentation.</p>
-            </div>
-
-            <SettingsTabs />
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="md:col-span-2 space-y-8">
                     {/* Status Overview */}

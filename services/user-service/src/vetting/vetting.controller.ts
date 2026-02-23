@@ -7,19 +7,16 @@ export class VettingController {
     constructor(private readonly vettingService: VettingService) { }
 
     @Post('assessments/start')
-    @Roles({ roles: ['FREELANCER'], mode: RoleMatchingMode.ANY })
     async startAssessment(@Request() req, @Body('skillName') skillName: string) {
         return this.vettingService.startSkillAssessment(req.user.sub, skillName);
     }
 
     @Get('assessments/:id')
-    @Roles({ roles: ['FREELANCER'], mode: RoleMatchingMode.ANY })
     async getAssessment(@Param('id') id: string, @Request() req) {
         return this.vettingService.getAssessment(id, req.user.sub);
     }
 
     @Post('assessments/:id/submit')
-    @Roles({ roles: ['FREELANCER'], mode: RoleMatchingMode.ANY })
     async submitAssessment(
         @Param('id') id: string,
         @Request() req,
@@ -29,19 +26,16 @@ export class VettingController {
     }
 
     @Post('certifications')
-    @Roles({ roles: ['FREELANCER'], mode: RoleMatchingMode.ANY })
     async addCertification(@Request() req, @Body() data: any) {
         return this.vettingService.addCertification(req.user.sub, data);
     }
 
     @Patch('certifications/:id/verify')
-    @Roles({ roles: ['ADMIN'], mode: RoleMatchingMode.ANY })
     async verifyCertification(@Param('id') id: string) {
         return this.vettingService.verifyCertification(id);
     }
 
     @Post('users/:userId/expert-vetted')
-    @Roles({ roles: ['ADMIN'], mode: RoleMatchingMode.ANY })
     async approveExpertVetting(@Param('userId') userId: string) {
         return this.vettingService.approveExpertVetting(userId);
     }

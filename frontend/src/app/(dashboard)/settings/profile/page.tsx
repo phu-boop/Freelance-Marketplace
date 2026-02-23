@@ -1,252 +1,117 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import {
-    User,
-    Mail,
-    Phone,
-    FileText,
-    BadgeCheck,
-    Save,
-    Loader2,
-    AlertCircle,
-    CheckCircle2,
-    Camera,
-    Layers,
-    Briefcase,
-    Globe,
-    BookOpen,
-    Image as ImageIcon,
-    Eye,
-    Share2,
-    Sparkles,
-    ChevronRight
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useKeycloak } from '@/components/KeycloakProvider';
 import api from '@/lib/api';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { getPublicUrl } from '@/lib/utils';
+import {
+    Loader2,
+    Save,
+    User,
+    Type,
+    DollarSign,
+    Camera,
+    MapPin,
+    Phone,
+    Globe,
+    ShieldCheck
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { AvatarUpload } from '@/components/AvatarUpload';
-import { DocumentUpload } from '@/components/DocumentUpload';
-import Link from 'next/link';
-import { ExperienceList } from '@/components/profile/ExperienceList';
-import { EducationList } from '@/components/profile/EducationList';
-import { PortfolioList } from '@/components/profile/PortfolioList';
-import SettingsTabs from '@/components/settings/SettingsTabs';
-
-const profileSchema = z.object({
-    firstName: z.string().min(2, 'First name must be at least 2 characters'),
-    lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-    phone: z.string().optional(),
-    title: z.string().min(5, 'Title should be at least 5 characters').optional(),
-    overview: z.string().min(20, 'Bio should be at least 20 characters').optional(),
-    avatarUrl: z.string().optional(),
-    country: z.string().optional(),
-});
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
+import ImageUpload from '@/components/ImageUpload';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function ProfileSettingsPage() {
     const { userId } = useKeycloak();
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-    const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
-    const [activeTab, setActiveTab] = useState<'general' | 'services' | 'experience' | 'portfolio'>('general');
+    const router = useRouter();
+    const { toast } = useToast();
+    const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
 
-    // Data for other tabs
-    const [userData, setUserData] = useState<any>(null);
-    const [categories, setCategories] = useState<any[]>([]);
-
-    // Services Form State
-    const [servicesForm, setServicesForm] = useState({
-        hourlyRate: '',
-        skills: '',
+    const [formData, setFormData] = useState({
+        firstName: '',
+        lastName: '',
+        title: '',
+        overview: '',
+        hourlyRate: 0,
+        phone: '',
+        address: '',
+        country: '',
+        website: '',
+        avatarUrl: '',
+        coverImageUrl: '',
         primaryCategoryId: '',
-        isAvailable: true
-    });
-
-    const {
-        register,
-        handleSubmit,
-        reset,
-        formState: { errors }
-    } = useForm<ProfileFormValues>({
-        resolver: zodResolver(profileSchema)
     });
 
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchUserData = async () => {
             if (!userId) return;
             try {
-                const [userRes, catsRes] = await Promise.all([
-                    api.get(`/users/${userId}`),
-                    api.get('/common/categories').catch(() => ({ data: [] }))
-                ]);
-
-                const data = userRes.data;
-                setUserData(data);
-                setCategories(catsRes.data || []);
-                setAvatarUrl(data.avatarUrl);
-
-                // Setup General Form
-                reset({
-                    firstName: data.firstName || '',
-                    lastName: data.lastName || '',
-                    phone: data.phone || '',
-                    title: data.title || '',
-                    overview: data.overview || '',
-                    country: data.country || '',
+                const response = await api.get(`/users/${userId}`);
+                const user = response.data;
+                setFormData({
+                    firstName: user.firstName || '',
+                    lastName: user.lastName || '',
+                    title: user.title || '',
+                    overview: user.overview || '',
+                    hourlyRate: Number(user.hourlyRate) || 0,
+                    phone: user.phone || '',
+                    address: user.address || '',
+                    country: user.country || '',
+                    website: user.website || '',
+                    avatarUrl: user.avatarUrl || '',
+                    coverImageUrl: user.coverImageUrl || '',
+                    primaryCategoryId: user.primaryCategoryId || '',
                 });
-
-                // Setup Services Form
-                setServicesForm({
-                    hourlyRate: data.hourlyRate || '',
-                    skills: data.skills ? data.skills.join(', ') : '',
-                    primaryCategoryId: data.primaryCategoryId || '',
-                    isAvailable: data.isAvailable ?? true
-                });
-
-            } catch (err) {
-                console.error('Failed to fetch profile', err);
+            } catch (error) {
+                console.error('Failed to fetch user data:', error);
             } finally {
-                setLoading(false);
+                setInitialLoading(false);
             }
         };
-        fetchData();
-    }, [userId, reset]);
 
-    const calculateCompletion = () => {
-        if (!userData) return { percentage: 0, suggestions: [] };
+        fetchUserData();
+    }, [userId]);
 
-        const weights = {
-            avatar: 10,
-            basics: 15,
-            overview: 20,
-            services: 20,
-            skills: 15,
-            experience: 10,
-            education: 5,
-            portfolio: 5
-        };
-
-        let score = 0;
-        const suggestions = [];
-
-        if (userData.avatarUrl) score += weights.avatar;
-        else suggestions.push({ text: 'Add a profile photo', tab: 'general', weight: weights.avatar });
-
-        if (userData.firstName && userData.lastName && userData.title) score += weights.basics;
-        else suggestions.push({ text: 'Complete your name and professional title', tab: 'general', weight: weights.basics });
-
-        if (userData.overview && userData.overview.length >= 20) score += weights.overview;
-        else suggestions.push({ text: 'Write a professional bio (min. 20 chars)', tab: 'general', weight: weights.overview });
-
-        if (userData.hourlyRate && userData.primaryCategoryId) score += weights.services;
-        else suggestions.push({ text: 'Set your hourly rate and category', tab: 'services', weight: weights.services });
-
-        if (userData.skills && userData.skills.length > 0) score += weights.skills;
-        else suggestions.push({ text: 'List your top skills', tab: 'services', weight: weights.skills });
-
-        if (userData.experience && userData.experience.length > 0) score += weights.experience;
-        else suggestions.push({ text: 'Add your work experience', tab: 'experience', weight: weights.experience });
-
-        if (userData.education && userData.education.length > 0) score += weights.education;
-        else suggestions.push({ text: 'Add your educational background', tab: 'experience', weight: weights.education });
-
-        if (userData.portfolio && userData.portfolio.length > 0) score += weights.portfolio;
-        else suggestions.push({ text: 'Add items to your portfolio', tab: 'portfolio', weight: weights.portfolio });
-
-        return { percentage: score, suggestions };
-    };
-
-    const completion = calculateCompletion();
-
-    const handleAvatarUpload = async (blob: Blob) => {
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
         try {
-            const formData = new FormData();
-            formData.append('file', blob, 'avatar.jpg');
-
-            const uploadRes = await api.post('/storage/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            const { fileName } = uploadRes.data;
-
-            const urlRes = await api.get(`/storage/url/${fileName}`);
-            const { url } = urlRes.data;
-
-            await api.patch(`/users/${userId}`, { avatarUrl: url });
-
-            setAvatarUrl(url);
-            setStatus({ type: 'success', message: 'Avatar updated successfully!' });
-        } catch (err) {
-            console.error('Failed to upload avatar', err);
-            setStatus({ type: 'error', message: 'Failed to upload avatar.' });
-        }
-    };
-
-    const onSubmitGeneral = async (values: ProfileFormValues) => {
-        setSaving(true);
-        setStatus(null);
-        try {
-            await api.patch(`/users/${userId}`, values);
-            setStatus({ type: 'success', message: 'Profile updated successfully!' });
-            setTimeout(() => setStatus(null), 3000);
-        } catch (err) {
-            console.error('Failed to update profile', err);
-            setStatus({ type: 'error', message: 'Failed to update profile.' });
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const onSubmitServices = async () => {
-        setSaving(true);
-        setStatus(null);
-        try {
+            // Sanitize payload
             const payload = {
-                hourlyRate: parseFloat(servicesForm.hourlyRate),
-                skills: servicesForm.skills.split(',').map(s => s.trim()).filter(s => s),
-                primaryCategoryId: servicesForm.primaryCategoryId,
-                isAvailable: servicesForm.isAvailable
+                ...formData,
+                hourlyRate: isNaN(formData.hourlyRate) ? 0 : formData.hourlyRate,
+                // Remove primaryCategoryId if it's empty (it's not editable here usually)
+                primaryCategoryId: formData.primaryCategoryId || undefined,
+                // Convert empty strings to null for optional fields if needed, or keep as is if backend handles ""
             };
 
+            // Remove undefined keys
+            (Object.keys(payload) as Array<keyof typeof payload>).forEach(key => payload[key] === undefined && delete payload[key]);
             await api.patch(`/users/${userId}`, payload);
-            // Also hit the toggle endpoint if availability changed explicitly? 
-            // The patch might handle basic fields, but specific logic might be in toggle endpoint. 
-            // For now, let's assume PATCH handles it or we call specific endpoints if needed.
-            // Actually, CreateUserDto doesn't strictly implement isAvailable logic in service update usually, 
-            // but let's try PATCH first. If fails, we can add specific calls.
-
-            setStatus({ type: 'success', message: 'Services updated successfully!' });
-            setTimeout(() => setStatus(null), 3000);
-        } catch (err) {
-            console.error('Failed to update services', err);
-            setStatus({ type: 'error', message: 'Failed to update services.' });
+            toast({
+                title: "Settings Updated",
+                description: "Your professional profile has been successfully saved.",
+            });
+            // We stay on the same page for settings
+        } catch (error: any) {
+            console.error('Failed to update profile:', error);
+            toast({
+                title: "Update Failed",
+                description: "There was an error saving your changes.",
+                variant: "destructive"
+            });
         } finally {
-            setSaving(false);
+            setLoading(false);
         }
     };
 
-    const TabButton = ({ id, label, icon: Icon }: { id: typeof activeTab, label: string, icon: any }) => (
-        <button
-            onClick={() => setActiveTab(id)}
-            className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === id
-                ? 'border-blue-500 text-blue-500'
-                : 'border-transparent text-slate-400 hover:text-white hover:border-slate-800'
-                }`}
-        >
-            <Icon className="w-4 h-4" />
-            {label}
-        </button>
-    );
+    const handleUploadSuccess = (field: 'avatarUrl' | 'coverImageUrl') => (url: string) => {
+        setFormData(prev => ({ ...prev, [field]: url }));
+    };
 
-    if (loading) {
+    if (initialLoading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
@@ -255,239 +120,157 @@ export default function ProfileSettingsPage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Profile Settings</h1>
-                    <p className="text-slate-400">Manage your public profile presence.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            const url = `${window.location.origin}/profiles/${userId}`;
-                            navigator.clipboard.writeText(url);
-                            setStatus({ type: 'success', message: 'Profile link copied to clipboard!' });
-                            setTimeout(() => setStatus(null), 3000);
-                        }}
-                        className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all font-medium"
-                    >
-                        <Share2 className="w-4 h-4" />
-                        Share Link
-                    </button>
-                    <Link
-                        href={`/profiles/${userId}`}
-                        target="_blank"
-                        className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/20 font-medium"
-                    >
-                        <Eye className="w-4 h-4" />
-                        Preview Profile
-                    </Link>
-                </div>
-            </div>
-
-            {/* Profile Strength Meter */}
-            <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-md">
-                <div className="flex flex-col md:flex-row md:items-center gap-8">
-                    <div className="flex-1 space-y-4">
-                        <div className="flex justify-between items-end">
-                            <div className="space-y-1">
-                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                    <Sparkles className="w-5 h-5 text-yellow-500" />
-                                    Profile Strength
-                                </h3>
-                                <p className="text-sm text-slate-400">Complete your profile to unlock more opportunities.</p>
-                            </div>
-                            <span className={`text-2xl font-black ${completion.percentage >= 80 ? 'text-emerald-500' :
-                                completion.percentage >= 40 ? 'text-yellow-500' : 'text-red-500'
-                                }`}>
-                                {completion.percentage}%
-                            </span>
+        <div className="space-y-8 max-w-4xl mx-auto">
+            <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Visual Appearance Section */}
+                <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-3xl p-8 space-y-8">
+                    <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                        <div className="p-2 rounded-lg bg-blue-500/10">
+                            <Camera className="w-5 h-5 text-blue-400" />
                         </div>
-                        <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${completion.percentage}%` }}
-                                className={`h-full transition-all duration-1000 ${completion.percentage >= 80 ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
-                                    completion.percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                                    }`}
+                        <h2 className="text-xl font-bold text-white">Visual Presence</h2>
+                    </div>
+
+                    <div className="space-y-8">
+                        <div className="space-y-3">
+                            <label className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">Cover Image</label>
+                            <div className="relative group/cover h-48 w-full rounded-2xl overflow-hidden bg-slate-800 border-2 border-dashed border-slate-700 hover:border-blue-500 transition-all">
+                                <ImageUpload
+                                    currentImage={getPublicUrl(formData.coverImageUrl)}
+                                    onUploadSuccess={handleUploadSuccess('coverImageUrl')}
+                                    className="w-full h-full"
+                                    type="coverImage"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row items-center gap-8">
+                            <div className="relative group h-32 w-32 shrink-0">
+                                <ImageUpload
+                                    currentImage={getPublicUrl(formData.avatarUrl)}
+                                    onUploadSuccess={handleUploadSuccess('avatarUrl')}
+                                    type="avatar"
+                                />
+                                <div className="absolute -top-2 -right-2 bg-blue-600 rounded-full p-1 border-4 border-slate-900 shadow-xl">
+                                    <ShieldCheck className="w-4 h-4 text-white" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Main Details Section */}
+                <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-3xl p-8 space-y-6">
+                    <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                        <div className="p-2 rounded-lg bg-indigo-500/10">
+                            <Type className="w-5 h-5 text-indigo-400" />
+                        </div>
+                        <h2 className="text-xl font-bold text-white">Identity & Professional Bio</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-400 p-1">First Name</label>
+                            <input
+                                value={formData.firstName}
+                                onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-400 p-1">Last Name</label>
+                            <input
+                                value={formData.lastName}
+                                onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
                             />
                         </div>
                     </div>
-                    {completion.suggestions.length > 0 && (
-                        <div className="md:w-px md:h-16 bg-slate-800 hidden md:block" />
-                    )}
-                    {completion.suggestions.length > 0 && (
-                        <div className="flex-1">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Improve your score</p>
-                            <div className="space-y-2">
-                                {completion.suggestions.slice(0, 2).map((suggestion, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setActiveTab(suggestion.tab as any)}
-                                        className="flex items-center justify-between w-full p-2 text-left text-sm text-slate-300 hover:text-white hover:bg-slate-800/50 rounded-lg transition-all group"
-                                    >
-                                        <span className="flex items-center gap-2">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                            {suggestion.text}
-                                        </span>
-                                        <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-blue-500 transition-colors" />
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </Card>
 
-            <SettingsTabs />
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-400 p-1">Professional Headline</label>
+                        <input
+                            value={formData.title}
+                            onChange={e => setFormData({ ...formData, title: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                            placeholder="e.g. Senior Full-Stack Engineer | AI Specialist"
+                        />
+                    </div>
 
-            {/* Main Profile Tabs */}
-            <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 overflow-hidden">
-                <div className="flex border-b border-slate-800">
-                    <TabButton id="general" label="General" icon={User} />
-                    <TabButton id="services" label="Services" icon={Briefcase} />
-                    <TabButton id="experience" label="Experience" icon={Layers} />
-                    <TabButton id="portfolio" label="Portfolio" icon={ImageIcon} />
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-400 p-1">Professional Overview</label>
+                        <textarea
+                            rows={8}
+                            value={formData.overview}
+                            onChange={e => setFormData({ ...formData, overview: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none resize-none"
+                            placeholder="Tell potential clients about your journey, expertise and value proposition..."
+                        />
+                    </div>
                 </div>
 
-                <div className="p-8">
-                    {status && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`p-4 rounded-xl flex items-center gap-3 border mb-6 ${status.type === 'success'
-                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                : 'bg-red-500/10 border-red-500/20 text-red-400'
-                                }`}
-                        >
-                            {status.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                            <p className="text-sm font-medium">{status.message}</p>
-                        </motion.div>
-                    )}
-
-                    {activeTab === 'general' && (
-                        <div className="space-y-8">
-                            <div className="flex flex-col items-center gap-4 border-b border-slate-800 pb-8 relative">
-                                <AvatarUpload currentAvatar={avatarUrl} onUpload={handleAvatarUpload} />
-                                {userData?.isEmailVerified ? (
-                                    <div className="absolute top-0 right-1/2 translate-x-12 -translate-y-2 bg-blue-600 text-white p-1.5 rounded-full border-4 border-slate-900 shadow-xl" title="Email Verified">
-                                        <BadgeCheck className="w-5 h-5" />
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                await api.post('/auth/verify-email/resend');
-                                                setStatus({ type: 'success', message: 'Verification email sent!' });
-                                                setTimeout(() => setStatus(null), 3000);
-                                            } catch (e: any) {
-                                                console.error(e);
-                                                setStatus({ type: 'error', message: 'Failed to send verification email.' });
-                                            }
-                                        }}
-                                        className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
-                                    >
-                                        Resend Verification Email
-                                    </button>
-                                )}
-                                <div className="text-center">
-                                    <h3 className="text-lg font-bold text-white">Profile Photo</h3>
-                                    <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">PNG, JPG up to 10MB</p>
-                                </div>
-                            </div>
-
-                            <form onSubmit={handleSubmit(onSubmitGeneral)} className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <Input {...register('firstName')} label="First Name" />
-                                    <Input {...register('lastName')} label="Last Name" />
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <Input {...register('phone')} label="Phone Number" leftIcon={<Phone className="w-4 h-4" />} />
-                                    <Input {...register('country')} label="Country" leftIcon={<Globe className="w-4 h-4" />} />
-                                </div>
-                                <Input {...register('title')} label="Professional Title" />
-
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Professional Overview</label>
-                                    <textarea
-                                        {...register('overview')}
-                                        rows={6}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all resize-none"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end pt-4">
-                                    <Button type="submit" disabled={saving} isLoading={saving} leftIcon={<Save className="w-4 h-4" />}>Save Changes</Button>
-                                </div>
-                            </form>
+                {/* Location & Contact */}
+                <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-3xl p-8 space-y-6">
+                    <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                        <div className="p-2 rounded-lg bg-orange-500/10">
+                            <MapPin className="w-5 h-5 text-orange-400" />
                         </div>
-                    )}
+                        <h2 className="text-xl font-bold text-white">Contact & Localization</h2>
+                    </div>
 
-                    {activeTab === 'services' && (
-                        <div className="space-y-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Hourly Rate ($)</label>
-                                    <Input
-                                        type="number"
-                                        value={servicesForm.hourlyRate}
-                                        onChange={e => setServicesForm({ ...servicesForm, hourlyRate: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">Primary Category</label>
-                                    <select
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
-                                        value={servicesForm.primaryCategoryId}
-                                        onChange={e => setServicesForm({ ...servicesForm, primaryCategoryId: e.target.value })}
-                                    >
-                                        <option value="">Select Category</option>
-                                        {categories.map(cat => (
-                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <Input
-                                label="Skills (Comma separated)"
-                                value={servicesForm.skills}
-                                onChange={e => setServicesForm({ ...servicesForm, skills: e.target.value })}
-                            />
-
-                            <div className="flex items-center gap-3 p-4 bg-slate-950 rounded-xl border border-slate-800">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-400 p-1">Country / Territory</label>
+                            <div className="relative">
+                                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                                 <input
-                                    type="checkbox"
-                                    checked={servicesForm.isAvailable}
-                                    onChange={e => setServicesForm({ ...servicesForm, isAvailable: e.target.checked })}
-                                    className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                                    value={formData.country}
+                                    onChange={e => setFormData({ ...formData, country: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
                                 />
-                                <div>
-                                    <h4 className="font-bold text-white text-sm">Available for Work</h4>
-                                    <p className="text-xs text-slate-500">Show your profile in search results</p>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end pt-4">
-                                <Button onClick={onSubmitServices} disabled={saving} isLoading={saving} leftIcon={<Save className="w-4 h-4" />}>Update Services</Button>
                             </div>
                         </div>
-                    )}
-
-                    {activeTab === 'experience' && (
-                        <div className="space-y-12">
-                            <ExperienceList initialData={userData?.experience || []} />
-                            <div className="border-t border-slate-800 pt-8">
-                                <EducationList initialData={userData?.education || []} />
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-400 p-1">Phone Number</label>
+                            <div className="relative">
+                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                <input
+                                    value={formData.phone}
+                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                                />
                             </div>
                         </div>
-                    )}
+                    </div>
 
-                    {activeTab === 'portfolio' && (
-                        <PortfolioList initialData={userData?.portfolio || []} />
-                    )}
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-400 p-1">Personal Website / Portfolio Link</label>
+                        <input
+                            value={formData.website}
+                            onChange={e => setFormData({ ...formData, website: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                            placeholder="https://yourname.com"
+                        />
+                    </div>
                 </div>
-            </div>
+
+                {/* Action Bar */}
+                <div className="sticky bottom-8 z-20">
+                    <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 p-4 rounded-2xl flex items-center justify-between shadow-2xl">
+                        <div className="hidden md:block px-4">
+                            <p className="text-sm text-slate-400 font-medium">Ready to save your progress?</p>
+                        </div>
+                        <Button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 h-12 px-12 rounded-xl font-bold gap-2 shadow-lg shadow-blue-500/20"
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                            Save All Changes
+                        </Button>
+                    </div>
+                </div>
+            </form>
         </div>
     );
 }

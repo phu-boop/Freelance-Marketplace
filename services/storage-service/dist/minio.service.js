@@ -84,7 +84,14 @@ let MinioService = class MinioService {
         return true;
     }
     async getFileUrl(fileName) {
-        return await this.minioClient.presignedGetObject(this.bucketName, fileName, 3600);
+        const url = await this.minioClient.presignedGetObject(this.bucketName, fileName, 3600);
+        const externalUrl = this.configService.get('MINIO_EXTERNAL_URL');
+        const internalEndpoint = `${this.configService.get('MINIO_ENDPOINT', 'minio')}:${this.configService.get('MINIO_PORT', '9000')}`;
+        if (externalUrl && url.includes(internalEndpoint)) {
+            const fixedUrl = url.replace(`http://${internalEndpoint}`, externalUrl);
+            return fixedUrl;
+        }
+        return url;
     }
 };
 exports.MinioService = MinioService;
