@@ -63,7 +63,7 @@ import { PerformanceInterceptor } from './common/interceptors/performance.interc
       useFactory: async (configService: ConfigService) => ({
         authServerUrl: configService.get<string>(
           'KEYCLOAK_URL',
-          'http://keycloak:8080',
+          'http://localhost:8080',
         ),
         realm: configService.get<string>(
           'KEYCLOAK_REALM',
@@ -71,10 +71,12 @@ import { PerformanceInterceptor } from './common/interceptors/performance.interc
         ),
         clientId: configService.get<string>(
           'KEYCLOAK_CLIENT_ID',
-          'freelance-client',
+          'freelance-frontend',
         ),
         secret: configService.get<string>('KEYCLOAK_SECRET', ''),
         tokenValidation: TokenValidation.OFFLINE,
+        // @ts-ignore - Some versions support this to allow tokens from other clients or ignore audience
+        verifyTokenAudience: false,
       }),
       inject: [ConfigService],
     }),

@@ -4,32 +4,32 @@ export declare class AuditController {
     private readonly auditService;
     constructor(auditService: AuditService);
     create(createAuditLogDto: CreateAuditLogDto, secret?: string): Promise<{
-        id: string;
-        timestamp: Date;
         service: string;
         eventType: string;
         actorId: string | null;
         amount: import("@prisma/client/runtime/library").Decimal | null;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
-        checksum: string;
         referenceId: string | null;
         durationMs: number | null;
         traceId: string | null;
         status: string | null;
+        id: string;
+        timestamp: Date;
+        checksum: string;
     }>;
     findAll(limit?: number, offset?: number): Promise<{
-        id: string;
-        timestamp: Date;
         service: string;
         eventType: string;
         actorId: string | null;
         amount: import("@prisma/client/runtime/library").Decimal | null;
         metadata: import("@prisma/client/runtime/library").JsonValue | null;
-        checksum: string;
         referenceId: string | null;
         durationMs: number | null;
         traceId: string | null;
         status: string | null;
+        id: string;
+        timestamp: Date;
+        checksum: string;
     }[]>;
     verify(id: string): Promise<boolean>;
     verifyAll(): Promise<{

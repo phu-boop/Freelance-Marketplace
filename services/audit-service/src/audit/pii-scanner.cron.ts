@@ -16,9 +16,9 @@ export class PiiScannerCron {
         const suspiciousUsers = await this.prisma.auditLog.findMany({
             take: 10, // Scan a batch
             where: {
-                action: 'UPDATE_PROFILE', // Focus on profile updates
+                eventType: 'UPDATE_PROFILE', // Focus on profile updates
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { timestamp: 'desc' },
         });
 
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
@@ -27,8 +27,8 @@ export class PiiScannerCron {
         let issuesFound = 0;
 
         for (const log of suspiciousUsers) {
-            const details = JSON.stringify(log.details);
-            if (emailRegex.test(details) || ssnRegex.test(details)) {
+            const metadata = JSON.stringify(log.metadata);
+            if (emailRegex.test(metadata) || ssnRegex.test(metadata)) {
                 this.logger.warn(`[PII ALERT] Potential unencrypted PII found in AuditLog ID: ${log.id}`);
                 issuesFound++;
             }
