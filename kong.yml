@@ -3,7 +3,7 @@ _transform: true
 
 services:
   - name: user-service
-    url: http://freelance_user_service:3000
+    url: http://host.docker.internal:3001
     routes:
       # =====================
       # Auth Routes (PUBLIC)
@@ -84,7 +84,14 @@ services:
   - name: payment-service
     url: http://freelance_payment_service:3005
     routes:
-      - name: payment-routes
+      - name: payment-public
+        paths:
+          - /api/payments/exchange-rates
+        strip_path: false
+        plugins:
+          - name: jwt
+            enabled: false
+      - name: payment-protected
         paths:
           - /api/payments
         strip_path: false
@@ -210,15 +217,27 @@ consumers:
         secret: "dummy-secret-for-rs256"
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7EGY+9HOvPlHmvCDurik
-          gq+8SbsZYmwLLaxcHMLN12efAZM9jJWctM3kzMlRXVSwjAns1qpJbfDwduqfXILI
-          PfNhgqBxnnQrjC3ZnmzBEw3ob3AMrPwiycPcimasqIaEz+TJwsW8xqtOCnYWd7sc
-          rFs14sD69JcM9Accy5E8XieXDvqQ02Pw2X6i1yB4uE1hxgdALrisNGhZ6gG9lyyD
-          eO9kjF1kADPgLPea+bkZUeTuE+7YJJa15+lUvbGQhAejEYOX/9jDZ9+3tNFppaxF
-          Q8u41Zz5jKktUS8HX7KekpUsrISOAKKzjN4H7A4OiJ8K7MrQy0MQ2qZ4DanmW19K
-          gQIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1DFkyOd7FYcCrkRdWpIn
+          Y0rrqjs2b+AXXbInmuoFqfuo0DKT1CE7GJZB6SJdSlGR2NyZh76NyN1uwq7Rehiw
+          nZzpCP5SzRa+4HQn9JLfzb1eVbWYM9adnPTpJ+Max8vImtW70EwAR/r9NHqHdmOg
+          UrLS7hlJqPirWSTIvo7q3Q4GHgB/YHeWwNTkCjhE7DCYV527YT6lKFBIO8GudBsl
+          YBVPgqyRAInG2EpN0kplBN8oKQRSC0LIKpZ0bj7pJesbVQ4bbNSQfyoH7AzCJ1O1
+          tGduo2zi6Hw67e1qh2ku1xS/rtKvAWkhKECFNJvao1xUaL+KFuo8TM/pw424MVe+
+          PQIDAQAB
           -----END PUBLIC KEY-----
-
+      - key: "http://localhost:8080/realms/freelance-marketplace"
+        algorithm: RS256
+        secret: "dummy-secret-for-rs256"
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1DFkyOd7FYcCrkRdWpIn
+          Y0rrqjs2b+AXXbInmuoFqfuo0DKT1CE7GJZB6SJdSlGR2NyZh76NyN1uwq7Rehiw
+          nZzpCP5SzRa+4HQn9JLfzb1eVbWYM9adnPTpJ+Max8vImtW70EwAR/r9NHqHdmOg
+          UrLS7hlJqPirWSTIvo7q3Q4GHgB/YHeWwNTkCjhE7DCYV527YT6lKFBIO8GudBsl
+          YBVPgqyRAInG2EpN0kplBN8oKQRSC0LIKpZ0bj7pJesbVQ4bbNSQfyoH7AzCJ1O1
+          tGduo2zi6Hw67e1qh2ku1xS/rtKvAWkhKECFNJvao1xUaL+KFuo8TM/pw424MVe+
+          PQIDAQAB
+          -----END PUBLIC KEY-----
 plugins:
   - name: cors
     config:

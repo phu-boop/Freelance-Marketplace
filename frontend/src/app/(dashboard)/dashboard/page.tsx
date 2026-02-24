@@ -45,7 +45,16 @@ export default function DashboardPage() {
     }
 
     // Still determining role or restricted
-    return <DashboardSkeleton />;
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen">
+            <h1 className="text-2xl font-bold mb-4">Access Restricted</h1>
+            <p className="mb-4">You do not have a valid role assigned (Client, Freelancer, or Admin).</p>
+            <p className="text-sm text-gray-500">Current Roles: {roles.join(', ') || 'None'}</p>
+            <a href="/onboarding" className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">
+                Go to Onboarding
+            </a>
+        </div>
+    );
 }
 
 

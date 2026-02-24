@@ -1364,7 +1364,6 @@ export class UsersService {
 
   async syncUser(kcUser: any, pendingRole?: string) {
     const userId = kcUser.sub;
-
     // findOne already handles JIT creation if the user doesn't exist
     const user = await this.findOne(userId);
 

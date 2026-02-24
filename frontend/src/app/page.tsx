@@ -298,7 +298,7 @@ export default function LandingPage() {
                 href="/register"
                 className="px-10 py-4 bg-white text-blue-600 rounded-full font-bold hover:bg-blue-50 transition-all shadow-xl inline-block"
               >
-                Create Free Account
+                Create Free Accountt
               </Link>
             )}
           </div>

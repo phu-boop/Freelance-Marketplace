@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useMemo } from 'react';
 import keycloak from '@/lib/keycloak';
 import api from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 interface KeycloakContextType {
     authenticated: boolean;
@@ -29,17 +31,19 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
     const [roles, setRoles] = useState<string[]>([]);
     const initRef = useRef(false);
     const syncInProgress = useRef(false);
+    const router = useRouter();
 
-    const performSync = async (pendingRole?: string) => {
+    const performSync = async (pendingRole?: string, forceSync: boolean = false) => {
         if (syncInProgress.current) {
             console.log('[AUTH] Sync already in progress, skipping');
             return;
         }
 
         // Use a timestamp to prevent syncs from happening too close together (within 2 seconds)
+        // But allow forced syncs (e.g., on initial login)
         const lastSync = sessionStorage.getItem('last_auth_sync');
         const now = Date.now();
-        if (lastSync && now - parseInt(lastSync) < 2000) {
+        if (!forceSync && lastSync && now - parseInt(lastSync) < 2000) {
             console.log('[AUTH] Sync happened too recently, skipping');
             return;
         }
@@ -80,44 +84,56 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
 
             if (currentPath === '/auth/verify-email') {
                 targetPath = null;
-            } else if (user.requiresRegistration && currentPath !== '/register') {
-                targetPath = '/register';
-            } else if (user.requiresOnboarding && currentPath !== '/onboarding') {
-                targetPath = '/onboarding';
-            } else if (!user.requiresOnboarding && currentPath === '/onboarding') {
-                const latestRole = user.roles?.find((r: string) => r === 'ADMIN' || r === 'CLIENT' || r === 'FREELANCER') || 'FREELANCER';
-                if (latestRole === 'ADMIN') {
-                    targetPath = '/admin';
-                } else if (latestRole === 'CLIENT') {
-                    targetPath = '/client/dashboard';
-                } else {
-                    targetPath = '/dashboard';
-                }
-            } else if (currentPath === '/register') {
-                const latestRole = user.roles?.find((r: string) => r === 'ADMIN' || r === 'CLIENT' || r === 'FREELANCER') || 'FREELANCER';
-                if (latestRole === 'ADMIN') {
-                    targetPath = '/admin';
-                } else if (latestRole === 'CLIENT') {
-                    targetPath = '/client/dashboard';
-                } else {
-                    targetPath = '/dashboard';
+            } else if (user.requiresRegistration) {
+                if (currentPath !== '/register') targetPath = '/register';
+            } else if (user.requiresOnboarding) {
+                if (currentPath !== '/onboarding') targetPath = '/onboarding';
+            } else {
+                // User is fully registered and onboarded
+                if (currentPath === '/register' || currentPath === '/onboarding') {
+                    const latestRole = user.roles?.find((r: string) => r === 'ADMIN' || r === 'CLIENT' || r === 'FREELANCER') || 'FREELANCER';
+                    if (latestRole === 'ADMIN') {
+                        targetPath = '/admin';
+                    } else if (latestRole === 'CLIENT') {
+                        targetPath = '/client/dashboard';
+                    } else {
+                        targetPath = '/dashboard';
+                    }
                 }
             }
 
             if (targetPath && targetPath !== currentPath) {
                 console.log(`[AUTH] Redirecting: ${currentPath} -> ${targetPath}`);
                 console.groupEnd();
-                window.location.href = targetPath;
+                router.push(targetPath);
             } else {
                 console.log('[AUTH] No redirect needed');
                 console.groupEnd();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('[AUTH] Backend sync failed:', error);
             console.groupEnd();
-            setInitialized(true);
-            if (window.location.pathname === '/register') {
-                window.location.href = '/dashboard';
+
+            // If it's a network error (Kong/backend not ready), just mark as initialized
+            // Don't redirect or throw - let the user see the UI
+            if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Network Error')) {
+                console.warn('[AUTH] Backend not ready, continuing without sync');
+                toast.warning('Authentication server is not reachable. You may experience limited functionality.', {
+                    duration: 5000,
+                    description: 'Network Error'
+                });
+            } else {
+                toast.error('Failed to synchronize user session with the backend.', {
+                    description: error?.response?.data?.message || error.message
+                });
+            }
+
+            //setInitialized(true);
+
+            // Only redirect from register page if we have a valid error response
+            // Don't redirect on network errors
+            if (window.location.pathname === '/register' && error?.response) {
+                router.push('/dashboard');
             }
         } finally {
             syncInProgress.current = false;
@@ -162,7 +178,12 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                         if (keycloak.refreshToken) localStorage.setItem('kc_refreshToken', keycloak.refreshToken);
 
                         const pendingRole = localStorage.getItem('pending_role') || undefined;
-                        await performSync(pendingRole);
+
+                        console.log('[AUTH] Pending role:', pendingRole);
+                        console.log('[AUTH] Keycloak token:', keycloak.token);
+                        console.log('[AUTH] Keycloak refresh token:', keycloak.refreshToken);
+                        //Force sync on initial authentication
+                        await performSync(pendingRole, true);
                     } else {
                         setInitialized(true);
                     }
@@ -205,11 +226,12 @@ export const KeycloakProvider = ({ children }: { children: React.ReactNode }) =>
                 setUsername(payload.preferred_username || payload.email);
 
                 const pendingRole = localStorage.getItem('pending_role') || undefined;
-                await performSync(pendingRole);
+                // Force sync when setting tokens manually
+                await performSync(pendingRole, true);
             } catch (err) {
                 console.error('Failed to parse injected tokens', err);
                 setInitialized(true);
-                window.location.href = '/dashboard';
+                router.push('/dashboard');
             }
         }
     };
